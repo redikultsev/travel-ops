@@ -20,7 +20,7 @@ async def test_json_yes_and_profile_defaults(tmp_path, monkeypatch, capsys):
     (tmp_path / "profile.yml").write_text("travellers: {adults: 2}\ncabin: business\n")
     app = build(tmp_path, None)
     monkeypatch.setattr(cli, "build", lambda *args: app)
-    monkeypatch.setattr(cli, "estimate_flights", lambda *args: 200)
+    monkeypatch.setattr(cli, "estimate_flights", lambda *args: 400)
 
     async def rates(net):
         return Rates("EUR", {}, "offline-test")
@@ -59,7 +59,7 @@ async def test_invalid_return_rejected_before_search(tmp_path, monkeypatch):
 async def test_declining_long_search_does_not_load_rates_or_search(tmp_path, monkeypatch):
     app = build(tmp_path, None)
     monkeypatch.setattr(cli, "build", lambda *args: app)
-    monkeypatch.setattr(cli, "estimate_flights", lambda *args: 200)
+    monkeypatch.setattr(cli, "estimate_flights", lambda *args: 400)
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda *args: "no")
 

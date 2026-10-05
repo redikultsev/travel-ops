@@ -3,7 +3,7 @@ import pytest
 from travelops.core.stays import StayQuery
 from travelops.net.browser import Session
 from travelops.net.client import Response
-from travelops.sources.base import Context, NotConfigured
+from travelops.sources.base import Context, NotConfigured, ParseError
 from travelops.sources.stays.booking import Source, challenge
 
 QUERY = StayQuery("Belgrade", date(2026, 11, 14), date(2026, 11, 16))
@@ -83,6 +83,15 @@ def test_known_empty_and_invalid_html():
         Source().parse([b"<html>unrelated</html>"], QUERY, NOW)
     with pytest.raises(ParseError, match="price"):
         Source().parse([recorded().replace(b"price-and-discounted-price", b"no-price")], QUERY, NOW)
+
+
+def test_one_stray_page_loses_a_band_not_the_search():
+    home = b"<html><head><title>Booking.com | Official site</title></head><body>home</body></html>"
+    result = Source().parse([recorded(), home, recorded(), recorded()], QUERY, NOW)
+    assert len(result.offers) == 6
+    assert "EUR 0-100 nightly: not a results page, this band is missing" in result.notes
+    with pytest.raises(ParseError, match="no page"):
+        Source().parse([home, home], QUERY, NOW)
 
 
 @pytest.mark.live

@@ -63,15 +63,29 @@ def test_empty_garbage_missing_return_and_results_link():
     assert Source().parse([b'{"prices":{},"transportationVariants":{},"trips":{}}'], QUERY, NOW).offers == []
     with pytest.raises(ParseError):
         Source().parse([b"{}"], QUERY, NOW)
-    with pytest.raises(ParseError, match="return"):
-        Source().parse(
-            [recorded()], FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, date(2026, 11, 16)), NOW
-        )
+    one_way_answer = Source().parse(
+        [recorded()], FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, date(2026, 11, 16)), NOW
+    )
+    assert one_way_answer.offers == [] and "one-way halves" in one_way_answer.notes[-1]
     data = json.loads(recorded())
     for price in data["prices"].values():
         price.pop("deeplink", None)
     first = Source().parse([json.dumps(data).encode()], QUERY, NOW).offers[0]
     assert first.fare.link.kind == "results" and "sc=E&p=1_0_0" in first.fare.link.url
+
+
+def test_recorded_round_trip_keeps_whole_trips_and_counts_the_halves():
+    from pathlib import Path
+
+    raw = (Path(__file__).parents[1] / "fixtures/onetwotrip/beg-tgd-round-trip-2026-10-22.json").read_bytes()
+    query = FlightQuery(("BEG",), ("TGD",), date(2026, 10, 22), date(2026, 10, 23))
+    parsed = Source().parse([raw], query, NOW)
+    assert len(parsed.offers) == 3
+    assert all(
+        o.itinerary.outbound[0].origin == "BEG" and o.itinerary.inbound[-1].destination == "BEG" for o in parsed.offers
+    )
+    assert all(o.itinerary.inbound[0].departs.date() == date(2026, 10, 23) for o in parsed.offers)
+    assert "2 one-way halves of split round trips were left out; search each direction for them" in parsed.notes
 
 
 @pytest.mark.live

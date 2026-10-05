@@ -106,13 +106,22 @@ async def search_stays(
     return StaySearch(query, currency, list_stays(offers, rates, currency), [rep for _, rep in results])
 
 
+def expected_requests(source, query) -> int:
+    """What a search usually costs. `max_requests` is the ceiling, kept for deadlines: telling the user the ceiling
+    makes a two-minute search look like six and asks for a confirmation nobody needs."""
+    return getattr(source, "typical_requests", source.max_requests)(query)
+
+
 def estimate_flights(query: FlightQuery, sources: list, limiter, exit_: str) -> float:
     """Sources run in parallel, requests within a source wait for each other: the slowest source decides."""
     dates = len(query.date_pairs())
     return max(
-        (limiter.estimate(Limiter.bucket(s.name, exit_), s.max_requests(query) * dates) for s in sources), default=0.0
+        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query) * dates) for s in sources),
+        default=0.0,
     )
 
 
 def estimate_stays(query: StayQuery, sources: list, limiter, exit_: str) -> float:
-    return max((limiter.estimate(Limiter.bucket(s.name, exit_), s.max_requests(query)) for s in sources), default=0.0)
+    return max(
+        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query)) for s in sources), default=0.0
+    )

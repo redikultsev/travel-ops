@@ -103,6 +103,7 @@ class Source:
             return checked, weight, carry
 
         offers = []
+        halves = 0
         notes = [f"requested cabin: {query.cabin}"]
         try:
             for raw, (requested_origin, requested_destination) in zip(
@@ -139,8 +140,12 @@ class Source:
                             code = ref.get("serviceClass")
                             cabins.append("business" if code == "B" else cabin(code))
                             bags.append(allowance(ref.get("serviceIds", variant.get("serviceIds", [])), services))
-                    if not legs[0] or (query.return_ and not legs[1]):
-                        raise ParseError("missing outbound or requested return segments")
+                    if query.return_ and bool(legs[0]) != bool(legs[1]):
+                        # A half of a pair of one-way tickets the site sells as a round trip. Alone it is not what was asked.
+                        halves += 1
+                        continue
+                    if not legs[0]:
+                        raise ParseError("missing outbound segments")
                     if legs[1] and not query.return_:
                         raise ParseError("unexpected return segments")
                     itinerary = Itinerary(tuple(legs[0]), tuple(legs[1]))
@@ -186,4 +191,6 @@ class Source:
                         notes.append("separate tickets may require self-transfer")
         except (ValueError, TypeError, KeyError, IndexError, AttributeError) as exc:
             raise ParseError(f"OneTwoTrip response fields: {exc}") from exc
-        return Parsed(offers, notes if offers else [])
+        if halves:
+            notes.append(f"{halves} one-way halves of split round trips were left out; search each direction for them")
+        return Parsed(offers, notes if offers or halves else [])

@@ -6,7 +6,8 @@
    facts absent from both the request and profile. Resolve city names to their
    established IATA city codes (Moscow MOW, Saint Petersburg LED); clarify an
    ambiguous city. Add nearby airports only when the human requests or approves
-   the expansion, and disclose that expansion.
+   the expansion, and disclose that expansion. When the destination is a town rather
+   than an airport, call `airports_near` and search the nearest ones.
 2. Call `search_flights` once for the approved query. Respect its confirmation
    gate. Explain unsupported party compositions from the source reports; do not
    replace the party with one adult or multiply a one-person price.
@@ -16,7 +17,8 @@
    only in a common established currency. State separate-ticket/self-transfer
    risks and show when no fair comparison is possible. Never repeat a source
    that reported a block as part of this comparison.
-4. Apply max_stops, avoid_airlines and baggage preferences to the returned data.
+4. Pass the profile's `max_stops` to the search so that long routes do not crowd out
+   the shortlist; report `filtered`. Apply avoid_airlines and baggage preferences to the returned data.
    Keep fares in separate comparable groups. Checked weight does not establish
    exact pieces; unknown inclusion cannot satisfy a required baggage condition.
    Say how many cards/fares were excluded and why, including unknown conditions.

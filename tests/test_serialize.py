@@ -44,7 +44,46 @@ def test_shortlist_says_what_it_left_out():
 
     flights = {"cards": [{"groups": [{"fares": list(range(8))}]} for _ in range(30)]}
     cut = shortlist(flights, 10, 5)
-    assert len(cut["cards"]) == 10 and cut["shown"] == {"cards": 10, "of": 30, "offers_per_card_at_most": 5}
+    assert len(cut["cards"]) == 10 and cut["shown"] == {"cards": 10, "of": 30, "offers_per_group_at_most": 5}
     assert cut["cards"][0]["groups"][0]["fares"] == [0, 1, 2, 3, 4] and cut["cards"][0]["groups"][0]["fares_total"] == 8
     stays = shortlist({"cards": [{"rates": [1, 2, 3]}]}, 10, 2)
     assert stays["cards"][0]["rates"] == [1, 2] and stays["cards"][0]["rates_total"] == 3 and stays["shown"]["of"] == 1
+
+
+def _round_trip(out, back, price):
+    def leg(flight, departs):
+        return [{"flight": flight, "origin": "AAA", "destination": "BBB", "departs": departs, "arrives": departs}]
+
+    fare = {"price": {"amount": str(price), "currency": "EUR"}, "converted": None, "seller": "s"}
+    return {"outbound": leg(*out), "inbound": leg(*back), "groups": [{"fares": [fare]}]}
+
+
+def test_round_trip_shortlist_prefers_flights_not_shown_yet():
+    from travelops.serialize import leg_options, shortlist
+
+    morning, evening, late = ("A1", "T08"), ("A2", "T18"), ("A3", "T22")
+    early_back, late_back = ("B1", "T07"), ("B2", "T20")
+    cards = [
+        _round_trip(morning, early_back, 100),
+        _round_trip(evening, early_back, 101),
+        _round_trip(late, early_back, 102),
+        _round_trip(morning, late_back, 130),
+    ]
+    result = leg_options({"cards": list(cards)})
+    assert [o["flights"] for o in result["outbound_options"]] == [["A1"], ["A2"], ["A3"]]
+    assert [(o["flights"], o["cheapest_round_trip"]["price"]["amount"]) for o in result["return_options"]] == [
+        (["B1"], "100"),
+        (["B2"], "130"),
+    ]
+    cut = shortlist(result, 3)
+    shown = [(c["outbound"][0]["flight"], c["inbound"][0]["flight"]) for c in cut["cards"]]
+    assert ("A1", "B2") not in shown and len(shown) == 3, "all three bring a new outbound; nothing to prefer"
+    two = shortlist(leg_options({"cards": [cards[0], _round_trip(morning, ("B9", "T09"), 100.5), cards[3]]}), 2)
+    assert len(two["cards"]) == 2
+
+
+def test_stay_photos_are_capped_with_a_count():
+    from travelops.serialize import shortlist
+
+    cut = shortlist({"cards": [{"stay": {"photos": list("abcdefg")}, "rates": [1]}]}, 5)
+    assert cut["cards"][0]["stay"]["photos"] == ["a", "b", "c"] and cut["cards"][0]["stay"]["photos_total"] == 7

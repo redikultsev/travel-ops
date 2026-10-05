@@ -133,7 +133,9 @@ class Source:
 
     def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed:
         offers, notes = [], []
-        for raw in raws:
+        routes = [f"{a}-{b}: " for a, b in product(query.origins, query.destinations)]
+        for index, raw in enumerate(raws):
+            route = routes[index] if len(routes) == len(raws) > 1 else ""
             try:
                 payload = json.loads(raw)
                 found = payload["offers"]
@@ -144,7 +146,7 @@ class Source:
                     raise ValueError("whole-party price basis was not confirmed")
                 if meta.get("has_more"):
                     total = meta.get("total_matched", "unknown")
-                    notes.append(f"results truncated: {len(found)} of {total} itineraries")
+                    notes.append(f"{route}results truncated: {len(found)} of {total} itineraries")
                 if meta.get("total_matched_exact") is False:
                     notes.append("matched itinerary count is a lower bound")
                 for key, count in meta.items():

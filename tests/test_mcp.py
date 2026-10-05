@@ -36,14 +36,14 @@ def stub_search(monkeypatch):
 
 
 async def test_confirmation_gate_makes_no_requests(app, monkeypatch):
-    monkeypatch.setattr(api, "estimate_flights", lambda *args: 180)
+    monkeypatch.setattr(api, "estimate_flights", lambda *args: 400)
 
     async def unexpected(*args, **kwargs):
         pytest.fail("unconfirmed search must not run")
 
     monkeypatch.setattr(api, "load_rates", unexpected)
     data = await api.Tools(app).search_flights("BEG", "MOW", "2026-11-14")
-    assert data["needs_confirmation"] is True and data["estimate_seconds"] == 180
+    assert data["needs_confirmation"] is True and data["estimate_seconds"] == 400
     assert not app.net.counts
 
 
@@ -64,7 +64,7 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app, monkeypatch):
 
     tools = api.Tools(app)
     flights = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=3)
-    assert flights["shown"] == {"cards": 0, "of": 0, "offers_per_card_at_most": 5}
+    assert flights["shown"] == {"cards": 0, "of": 0, "offers_per_group_at_most": 5}
     with pytest.raises(ToolError, match="limit"):
         await tools.search_flights("BEG", "MOW", "2026-11-14", limit=0)
     with pytest.raises(ToolError, match="limit"):
@@ -77,7 +77,13 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
     server = api.create_server(app.root, app=app)
     async with Client(server, mode=mode) as client:
         tools = await client.list_tools()
-        assert {t.name for t in tools.tools} == {"search_flights", "search_stays", "sources"}
+        assert {t.name for t in tools.tools} == {
+            "search_flights",
+            "search_stays",
+            "search_trip",
+            "airports_near",
+            "sources",
+        }
         search = next(t for t in tools.tools if t.name == "search_flights")
         assert search.annotations.read_only_hint is True
         assert search.input_schema["properties"]["depart"]["type"] == "string"

@@ -58,6 +58,10 @@ class Source:
     def max_requests(self, query: FlightQuery) -> int:
         return 1 + (1 + MAX_POLLS) * len(query.origins) * len(query.destinations)
 
+    def typical_requests(self, query: FlightQuery) -> int:
+        # The browser warm-up, then per route a start and usually one or two polls.
+        return 1 + 3 * len(query.origins) * len(query.destinations)
+
     async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
         if query.cabin not in CLASSES:
             raise ValueError(f"unsupported cabin: {query.cabin}")

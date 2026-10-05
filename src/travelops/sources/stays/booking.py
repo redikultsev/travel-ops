@@ -83,7 +83,7 @@ class Source:
         from ..base import Parsed, ParseError
         from ._html import Tree, money
 
-        unique, notes = {}, []
+        unique, notes, unusable = {}, [], 0
         try:
             for index, raw in enumerate(raws):
                 tree = Tree(raw).root
@@ -96,7 +96,11 @@ class Source:
                     or tree.find(id="search_results_table")
                     or "no properties found" in tree.text().lower()
                 ):
-                    raise ParseError("HTML has no property cards or recognized empty search")
+                    # Booking now and then answers one of the requests with another page (its home page, for one).
+                    # That loses a price band, not the search: the other pages still hold real offers.
+                    notes[-1] = f"{label}: not a results page, this band is missing"
+                    unusable += 1
+                    continue
                 for card in cards:
                     title, price = card.find(data_testid="title"), card.find(data_testid="price-and-discounted-price")
                     if not title or not title.text():
@@ -165,6 +169,8 @@ class Source:
                         unique[source_id] = offer
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             raise ParseError(f"Booking card fields: {exc}") from exc
+        if raws and unusable == len(raws):
+            raise ParseError("no page was a search results page")
         if not unique:
             return Parsed([], notes)
         notes += [

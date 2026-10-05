@@ -41,6 +41,24 @@ def parser():
         sub.add_argument("--json", action="store_true")
         sub.add_argument("--yes", action="store_true")
         sub.add_argument("--limit", type=int, help="cards to show; default 15 on screen, everything with --json")
+    t = commands.add_parser("trip", help="flights to the airports near a place and back, and stays there")
+    t.add_argument("origin")
+    t.add_argument("place")
+    t.add_argument("depart", type=date.fromisoformat)
+    t.add_argument("return_date", type=date.fromisoformat)
+    t.add_argument("--country")
+    t.add_argument("--airports", help="destination airports to search instead of the nearest ones")
+    t.add_argument("--max-airports", type=int, default=2)
+    t.add_argument("--adults", type=int)
+    t.add_argument("--max-stops", type=int)
+    t.add_argument("--currency")
+    t.add_argument("--proxy")
+    t.add_argument("--limit", type=int, default=5)
+    t.add_argument("--yes", action="store_true")
+    a = commands.add_parser("airports", help="airports near a place, nearest first")
+    a.add_argument("place")
+    a.add_argument("--country")
+    a.add_argument("--radius", type=int, default=100)
     src = commands.add_parser("sources")
     src.add_argument("--reset", metavar="BUCKET")
     d = commands.add_parser("doctor")
@@ -220,6 +238,50 @@ async def execute(args):
             return 0
         if args.command == "doctor":
             return await doctor(app, args.live, console)
+        if args.command == "airports":
+            from .geo import airports_near, locate, place_json
+
+            places = await locate(app.net, args.place, args.country)
+            if not places:
+                raise ValueError("place not found; write it in Latin script and add --country")
+            here = places[0]
+            print(
+                json.dumps(
+                    {"place": place_json(here), "airports": airports_near(here.lat, here.lon, args.radius)},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+        if args.command == "trip":
+            from .trip import plan_trip, search_trip
+
+            plan = await plan_trip(
+                app,
+                args.origin,
+                args.place,
+                args.depart,
+                args.return_date,
+                country=args.country,
+                airports=args.airports,
+                max_airports=args.max_airports,
+                adults=args.adults,
+            )
+            estimate = plan.estimate(app)
+            Console(stderr=True).print(
+                f"{plan.place.label()}: airports {', '.join(plan.flights.destinations)}; "
+                f"estimated request spacing {estimate:.0f}s; server response time is additional.",
+                markup=False,
+            )
+            if estimate > app.profile.confirm_over_seconds and sys.stdin.isatty() and not args.yes:
+                if input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
+                    return 0
+            currency = (args.currency or app.profile.currency).upper()
+            result = await search_trip(
+                app, plan, await load_rates(app.net), currency, limit=args.limit, max_stops=args.max_stops
+            )
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
         currency = args.currency or app.profile.currency
         if len(currency) != 3 or not currency.isalpha():
             raise ValueError("currency must be a three-letter code")
@@ -242,7 +304,7 @@ async def execute(args):
             sources = stay_sources(args.sources)
             estimate = estimate_stays(query, sources, app.limiter, app.net.exit)
         Console(stderr=True).print(f"Estimated request spacing: {estimate:.0f}s; server response time is additional.")
-        if estimate > 120 and sys.stdin.isatty() and not args.yes:
+        if estimate > app.profile.confirm_over_seconds and sys.stdin.isatty() and not args.yes:
             if input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
                 return 0
         rates = await load_rates(app.net)

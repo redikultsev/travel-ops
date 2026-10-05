@@ -79,7 +79,13 @@ def flight_search_json(search: FlightSearch, rates: Rates) -> dict:
                 if itinerary.inbound
                 else None,
                 "groups": [
-                    {"key": list(group.key), "fares": [fare_json(f, rates, search.currency) for f in group.fares]}
+                    {
+                        # Fares in one group are the same product: same cabin, same answer to "is a checked bag
+                        # included" (true, false, or null when the source did not say).
+                        "cabin": group.key[0],
+                        "checked_bag": group.key[1],
+                        "fares": [fare_json(f, rates, search.currency) for f in group.fares],
+                    }
                     for group in card.groups
                 ],
             }
@@ -156,14 +162,94 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
     }
 
 
-def shortlist(result: dict, cards: int, offers: int = 5) -> dict:
+def _leg_key(segments: list[dict]) -> tuple:
+    return tuple((s["flight"], s["departs"]) for s in segments)
+
+
+def _amount(offer: dict) -> float:
+    money = offer.get("converted") or offer.get("price") or offer.get("total")
+    return float(money["amount"])
+
+
+def _varied(cards: list[dict], count: int) -> list[dict]:
+    """The cheapest cards, but each must bring a flight not shown yet: five round trips that differ only in one
+    leg are one choice, not five. Cards arrive cheapest first; what is left over fills the remaining places."""
+    if not cards or "inbound" not in cards[0]:
+        return cards[:count]
+    picked, rest, seen_out, seen_back = [], [], set(), set()
+    for card in cards:
+        out, back = _leg_key(card["outbound"]), _leg_key(card["inbound"])
+        if len(picked) < count and (out not in seen_out or (back and back not in seen_back)):
+            picked.append(card)
+            seen_out.add(out)
+            seen_back.add(back)
+        else:
+            rest.append(card)
+    return sorted(picked + rest[: count - len(picked)], key=lambda c: _amount(c["groups"][0]["fares"][0]))
+
+
+def leg_options(result: dict, limit: int = 8) -> dict:
+    """For a round trip: every outbound and every return on offer, each with the cheapest round trip it is part
+    of. The shortlist shows pairs; this shows what the pairs are made of. Call it before `shortlist`."""
+    if not any(card["inbound"] for card in result["cards"]):
+        return result
+    for name, legs in (("outbound_options", "outbound"), ("return_options", "inbound")):
+        best: dict[tuple, dict] = {}
+        for card in result["cards"]:
+            fare = card["groups"][0]["fares"][0]
+            key = _leg_key(card[legs])
+            if key and (key not in best or _amount(fare) < _amount(best[key]["cheapest_round_trip"])):
+                segments = card[legs]
+                best[key] = {
+                    "flights": [s["flight"] for s in segments],
+                    "origin": segments[0]["origin"],
+                    "destination": segments[-1]["destination"],
+                    "departs": segments[0]["departs"],
+                    "arrives": segments[-1]["arrives"],
+                    "stops": len(segments) - 1,
+                    "cheapest_round_trip": {k: fare[k] for k in ("price", "converted", "seller")},
+                }
+        options = sorted(best.values(), key=lambda o: _amount(o["cheapest_round_trip"]))[:limit]
+        result[name] = sorted(options, key=lambda o: o["departs"])
+        result[f"{name}_total"] = len(best)
+    return result
+
+
+def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3) -> dict:
     """Cut a result to its cheapest cards and sellers, saying how much was left out. Cards arrive sorted."""
     total = len(result["cards"])
-    result["cards"] = result["cards"][:cards]
+    result["cards"] = _varied(result["cards"], cards)
     for card in result["cards"]:
         for holder in card.get("groups", [card]):
             key = "fares" if "fares" in holder else "rates"
             holder[f"{key}_total"] = len(holder[key])
             holder[key] = holder[key][:offers]
-    result["shown"] = {"cards": len(result["cards"]), "of": total, "offers_per_card_at_most": offers}
+        if "stay" in card:
+            card["stay"]["photos_total"] = len(card["stay"]["photos"])
+            card["stay"]["photos"] = card["stay"]["photos"][:photos]
+    result["shown"] = {"cards": len(result["cards"]), "of": total, "offers_per_group_at_most": offers}
+    return result
+
+
+def drop_long_routes(result: dict, max_stops: int) -> dict:
+    """Hide cards with more stops than asked, and say how many were hidden."""
+    kept = [card for card in result["cards"] if card["stops"] <= max_stops]
+    result["filtered"] = {"max_stops": max_stops, "hidden_cards": len(result["cards"]) - len(kept)}
+    result["cards"] = kept
+    return result
+
+
+def drop_low_rated(result: dict, min_rating: float) -> dict:
+    """Hide stays rated below the bar or not rated at all, and say how many of each."""
+    kept, low, unknown = [], 0, 0
+    for card in result["cards"]:
+        rating = card["stay"]["rating"]
+        if rating is None:
+            unknown += 1
+        elif rating < min_rating:
+            low += 1
+        else:
+            kept.append(card)
+    result["filtered"] = {"min_rating": min_rating, "hidden_below": low, "hidden_unrated": unknown}
+    result["cards"] = kept
     return result
