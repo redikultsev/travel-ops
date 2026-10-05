@@ -180,6 +180,7 @@ class Source:
 
     def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed:
         offers, notes = [], []
+        left_out: dict[str, set[tuple]] = {}
         for raw in raws:
             try:
                 search = json.loads(raw)
@@ -199,6 +200,22 @@ class Source:
                     if len(tickets) >= 1000:
                         notes.append(f"results cap reached: {len(tickets)} tickets; total unknown")
                     for ticket in tickets:
+                        # Between some cities Aviasales also sells trains, with station codes in place of airports.
+                        used = [flights[index] for leg in ticket["segments"] for index in leg["flights"]]
+                        ground = {
+                            kind
+                            for flight in used
+                            if (kind := (flight.get("equipment") or {}).get("type")) not in (None, "plane")
+                        }
+                        if ground:
+                            # The same ticket can arrive in several answers: count it once.
+                            route = tuple(
+                                (flight["origin"], flight["destination"], flight["local_departure_date_time"])
+                                for flight in used
+                            )
+                            for kind in ground:
+                                left_out.setdefault(kind, set()).add(route)
+                            continue
                         legs, identifiers = [], []
                         for leg in ticket["segments"]:
                             chain = []
@@ -261,5 +278,7 @@ class Source:
                             )
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 raise ParseError(f"invalid Aviasales result: {exc}") from exc
+        for kind, routes in sorted(left_out.items()):
+            notes.append(f"tickets with a {kind} leg left out: {len(routes)}; this is a flight search")
         # One ticket can arrive in several answers of the same search.
         return Parsed(list(dict.fromkeys(offers)), list(dict.fromkeys(notes)))

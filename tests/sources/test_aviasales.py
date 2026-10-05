@@ -142,6 +142,23 @@ def test_a_ticket_repeated_across_answers_is_one_offer():
     assert len(Source().parse([json.dumps(search).encode()], QUERY, NOW).offers) == 126
 
 
+def test_a_ticket_with_a_train_leg_is_left_out_and_counted():
+    search = json.loads(FIXTURE.read_bytes())
+    payload = search["responses"][0]
+    ticket = payload["tickets"][0]
+    rail = payload["flight_legs"][ticket["segments"][0]["flights"][0]]
+    # As recorded between Moscow and Saint Petersburg: a train, with station codes in place of airports.
+    rail.update(origin="ZKD", destination="ZLK", equipment={"code": "", "type": "train", "name": "Сапсан"})
+    whole = len(Source().parse([FIXTURE.read_bytes()], QUERY, NOW).offers)
+    search["responses"] *= 2
+    parsed = Source().parse([json.dumps(search).encode()], QUERY, NOW)
+    assert 0 < len(parsed.offers) < whole
+    assert all(seg.origin != "ZKD" for offer in parsed.offers for seg in offer.itinerary.outbound)
+    assert [note for note in parsed.notes if "train" in note] == [
+        "tickets with a train leg left out: 1; this is a flight search"
+    ]
+
+
 @pytest.mark.live
 async def test_live_search():
     from tests.live import check_source

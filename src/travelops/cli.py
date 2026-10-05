@@ -173,16 +173,22 @@ async def doctor(app, live, console):
                 "Google Chrome",
                 False,
                 "not found",
-                "install Google Chrome; Booking needs it to pass the anti-bot check",
+                "install Google Chrome (on Linux: uv run playwright install --with-deps chrome, as root); "
+                "Booking needs it to pass the anti-bot check",
             )
     try:
-        from camoufox.pkgman import camoufox_path
+        from camoufox.async_api import AsyncCamoufox
 
-        directory = Path(camoufox_path())
-        found = any(path.is_file() for path in directory.rglob("camoufox*"))
-        check("Camoufox", found, str(directory), "run uv run python -m camoufox fetch")
+        # Started, not just found: on a bare Linux server the files are there but its system libraries are not.
+        async with AsyncCamoufox(headless=True) as browser:
+            check("Camoufox", True, browser.version, "")
     except Exception as exc:
-        check("Camoufox", False, str(exc), "run uv run python -m camoufox fetch")
+        check(
+            "Camoufox",
+            False,
+            (str(exc).splitlines() or ["did not start"])[0],
+            "run uv run python -m camoufox fetch; on Linux also uv run playwright install-deps firefox, as root",
+        )
     path = data_dir(app.root)
     probe = path / ".write-check"
     try:

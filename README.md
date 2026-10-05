@@ -14,6 +14,15 @@ Chrome; the other sources do not need it), then run:
 ./install.sh
 ```
 
+On a bare Linux server the browsers also need system libraries, and Chrome comes as a package. Both need root:
+
+```bash
+uv run playwright install-deps firefox
+uv run playwright install --with-deps chrome
+```
+
+`uv run travelops doctor` starts both browsers and says what is missing.
+
 The installer creates `profile.yml` from `profile.example.yml` if one is not present. The personal profile and
 the `data/` directory are excluded from Git.
 
