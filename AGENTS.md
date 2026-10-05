@@ -42,7 +42,7 @@ after them. A source not selected was not searched. Statuses: `ok`; `empty`
 (asked, answered, nothing for these dates); `blocked` (refused or resting after a
 refusal); `timeout`; `unparsed` (answered in a shape the engine does not know:
 its prices are unknown, not absent); `not_configured` (this query is outside what
-the source is verified for); `failed` (an engine error). Only `empty` means
+the source is verified for); `failed` (an engine error, or the site's own server error). Only `empty` means
 "nothing there". Never infer that a seller is unavailable from missing offers on
 another seller.
 

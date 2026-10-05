@@ -48,7 +48,7 @@ class Source:
         session = await ctx.browser.get(
             self.name, URL + "?" + urlencode(params), engine="chromium", ready_cookie="aws-waf-token", max_age=240
         )
-        raws = []
+        raws, faults = [], []
         try:
             for band in BANDS:
                 page_params = dict(params)
@@ -65,7 +65,10 @@ class Source:
                     headers={"accept-language": "en-GB,en;q=0.9"},
                     blocked_if=challenge,
                 )
-                if response.status != 200:
+                if response.status >= 500:
+                    # Booking's own fault page. It stands in for its band, which parse reports as missing.
+                    faults.append(response.status)
+                elif response.status != 200:
                     from ..base import ParseError
 
                     raise ParseError(f"Booking search returned HTTP {response.status}")
@@ -73,6 +76,10 @@ class Source:
         except Blocked:
             ctx.browser.drop(self.name)
             raise
+        if len(faults) == len(raws):
+            from ..base import SourceFault
+
+            raise SourceFault(f"Booking answered every page with HTTP {faults[0]}")
         return raws
 
     def parse(self, raws, query, seen_at):

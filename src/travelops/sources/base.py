@@ -21,6 +21,10 @@ class NotConfigured(Exception):
     pass
 
 
+class SourceFault(Exception):
+    """The site answered with its own server error. Not a block and not our bug."""
+
+
 @dataclass
 class Context:
     net: Net

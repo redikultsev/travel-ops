@@ -17,7 +17,7 @@ from .merge.stays import StayCard, list_stays
 from .net.browser import BrowserUnavailable
 from .net.client import Blocked
 from .net.limiter import Limiter, Quarantined
-from .sources.base import Context, NotConfigured, ParseError
+from .sources.base import Context, NotConfigured, ParseError, SourceFault
 
 log = logging.getLogger("travelops.search")
 
@@ -70,6 +70,8 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         return [], report(Status.UNPARSED, f"answer not understood: {exc}")
     except (NotConfigured, BrowserUnavailable) as exc:
         return [], report(Status.NOT_CONFIGURED, str(exc))
+    except SourceFault as exc:
+        return [], report(Status.FAILED, str(exc))
     except Exception as exc:  # our bug: keep the search alive, name it
         log.exception("%s failed", source.name)
         return [], report(Status.FAILED, f"{type(exc).__name__}: {exc}")

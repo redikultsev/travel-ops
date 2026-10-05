@@ -3,7 +3,7 @@ import pytest
 from travelops.core.stays import StayQuery
 from travelops.net.browser import Session
 from travelops.net.client import Response
-from travelops.sources.base import Context, NotConfigured, ParseError
+from travelops.sources.base import Context, NotConfigured, ParseError, SourceFault
 from travelops.sources.stays.booking import Source, challenge
 
 QUERY = StayQuery("Belgrade", date(2026, 11, 14), date(2026, 11, 16))
@@ -100,3 +100,24 @@ async def test_live_search():
 
     offers = await check_source(Source(), QUERY)
     assert offers[0].rate.link.kind == "property"
+
+
+async def test_a_server_fault_on_one_page_loses_a_band_not_the_search():
+    class Browser:
+        async def get(self, *args, **kw):
+            return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
+
+    class Net:
+        def __init__(self, statuses):
+            self.statuses = iter(statuses)
+
+        async def request(self, *args, **kw):
+            status = next(self.statuses)
+            return Response(status, recorded() if status == 200 else b"<html><title>Booking.com</title>fault</html>")
+
+    raws = await Source().fetch(QUERY, Context(Net([200, 502, 200, 200]), Browser(), lambda: NOW))
+    result = Source().parse(raws, QUERY, NOW)
+    assert len(result.offers) == 6
+    assert "EUR 0-100 nightly: not a results page, this band is missing" in result.notes
+    with pytest.raises(SourceFault, match="HTTP 502"):
+        await Source().fetch(QUERY, Context(Net([502] * 4), Browser(), lambda: NOW))
