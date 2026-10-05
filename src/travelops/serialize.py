@@ -215,14 +215,15 @@ def leg_options(result: dict, limit: int = 8) -> dict:
     return result
 
 
-def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3) -> dict:
-    """Cut a result to its cheapest cards and sellers, saying how much was left out. Cards arrive sorted."""
+def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3, varied: bool = True) -> dict:
+    """Cut a result to its first cards and sellers, saying how much was left out. Cards arrive sorted; `varied`
+    is for an order by price, where near-copies of one round trip would otherwise fill the list."""
     total = len(result["cards"])
     by_source: dict[str, int] = {}
     for card in result["cards"]:
         if "stay" in card:
             by_source[card["stay"]["source"]] = by_source.get(card["stay"]["source"], 0) + 1
-    result["cards"] = _varied(result["cards"], cards)
+    result["cards"] = _varied(result["cards"], cards) if varied else result["cards"][:cards]
     for card in result["cards"]:
         for holder in card.get("groups", [card]):
             key = "fares" if "fares" in holder else "rates"
@@ -236,28 +237,4 @@ def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3) -> dic
         result["shown"]["of_counts"] = "cards left after `filtered`"
     if by_source:
         result["shown"]["of_by_source"] = by_source
-    return result
-
-
-def drop_long_routes(result: dict, max_stops: int) -> dict:
-    """Hide cards with more stops than asked, and say how many were hidden."""
-    kept = [card for card in result["cards"] if card["stops"] <= max_stops]
-    result["filtered"] = {"max_stops": max_stops, "hidden_cards": len(result["cards"]) - len(kept)}
-    result["cards"] = kept
-    return result
-
-
-def drop_low_rated(result: dict, min_rating: float) -> dict:
-    """Hide stays rated below the bar or not rated at all, and say how many of each."""
-    kept, low, unknown = [], 0, 0
-    for card in result["cards"]:
-        rating = card["stay"]["rating"]
-        if rating is None:
-            unknown += 1
-        elif rating < min_rating:
-            low += 1
-        else:
-            kept.append(card)
-    result["filtered"] = {"min_rating": min_rating, "hidden_below": low, "hidden_unrated": unknown}
-    result["cards"] = kept
     return result

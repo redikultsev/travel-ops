@@ -44,5 +44,8 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
    - the source lines and what was hidden: `filtered` and `shown` of both parts, and every source's status.
 5. Close with one line of what you can do next: another airport, each direction as a separate ticket, other
    dates, more stays, a stricter or looser filter. Do not run those searches unasked.
+6. When the human then asks about what you already found (later flights, a bag, cheaper stays, no dormitories,
+   more options), answer from `refine_flights` or `refine_stays` with the `search_id` of that part. Search again
+   only for other dates, another place or party, or new prices.
 
 A failed source or an empty part never cancels the rest: give what came back and say plainly what did not.

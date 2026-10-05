@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from .core.flights import CABINS, FlightQuery
 from .core.stays import StayQuery
+from .memory import Results
 from .net.client import Net
 from .net.browser import BrowserSessions
 from .net.limiter import Limiter
@@ -89,6 +90,7 @@ class App:
     ctx: Context
     limiter: Limiter
     profile: Profile
+    results: Results
     closed: bool = False
 
     async def close(self):
@@ -98,6 +100,7 @@ class App:
             finally:
                 self.net.cache.db.close()
                 self.limiter.db.close()
+                self.results.db.close()
                 self.closed = True
 
 
@@ -109,4 +112,12 @@ def build(root: Path, proxy: str | None = None) -> App:
     limiter = Limiter(data / "limiter.sqlite", RULES)
     net = Net(data, proxy=proxy, limiter=limiter)
     browser = BrowserSessions(data, exit_=net.exit, proxy=net.proxy, limiter=limiter, counts=net.counts)
-    return App(root, net, browser, Context(net, browser, lambda: datetime.now(timezone.utc)), limiter, profile)
+    return App(
+        root,
+        net,
+        browser,
+        Context(net, browser, lambda: datetime.now(timezone.utc)),
+        limiter,
+        profile,
+        Results(data / "results.sqlite"),
+    )

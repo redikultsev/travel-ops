@@ -11,8 +11,9 @@ from .core.flights import FlightQuery
 from .core.money import Rates
 from .core.stays import StayQuery
 from .geo import Place, airports_near, locate, place_json
-from .search import estimate_flights, estimate_stays, search_flights, search_stays
-from .serialize import drop_long_routes, drop_low_rated, flight_search_json, leg_options, shortlist, stay_search_json
+from . import recall
+from .search import estimate_flights, estimate_stays
+from .views import flights_view, stays_view
 
 
 @dataclass
@@ -23,10 +24,19 @@ class TripPlan:
     flights: FlightQuery
     stays: StayQuery
 
-    def estimate(self, app: App) -> float:
+    def estimate(self, app: App, currency: str | None = None, refresh: bool = False) -> float:
+        """Seconds of request spacing ahead. A part that memory already answers costs nothing."""
+
+        def known(kind, query, sources):
+            return currency is not None and not refresh and recall.remembered(app, kind, query, sources, currency)
+
         return max(
-            estimate_flights(self.flights, flight_sources(), app.limiter, app.net.exit),
-            estimate_stays(self.stays, stay_sources(), app.limiter, app.net.exit),
+            0.0
+            if known("flights", self.flights, flight_sources())
+            else estimate_flights(self.flights, flight_sources(), app.limiter, app.net.exit),
+            0.0
+            if known("stays", self.stays, stay_sources())
+            else estimate_stays(self.stays, stay_sources(), app.limiter, app.net.exit),
         )
 
 
@@ -78,23 +88,35 @@ async def search_trip(
     limit: int = 5,
     max_stops: int | None = None,
     min_rating: float | None = None,
+    refresh: bool = False,
 ) -> dict:
     flights, stays = await asyncio.gather(
-        search_flights(plan.flights, flight_sources(), app.ctx, rates, currency),
-        search_stays(plan.stays, stay_sources(), app.ctx, rates, currency),
+        recall.flights(app, plan.flights, flight_sources(), rates, currency, refresh=refresh),
+        recall.stays(app, plan.stays, stay_sources(), rates, currency, refresh=refresh),
     )
-    flight_result = flight_search_json(flights, rates)
-    drop_long_routes(flight_result, app.profile.max_stops if max_stops is None else max_stops)
-    leg_options(flight_result)
-    stay_result = stay_search_json(stays, rates)
-    drop_low_rated(stay_result, app.profile.stays.min_rating if min_rating is None else min_rating)
+    now = app.results.clock()
     searched = set(plan.flights.destinations)
     return {
         "place": place_json(plan.place),
         "other_places_with_this_name": [place_json(p) for p in plan.alternatives],
         "airports_in_reach": [dict(a, searched=a["iata"] in searched) for a in plan.airports],
-        "flights": shortlist(flight_result, limit),
-        "stays": shortlist(stay_result, limit),
+        "flights": flights.stamp(
+            flights_view(
+                flights.result,
+                limit=limit,
+                max_stops=app.profile.max_stops if max_stops is None else max_stops,
+                avoid_airlines=app.profile.avoid_airlines,
+            ),
+            now,
+        ),
+        "stays": stays.stamp(
+            stays_view(
+                stays.result,
+                limit=limit,
+                min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+            ),
+            now,
+        ),
         "not_included": [
             "transfer between the airport and the place (km_straight is a straight line; the road is longer)",
             "anything the sources do not price",

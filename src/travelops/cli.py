@@ -284,7 +284,13 @@ async def execute(args):
                     return 0
             currency = (args.currency or app.profile.currency).upper()
             result = await search_trip(
-                app, plan, await load_rates(app.net), currency, limit=args.limit, max_stops=args.max_stops
+                app,
+                plan,
+                await load_rates(app.net),
+                currency,
+                limit=args.limit,
+                max_stops=args.max_stops,
+                refresh=True,  # a command typed by a human is a request for new prices
             )
             print(json.dumps(result, ensure_ascii=False))
             return 0

@@ -96,12 +96,12 @@ def test_stay_photos_are_capped_with_a_count():
 
 
 def test_stay_shortlist_counts_cards_by_source_after_filters():
-    from travelops.serialize import drop_low_rated, shortlist
+    from travelops.views import stays_view
 
     cards = [
         {"stay": {"source": src, "rating": r, "photos": []}, "rates": [1]}
         for src, r in (("booking", 9), ("booking", 5), ("airbnb", 8.5), ("airbnb", None))
     ]
-    cut = shortlist(drop_low_rated({"cards": cards}, 8.0), 1)
+    cut = stays_view({"cards": cards}, limit=1, min_rating=8.0)
     assert cut["shown"]["of"] == 2 and cut["shown"]["of_by_source"] == {"booking": 1, "airbnb": 1}
     assert cut["shown"]["of_counts"] == "cards left after `filtered`"

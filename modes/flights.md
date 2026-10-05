@@ -18,7 +18,8 @@
    risks and show when no fair comparison is possible. Never repeat a source
    that reported a block as part of this comparison.
 4. Pass the profile's `max_stops` to the search so that long routes do not crowd out
-   the shortlist; report `filtered`. Apply avoid_airlines and baggage preferences to the returned data.
+   the shortlist; report `filtered`. The engine hides the profile's avoid_airlines itself and says so there.
+   When the profile or the human needs a checked bag, call `refine_flights` with `checked_bag=true`.
    Keep fares in separate comparable groups. Checked weight does not establish
    exact pieces; unknown inclusion cannot satisfy a required baggage condition.
    Say how many cards/fares were excluded and why, including unknown conditions.

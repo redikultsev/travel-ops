@@ -7,7 +7,7 @@ from travelops.app import build
 from travelops.core.money import Rates
 from travelops.geo import Place
 from travelops.search import FlightSearch, StaySearch
-from travelops.serialize import drop_long_routes
+from travelops import recall
 
 KOTOR = Place("Kotor", "Montenegro", "ME", "Kotor", 42.421, 18.768)
 
@@ -65,8 +65,8 @@ async def test_search_runs_both_parts_and_reports_the_plan(app, located, monkeyp
         seen["stays"] = query
         return StaySearch(query, currency, [], [])
 
-    monkeypatch.setattr(trip, "search_flights", flights)
-    monkeypatch.setattr(trip, "search_stays", stays)
+    monkeypatch.setattr(recall, "search_flights", flights)
+    monkeypatch.setattr(recall, "search_stays", stays)
     plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23")
     result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR", limit=3)
     assert seen["flights"].destinations == ("TIV", "TGD") and seen["stays"].checkout == date(2026, 10, 23)
@@ -76,24 +76,40 @@ async def test_search_runs_both_parts_and_reports_the_plan(app, located, monkeyp
         ("TGD", True),
         ("DBV", False),
     ]
-    assert result["flights"]["filtered"] == {"max_stops": 1, "hidden_cards": 0}
+    assert result["flights"]["filtered"] == {
+        "hidden_cards": 0,
+        "by": [{"filter": "max_stops", "value": 1, "hidden": 0}],
+    }
     assert result["flights"]["shown"]["cards"] == 0 and result["stays"]["shown"]["cards"] == 0
-    assert result["stays"]["filtered"] == {"min_rating": 8.0, "hidden_below": 0, "hidden_unrated": 0}
+    assert result["stays"]["filtered"]["by"] == [{"filter": "min_rating", "value": 8.0, "hidden": 0}]
     assert result["not_included"][0].startswith("transfer between the airport and the place")
+    assert result["flights"]["search_id"].startswith("f") and result["stays"]["search_id"].startswith("s")
+    assert result["flights"]["from_memory"] is False and result["flights"]["age_minutes"] == 0
 
 
-def test_long_routes_are_hidden_with_a_count():
-    result = drop_long_routes({"cards": [{"stops": 0}, {"stops": 2}, {"stops": 1}]}, 1)
-    assert [c["stops"] for c in result["cards"]] == [0, 1] and result["filtered"] == {"max_stops": 1, "hidden_cards": 1}
+async def test_the_same_trip_again_is_answered_from_memory(app, located, monkeypatch):
+    calls = []
 
+    async def flights(query, sources, ctx, rates, currency, **kwargs):
+        calls.append("flights")
+        return FlightSearch(query, currency, [], [])
 
-def test_low_and_unrated_stays_are_hidden_with_counts():
-    from travelops.serialize import drop_low_rated
+    async def stays(query, sources, ctx, rates, currency, **kwargs):
+        calls.append("stays")
+        return StaySearch(query, currency, [], [])
 
-    cards = [{"stay": {"rating": r}} for r in (9.1, 6.0, None, 8.0)]
-    result = drop_low_rated({"cards": cards}, 8.0)
-    assert [c["stay"]["rating"] for c in result["cards"]] == [9.1, 8.0]
-    assert result["filtered"] == {"min_rating": 8.0, "hidden_below": 1, "hidden_unrated": 1}
+    monkeypatch.setattr(recall, "search_flights", flights)
+    monkeypatch.setattr(recall, "search_stays", stays)
+    plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23")
+    rates = Rates("EUR", {}, "d")
+    assert plan.estimate(app, "EUR") > 0
+    first = await trip.search_trip(app, plan, rates, "EUR")
+    assert plan.estimate(app, "EUR") == 0, "nothing left to search"
+    again = await trip.search_trip(app, plan, rates, "EUR", limit=20)
+    assert sorted(calls) == ["flights", "stays"]
+    assert again["flights"]["from_memory"] is True and again["flights"]["search_id"] == first["flights"]["search_id"]
+    await trip.search_trip(app, plan, rates, "EUR", refresh=True)
+    assert len(calls) == 4, "refresh always searches"
 
 
 def test_the_estimate_is_what_a_search_usually_costs_not_its_ceiling():

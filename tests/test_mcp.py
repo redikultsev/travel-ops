@@ -29,8 +29,8 @@ def stub_search(monkeypatch):
         return StaySearch(query, currency, [], [])
 
     monkeypatch.setattr(api, "load_rates", rates)
-    monkeypatch.setattr(api, "search_flights", flights)
-    monkeypatch.setattr(api, "search_stays", stays)
+    monkeypatch.setattr(api.recall, "search_flights", flights)
+    monkeypatch.setattr(api.recall, "search_stays", stays)
     monkeypatch.setattr(api, "estimate_flights", lambda *args: 0)
     monkeypatch.setattr(api, "estimate_stays", lambda *args: 0)
 
@@ -64,7 +64,7 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app, monkeypatch):
 
     tools = api.Tools(app)
     flights = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=3)
-    assert flights["shown"] == {"cards": 0, "of": 0, "offers_per_group_at_most": 5}
+    assert flights["shown"] == {"cards": 0, "of": 0, "offers_per_group_at_most": 5, "sorted_by": "price"}
     with pytest.raises(ToolError, match="limit"):
         await tools.search_flights("BEG", "MOW", "2026-11-14", limit=0)
     with pytest.raises(ToolError, match="limit"):
@@ -81,6 +81,8 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
             "search_flights",
             "search_stays",
             "search_trip",
+            "refine_flights",
+            "refine_stays",
             "airports_near",
             "sources",
         }
@@ -107,3 +109,42 @@ async def test_actual_stdio_entrypoint_sources_only(tmp_path, monkeypatch, mode)
         assert not result.is_error
         assert "airbnb" in result.structured_content["stay_sources"]
         assert "tutu" in result.structured_content["flight_sources"]
+
+
+async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app, monkeypatch):
+    stub_search(monkeypatch)
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    tools = api.Tools(app)
+    first = await tools.search_flights("BEG", "MOW", "2026-11-14")
+    assert first["from_memory"] is False
+
+    async def unexpected(*args, **kwargs):
+        pytest.fail("a follow-up must not search")
+
+    monkeypatch.setattr(api.recall, "search_flights", unexpected)
+    again = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=50)
+    assert again["from_memory"] is True and again["search_id"] == first["search_id"]
+    view = await tools.refine_flights(first["search_id"], depart_after="17:00", sort="duration")
+    assert view["search_id"] == first["search_id"] and view["shown"]["sorted_by"] == "duration"
+    assert view["filtered"]["by"] == [{"filter": "depart_after", "value": "17:00", "hidden": 0}]
+    assert not app.net.counts
+    with pytest.raises(ToolError, match="no search"):
+        await tools.refine_flights("f0000000")
+    with pytest.raises(ToolError, match="flights search"):
+        await tools.refine_stays(first["search_id"])
+    with pytest.raises(ToolError, match="HH:MM"):
+        await tools.refine_flights(first["search_id"], depart_after="5pm")
+
+
+async def test_an_old_search_is_shown_with_its_age_and_not_reused(app, monkeypatch):
+    stub_search(monkeypatch)
+    tools = api.Tools(app)
+    now = [1_000_000.0]
+    app.results.clock = lambda: now[0]
+    first = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")
+    now[0] += 45 * 60
+    view = await tools.refine_stays(first["search_id"])
+    assert view["age_minutes"] == 45 and "search again" in view["stale"]
+    later = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")
+    assert later["from_memory"] is False and later["search_id"] != first["search_id"]
