@@ -110,4 +110,4 @@ def test_the_estimate_is_what_a_search_usually_costs_not_its_ceiling():
         def estimate(self, bucket, n):
             return n * 10.0
 
-    assert estimate_flights(query, [source], Limiter(), "") == 70.0
+    assert estimate_flights(query, [source], Limiter(), "") == 80.0, "two routes, four usual requests each"

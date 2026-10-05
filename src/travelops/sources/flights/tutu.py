@@ -135,7 +135,7 @@ class Source:
         offers, notes = [], []
         routes = [f"{a}-{b}: " for a, b in product(query.origins, query.destinations)]
         for index, raw in enumerate(raws):
-            route = routes[index] if len(routes) == len(raws) > 1 else ""
+            route = routes[index] if len(routes) == len(raws) else ""
             try:
                 payload = json.loads(raw)
                 found = payload["offers"]
@@ -153,7 +153,7 @@ class Source:
                     if key.startswith("post_filter_dropped_") and isinstance(count, int) and count:
                         notes.append(f"{key.replace('_', ' ')}: {count}")
                 if meta.get("airport_note"):
-                    notes.append(str(meta["airport_note"]))
+                    notes.append("the source attached a remark about this route's airports; open its results page")
                 for direction in ("from", "to"):
                     resolved = meta.get(direction, {})
                     if resolved.get("match"):
@@ -203,9 +203,10 @@ class Source:
                         else None
                     )
                     if offer.get("is_multi_pnr") or offer.get("has_self_transfer"):
+                        # In our words, not the source's: its note is prose addressed to an assistant, and text
+                        # from a website must reach the agent as data, never as something to act on.
                         notes.append(
-                            "separate tickets / self-transfer: "
-                            + str(offer.get("multi_pnr_note") or "source reports separate tickets")
+                            "some itineraries are separate tickets with a self-transfer, each booked on its own"
                         )
                     for variant in offer["variants"]:
                         price = variant["price"]

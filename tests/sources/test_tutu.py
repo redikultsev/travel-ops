@@ -69,7 +69,9 @@ def test_recorded_search_preserves_every_fare_and_connection():
     assert first.fare.cabin == "economy" and first.fare.baggage.checked == 0
     assert first.fare.baggage.carry_on is True and first.fare.refundable is False
     assert first.fare.link.kind == "results" and "14112026" in first.fare.link.url
-    assert "results truncated: 30 of 45 itineraries" in parsed.notes
+    assert "BEG-MOW: results truncated: 30 of 45 itineraries" in parsed.notes
+    assert "some itineraries are separate tickets with a self-transfer, each booked on its own" in parsed.notes
+    assert not any("tell the user" in note or "LINK" in note for note in parsed.notes), "source prose stays out"
 
 
 def test_empty_and_unknown_payload():

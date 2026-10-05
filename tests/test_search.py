@@ -112,3 +112,21 @@ async def test_request_spacing_does_not_eat_the_answer_deadline():
     assert deadline(Good(), Q, ctx, 120, runs=3) == 120 + 6 * 40
     limiter.blocked("good")
     assert deadline(Good(), Q, ctx, 120) == 120 + 2 * 70, "a slowed bucket waits longer"
+
+
+async def test_a_route_that_fails_costs_only_that_route():
+    class OneRouteHangs(Good):
+        name = "hangs"
+
+        async def fetch(self, q, ctx):
+            if q.destinations == ("TGD",):
+                raise TimeoutError("a request got no answer in 30 s")
+            assert len(q.origins) == len(q.destinations) == 1, "a source is asked one route at a time"
+            return [b"x"]
+
+    ctx = Context(net=None, browser=None, now=lambda: NOW)
+    two = FlightQuery(("BEG",), ("TIV", "TGD"), date(2026, 11, 15))
+    result = await search_flights(two, [OneRouteHangs()], ctx, Rates("EUR", {}, "d"), "EUR")
+    report = result.reports[0]
+    assert report.status is Status.OK and report.offers == 1
+    assert "BEG-TGD: a request got no answer in 30 s" in report.notes

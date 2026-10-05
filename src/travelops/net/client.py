@@ -117,7 +117,8 @@ class Net:
         try:
             r = await self._session.request(method, url, **{k: v for k, v in kw.items() if v is not None})
         except TransportTimeout as exc:
-            raise TimeoutError("HTTP response did not finish before the deadline") from exc
+            waited = kw.get("timeout") or self.timeout
+            raise TimeoutError(f"a request got no answer in {waited:.0f} s") from exc
         return Response(r.status_code, r.content, dict(r.headers), str(r.url))
 
     async def close(self) -> None:

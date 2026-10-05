@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .core.flights import FlightQuery
 from .core.money import Rates
@@ -63,8 +63,9 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         )
     except Blocked as exc:
         return [], report(Status.BLOCKED, str(exc))
-    except (TimeoutError, asyncio.TimeoutError):
-        return [], report(Status.TIMEOUT, f"no answer in {timeout:.0f} s")
+    except (TimeoutError, asyncio.TimeoutError) as exc:
+        # A single request that hung says so itself; an empty message is the deadline of the whole run.
+        return [], report(Status.TIMEOUT, str(exc) or f"no answer in {timeout:.0f} s")
     except ParseError as exc:
         return [], report(Status.UNPARSED, f"answer not understood: {exc}")
     except (NotConfigured, BrowserUnavailable) as exc:
@@ -88,10 +89,27 @@ def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> floa
 async def search_flights(
     query: FlightQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120
 ) -> FlightSearch:
-    pairs = query.date_pairs()
-    jobs = [(s, query.on(d, r), d.isoformat() if len(pairs) > 1 else "") for s in sources for d, r in pairs]
+    """Every date and every route is its own run of a source: one that fails costs that date or route only."""
+    dates = query.date_pairs()
+    routes = [(o, d) for o in query.origins for d in query.destinations]
+    jobs = []
+    for source in sources:
+        for depart, back in dates:
+            for origin, destination in routes:
+                label = " ".join(
+                    part
+                    for part in (
+                        depart.isoformat() if len(dates) > 1 else "",
+                        f"{origin}-{destination}" if len(routes) > 1 else "",
+                    )
+                    if part
+                )
+                jobs.append(
+                    (source, replace(query.on(depart, back), origins=(origin,), destinations=(destination,)), label)
+                )
+    runs = len(dates) * len(routes)
     results = await asyncio.gather(
-        *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, len(pairs)), label) for s, q, label in jobs)
+        *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, runs), label) for s, q, label in jobs)
     )
     offers = [o for found, _ in results for o in found]
     reports = [combine([rep for (s, _, _), (_, rep) in zip(jobs, results) if s is src]) for src in sources]
@@ -114,9 +132,10 @@ def expected_requests(source, query) -> int:
 
 def estimate_flights(query: FlightQuery, sources: list, limiter, exit_: str) -> float:
     """Sources run in parallel, requests within a source wait for each other: the slowest source decides."""
-    dates = len(query.date_pairs())
+    runs = len(query.date_pairs()) * len(query.origins) * len(query.destinations)
+    one = replace(query, origins=query.origins[:1], destinations=query.destinations[:1])
     return max(
-        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query) * dates) for s in sources),
+        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, one) * runs) for s in sources),
         default=0.0,
     )
 
