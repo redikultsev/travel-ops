@@ -17,13 +17,19 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
    - `airports_in_reach` gives every airport with `km_straight` (a straight line, the road is longer) and
      whether it was searched. Name the searched ones with distances, and mention an unsearched one that is
      close, with its country if it differs.
-   - A card pairs one outbound with one return. `outbound_options` and `return_options` list every flight on
-     offer each way with the cheapest round trip it belongs to: use them to see the timings the cards do not
-     show. Flying into one airport and out of another is not in a round-trip result; offer it as a next step.
+   - A card pairs one outbound with one return. `outbound_options` and `return_options` list the eight
+     cheapest flights each way (their `_total` says how many exist), each with the cheapest round trip it
+     belongs to, its seller, link and `seen_at`: use them for timings the cards do not show. Flying into one
+     airport and out of another is not in a round-trip result; offer it as a next step.
+   - A stay of kind `shared_room` is a bed in a dormitory. Say so, and when the cheapest stays are such beds
+     also give the cheapest one that is not.
    - Check each pair against the stay: an early return on the last morning or a late arrival on the first
      night changes what the human gets from the nights paid for. Say so when it matters.
-   - `filtered` and `shown` say what was hidden and how many cards exist. A status other than `ok` or `empty`
-     means that source's prices are unknown.
+   - `filtered` says what was hidden; `shown.of` counts the cards left after it, and for stays
+     `shown.of_by_source` splits that count. A status other than `ok` or `empty` means that source's prices
+     are unknown.
+   - Lead with the cheapest offer and its link. When only a dearer seller has an exact `ticket` link, mention
+     that offer too rather than swapping it in.
 4. Answer in this order, short, as lists (no tables: many chat clients do not render them):
    - one line with what you searched: route, airports, dates, party;
    - flights: two or three choices that differ in a way that matters (cheapest, best timing, other airport),

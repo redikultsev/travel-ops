@@ -79,7 +79,7 @@ class Source:
         import re
         from urllib.parse import urljoin, urlsplit
         from ...core.common import Link
-        from ...core.stays import Stay, Rate, StayOffer
+        from ...core.stays import Stay, Rate, StayOffer, kind_of_room
         from ..base import Parsed, ParseError
         from ._html import Tree, money
 
@@ -156,7 +156,7 @@ class Source:
                             self.name,
                             source_id,
                             title.text(),
-                            "hotel",
+                            kind_of_room(room),
                             None,
                             None,
                             rating,

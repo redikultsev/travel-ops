@@ -20,6 +20,8 @@ the `data/` directory are excluded from Git.
 ## Use from the CLI
 
 ```bash
+uv run travelops trip IST Kotor 2026-11-14 2026-11-16 --country Montenegro
+uv run travelops airports Kotor --country Montenegro
 uv run travelops flights IST MOW 2026-11-14
 uv run travelops flights MOW LED 2026-11-14 --flex 1 --sources aviasales,tutu
 uv run travelops stays Lisbon 2026-11-14 2026-11-16
@@ -47,7 +49,10 @@ configuration. `AGENTS.md` contains shared operating instructions; `CLAUDE.md` i
 Claude Code. Client configuration formats differ, but all clients call the same MCP server and deterministic
 search engine.
 
-The MCP tools are `search_flights`, `search_stays`, and `sources`. The `sources` tool is read-only and does not
+The MCP tools are `search_trip`, `search_flights`, `search_stays`, `airports_near`, and `sources`. `search_trip`
+answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one call: it finds the place, picks
+the airports that serve it, and searches flights there and back and stays for the same dates.
+`scripts/call_tool.py` calls any tool from a terminal and prints exactly what an agent receives. The `sources` tool is read-only and does not
 contact travel sites. The search tools return the cheapest cards (`limit`, 10 by default) with `shown` telling how many
 exist, plus exact source statuses, timestamps, links, original currencies, conversion-rate dates, and narrowing
 details for the agent to present.

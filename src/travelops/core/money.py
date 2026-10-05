@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 
 
 class UnknownCurrency(KeyError):
@@ -47,4 +48,9 @@ class Rates:
 def parse_open_er_api(payload: dict) -> Rates:
     if payload.get("result") != "success":
         raise ValueError(f"rates feed answered {payload.get('result')!r}")
-    return Rates(payload["base_code"], payload["rates"], day=payload["time_last_update_utc"])
+    stamp = payload["time_last_update_utc"]
+    try:
+        stamp = parsedate_to_datetime(stamp).date().isoformat()
+    except (TypeError, ValueError):
+        pass  # keep whatever the feed sent rather than lose the date
+    return Rates(payload["base_code"], payload["rates"], day=stamp)

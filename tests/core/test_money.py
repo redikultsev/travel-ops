@@ -36,3 +36,14 @@ def test_parse_feed():
         }
     )
     assert rates.convert(Money("95.1", "RUB"), "EUR") == Money("1.00", "EUR")
+
+
+def test_rates_day_is_a_plain_date():
+    feed = {
+        "result": "success",
+        "base_code": "EUR",
+        "time_last_update_utc": "Mon, 05 Oct 2026 00:02:31 +0000",
+        "rates": {"EUR": 1},
+    }
+    assert parse_open_er_api(feed).day == "2026-10-05"
+    assert parse_open_er_api(dict(feed, time_last_update_utc="soon")).day == "soon"

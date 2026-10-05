@@ -207,7 +207,7 @@ def leg_options(result: dict, limit: int = 8) -> dict:
                     "departs": segments[0]["departs"],
                     "arrives": segments[-1]["arrives"],
                     "stops": len(segments) - 1,
-                    "cheapest_round_trip": {k: fare[k] for k in ("price", "converted", "seller")},
+                    "cheapest_round_trip": {k: fare[k] for k in ("price", "converted", "seller", "link", "seen_at")},
                 }
         options = sorted(best.values(), key=lambda o: _amount(o["cheapest_round_trip"]))[:limit]
         result[name] = sorted(options, key=lambda o: o["departs"])
@@ -218,6 +218,10 @@ def leg_options(result: dict, limit: int = 8) -> dict:
 def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3) -> dict:
     """Cut a result to its cheapest cards and sellers, saying how much was left out. Cards arrive sorted."""
     total = len(result["cards"])
+    by_source: dict[str, int] = {}
+    for card in result["cards"]:
+        if "stay" in card:
+            by_source[card["stay"]["source"]] = by_source.get(card["stay"]["source"], 0) + 1
     result["cards"] = _varied(result["cards"], cards)
     for card in result["cards"]:
         for holder in card.get("groups", [card]):
@@ -228,6 +232,10 @@ def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3) -> dic
             card["stay"]["photos_total"] = len(card["stay"]["photos"])
             card["stay"]["photos"] = card["stay"]["photos"][:photos]
     result["shown"] = {"cards": len(result["cards"]), "of": total, "offers_per_group_at_most": offers}
+    if "filtered" in result:
+        result["shown"]["of_counts"] = "cards left after `filtered`"
+    if by_source:
+        result["shown"]["of_by_source"] = by_source
     return result
 
 

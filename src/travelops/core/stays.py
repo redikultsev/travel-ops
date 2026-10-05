@@ -34,7 +34,7 @@ class Stay:
     source: str
     source_id: str
     name: str
-    kind: Literal["hotel", "apartment", "other"]
+    kind: Literal["hotel", "apartment", "shared_room", "other"]
     lat: float | None
     lon: float | None
     rating: float | None  # 0–10
@@ -62,3 +62,13 @@ class Rate:
 class StayOffer:
     stay: Stay
     rate: Rate
+
+
+def kind_of_room(room: str | None) -> str:
+    """What the human gets, as far as a room name tells: a bed among strangers is not a room of one's own."""
+    text = (room or "").lower()
+    if "dormitory" in text or "bunk bed" in text or text.startswith("bed in"):
+        return "shared_room"
+    if "apartment" in text or "studio" in text:
+        return "apartment"
+    return "other"

@@ -24,3 +24,12 @@ def test_per_night():
         seen_at=datetime(2026, 10, 4, tzinfo=timezone.utc),
     )
     assert r.per_night(2) == Money(Decimal("120.00"), "EUR")
+
+
+def test_room_name_tells_a_dormitory_bed_from_a_room():
+    from travelops.core.stays import kind_of_room
+
+    assert kind_of_room("Bunk Bed in Mixed Dormitory Room") == "shared_room"
+    assert kind_of_room("Bed in 6-Bed Mixed Dormitory Room with Private External Bathroom") == "shared_room"
+    assert kind_of_room("One-Bedroom Apartment") == "apartment"
+    assert kind_of_room("Twin Room") == "other" and kind_of_room(None) == "other"

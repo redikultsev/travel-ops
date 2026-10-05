@@ -54,7 +54,13 @@ def _round_trip(out, back, price):
     def leg(flight, departs):
         return [{"flight": flight, "origin": "AAA", "destination": "BBB", "departs": departs, "arrives": departs}]
 
-    fare = {"price": {"amount": str(price), "currency": "EUR"}, "converted": None, "seller": "s"}
+    fare = {
+        "price": {"amount": str(price), "currency": "EUR"},
+        "converted": None,
+        "seller": "s",
+        "link": None,
+        "seen_at": "now",
+    }
     return {"outbound": leg(*out), "inbound": leg(*back), "groups": [{"fares": [fare]}]}
 
 
@@ -85,5 +91,17 @@ def test_round_trip_shortlist_prefers_flights_not_shown_yet():
 def test_stay_photos_are_capped_with_a_count():
     from travelops.serialize import shortlist
 
-    cut = shortlist({"cards": [{"stay": {"photos": list("abcdefg")}, "rates": [1]}]}, 5)
+    cut = shortlist({"cards": [{"stay": {"source": "airbnb", "photos": list("abcdefg")}, "rates": [1]}]}, 5)
     assert cut["cards"][0]["stay"]["photos"] == ["a", "b", "c"] and cut["cards"][0]["stay"]["photos_total"] == 7
+
+
+def test_stay_shortlist_counts_cards_by_source_after_filters():
+    from travelops.serialize import drop_low_rated, shortlist
+
+    cards = [
+        {"stay": {"source": src, "rating": r, "photos": []}, "rates": [1]}
+        for src, r in (("booking", 9), ("booking", 5), ("airbnb", 8.5), ("airbnb", None))
+    ]
+    cut = shortlist(drop_low_rated({"cards": cards}, 8.0), 1)
+    assert cut["shown"]["of"] == 2 and cut["shown"]["of_by_source"] == {"booking": 1, "airbnb": 1}
+    assert cut["shown"]["of_counts"] == "cards left after `filtered`"

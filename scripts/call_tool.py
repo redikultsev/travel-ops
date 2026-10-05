@@ -22,9 +22,21 @@ async def main(tool: str, arguments: dict) -> int:
     async with Client(params, read_timeout_seconds=900) as client:
         if tool == "--list":
             listed = await client.list_tools()
-            print(json.dumps([{"name": t.name, "description": t.description, "arguments": t.input_schema["properties"],
-                               "required": t.input_schema.get("required", [])} for t in listed.tools],
-                             ensure_ascii=False, indent=1))
+            print(
+                json.dumps(
+                    [
+                        {
+                            "name": t.name,
+                            "description": t.description,
+                            "arguments": t.input_schema["properties"],
+                            "required": t.input_schema.get("required", []),
+                        }
+                        for t in listed.tools
+                    ],
+                    ensure_ascii=False,
+                    indent=1,
+                )
+            )
             return 0
         result = await client.call_tool(tool, arguments)
         if result.is_error:
