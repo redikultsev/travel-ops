@@ -1,0 +1,125 @@
+"""The only way to the network. Every request passes the rate limiter here, so a source cannot skip it; a block
+is raised as `Blocked`, so "the site refused us" never looks like "no tickets"."""
+
+from __future__ import annotations
+
+import json as jsonlib
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+from urllib.parse import urlsplit
+
+from curl_cffi.requests import AsyncSession
+from curl_cffi.requests.exceptions import Timeout as TransportTimeout
+
+from .cache import RawCache
+from .limiter import Limiter
+
+
+class Blocked(Exception):
+    """The site refused us: banned address, anti-bot, captcha. The reason is shown to the user as is."""
+
+
+@dataclass
+class Response:
+    status: int
+    body: bytes
+    headers: dict = field(default_factory=dict)
+    url: str = ""
+
+    def text(self) -> str:
+        return self.body.decode("utf-8", "replace")
+
+    def json(self):
+        return jsonlib.loads(self.body)
+
+
+def exit_of(proxy: str | None) -> str:
+    if not proxy:
+        return ""
+    parts = urlsplit(proxy if "://" in proxy else f"http://{proxy}")
+    return f"{parts.hostname}:{parts.port}" if parts.port else str(parts.hostname)
+
+
+def generic_block(resp: Response) -> str | None:
+    if resp.status == 429:
+        return "too many requests: the site throttled us"
+    if resp.status in (403, 451):
+        return "the site refused our address"
+    return None
+
+
+class Net:
+    def __init__(
+        self,
+        data_dir: Path,
+        *,
+        proxy: str | None = None,
+        limiter: Limiter | None = None,
+        cache: RawCache | None = None,
+        impersonate: str = "chrome",
+        timeout: float = 30.0,
+    ) -> None:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        self.proxy = proxy if not proxy or "://" in proxy else f"http://{proxy}"
+        self.exit = exit_of(proxy)
+        self.limiter = limiter or Limiter(data_dir / "limiter.sqlite")
+        self.cache = cache or RawCache(data_dir / "raw.sqlite")
+        self.impersonate, self.timeout = impersonate, timeout
+        self.counts: Counter[str] = Counter()
+        self._session: AsyncSession | None = None
+
+    async def request(
+        self,
+        source: str,
+        method: str,
+        url: str,
+        *,
+        params: dict | None = None,
+        json: object = None,
+        data: object = None,
+        headers: dict | None = None,
+        cookies: dict | None = None,
+        impersonate: str | None = None,
+        cache_ttl: float = 0,
+        timeout: float | None = None,
+        blocked_if: Callable[[Response], str | None] | None = None,
+    ) -> Response:
+        key = RawCache.key(method, url, params, json if json is not None else data)
+        if cache_ttl and (hit := self.cache.get(key, cache_ttl)):
+            return Response(hit.status, hit.body, {}, hit.url)
+        bucket = Limiter.bucket(source, self.exit)
+        await self.limiter.acquire(bucket)
+        self.counts[source] += 1
+        resp = await self._send(
+            method,
+            url,
+            params=params,
+            json=json,
+            data=data,
+            headers=headers,
+            cookies=cookies,
+            impersonate=impersonate or self.impersonate,
+            timeout=timeout,
+        )
+        if reason := generic_block(resp) or (blocked_if(resp) if blocked_if else None):
+            self.limiter.blocked(bucket)
+            raise Blocked(reason)
+        self.limiter.succeeded(bucket)
+        self.cache.put(key, source, url, resp.status, resp.body)
+        return resp
+
+    async def _send(self, method: str, url: str, **kw) -> Response:
+        """The single physical request. Tests replace this and keep the limiter in place."""
+        if self._session is None:
+            self._session = AsyncSession(proxy=self.proxy, timeout=self.timeout)
+        try:
+            r = await self._session.request(method, url, **{k: v for k, v in kw.items() if v is not None})
+        except TransportTimeout as exc:
+            raise TimeoutError("HTTP response did not finish before the deadline") from exc
+        return Response(r.status_code, r.content, dict(r.headers), str(r.url))
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()

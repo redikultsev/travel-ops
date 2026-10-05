@@ -1,0 +1,64 @@
+"""Stay model. Ratings are kept on one 0–10 scale; Airbnb's 0–5 is doubled at the boundary."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Literal
+
+from .common import Link
+from .money import Money
+
+
+def rating_out_of_10(value: float | None, scale: float) -> float | None:
+    return None if value is None else round(float(value) * 10 / scale, 1)
+
+
+@dataclass(frozen=True)
+class StayQuery:
+    place: str
+    checkin: date
+    checkout: date
+    adults: int = 2
+    children: int = 0
+    rooms: int = 1
+
+    @property
+    def nights(self) -> int:
+        return (self.checkout - self.checkin).days
+
+
+@dataclass(frozen=True)
+class Stay:
+    source: str
+    source_id: str
+    name: str
+    kind: Literal["hotel", "apartment", "other"]
+    lat: float | None
+    lon: float | None
+    rating: float | None  # 0–10
+    reviews: int | None
+    photos: tuple[str, ...] = ()
+    amenities: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Rate:
+    total: Money
+    seller: str
+    source: str
+    link: Link
+    seen_at: datetime
+    free_cancel_until: date | None = None
+    meals: str | None = None
+    room: str | None = None
+
+    def per_night(self, nights: int) -> Money:
+        return Money((self.total.amount / nights).quantize(Decimal("0.01")), self.total.currency)
+
+
+@dataclass(frozen=True)
+class StayOffer:
+    stay: Stay
+    rate: Rate

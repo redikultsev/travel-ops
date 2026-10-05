@@ -1,0 +1,13 @@
+# Copy to profile.yml (git-ignored) and edit. The values below are placeholders.
+home_airports: [IST]
+nearby_airports: [SAW]
+currency: EUR
+travellers: {adults: 1, children: 0, infants: 0}
+cabin: economy
+baggage: carry_on
+max_stops: 1
+avoid_airlines: []
+stays:
+  adults: 2
+  min_rating: 8.0
+  must_have: [wifi]
