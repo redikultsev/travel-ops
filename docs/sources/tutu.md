@@ -44,9 +44,12 @@ return no link. No link fields are currently assumed.
 
 ## Limits and refusals
 
-Use at least 30 seconds plus up to 10.5 seconds positive jitter between every
-physical request, including initialization and notifications. At most 12 requests
-in 600 seconds. Start with one search page (30 offers); do not claim it is all
+Tutu publishes no request limit. Searches (`tools/call`) are spaced by 12 seconds
+plus up to 3.6 seconds of jitter, at most 12 in 600 seconds. The two handshake
+messages of a session (`initialize`, `notifications/initialized`) are not
+searches: they wait about a second in a line of their own, as an MCP client
+sends them. One handshake serves every route and date of a search. A refusal on
+either line rests the whole source. Start with one search page (30 offers); do not claim it is all
 results or sorted by price. Report the number received and the page cap.
 A timeout can be an address ban; after the first timeout or refusal, record it
 and do not run another live check during implementation. 403, 429, 451 and

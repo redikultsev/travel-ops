@@ -67,3 +67,39 @@ async def test_transport_timeout_is_domain_timeout_without_retry(tmp_path):
     with pytest.raises(TimeoutError):
         await net.request("src", "GET", "https://example.test")
     assert session.calls == 1 and net.counts["src"] == 1
+
+
+async def test_a_second_line_of_a_source_has_its_own_spacing_and_shares_its_fate(tmp_path):
+    from travelops.net.client import Blocked
+    from travelops.net.limiter import Limiter, Quarantined, Rule
+
+    slept = []
+
+    async def sleep(seconds):
+        slept.append(round(seconds))
+
+    now = [1000.0]
+    limiter = Limiter(
+        None,
+        {"site": Rule(interval=30, jitter=0), "site:handshake": Rule(interval=1, jitter=0)},
+        clock=lambda: now[0],
+        sleep=sleep,
+    )
+    net = Net(tmp_path, limiter=limiter)
+    answers = iter([Response(200, b"ok"), Response(200, b"ok"), Response(200, b"ok"), Response(429, b"slow down")])
+
+    async def send(method, url, **kw):
+        return next(answers)
+
+    net._send = send
+    await net.request("site", "POST", "https://site.example/mcp", queue="handshake")
+    await net.request("site", "POST", "https://site.example/mcp", queue="handshake")
+    await net.request("site", "POST", "https://site.example/mcp")
+    assert slept == [1], "the second handshake waited a second; the search did not wait for the handshakes"
+    assert net.counts["site"] == 3, "every request is counted for the source, whichever line it took"
+    with pytest.raises(Blocked):
+        await net.request("site", "POST", "https://site.example/mcp", queue="handshake")
+    with pytest.raises(Quarantined):
+        await net.request("site", "POST", "https://site.example/mcp")
+    with pytest.raises(Quarantined):
+        await net.request("site", "POST", "https://site.example/mcp", queue="handshake")

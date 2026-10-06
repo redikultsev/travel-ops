@@ -52,8 +52,9 @@ class Source:
         return 2 + len(query.origins) * len(query.destinations)
 
     def typical_requests(self, query: FlightQuery) -> int:
-        # The handshake is made once for a whole search, so a route usually costs one request and a share of it.
-        return 1 + len(query.origins) * len(query.destinations)
+        # What waits in the line of searches: one request per route. The handshake is made once for a whole
+        # search and waits in a short line of its own.
+        return len(query.origins) * len(query.destinations)
 
     def __init__(self) -> None:
         self._opened: asyncio.Task | None = None
@@ -66,6 +67,7 @@ class Source:
             "POST",
             URL,
             headers=dict(headers),
+            queue="handshake",
             json={
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -89,6 +91,7 @@ class Source:
             "POST",
             URL,
             headers=dict(headers),
+            queue="handshake",
             json={"jsonrpc": "2.0", "method": "notifications/initialized"},
         )
         return headers

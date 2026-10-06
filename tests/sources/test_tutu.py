@@ -42,6 +42,19 @@ async def test_fetch_calls_only_search_and_keeps_session():
     assert call["json"]["params"]["name"] == "search_avia"
     assert call["json"]["params"]["arguments"]["destination"] == "Moscow"
     assert call["json"]["params"]["arguments"]["sort"] == "price_asc"
+    assert [c.get("queue") for c in net.calls] == ["handshake", "handshake", None], "only the search waits as a search"
+
+
+async def test_one_handshake_serves_every_route_of_a_search():
+    import asyncio
+    from dataclasses import replace
+
+    net, source = FakeNet(), Source()
+    routes = [replace(QUERY, destinations=(code,)) for code in ("MOW", "LED", "KZN")]
+    await asyncio.gather(*(source.fetch(route, Context(net, None, lambda: NOW)) for route in routes))
+    methods = [c["json"].get("method") for c in net.calls]
+    assert methods.count("initialize") == 1 and methods.count("tools/call") == 3
+    assert source.typical_requests(QUERY) == 1
 
 
 def test_sse_and_rpc_errors_are_not_empty_results():
