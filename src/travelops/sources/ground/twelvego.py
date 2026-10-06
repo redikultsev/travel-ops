@@ -10,7 +10,7 @@ from ...core.common import Link
 from ...core.ground import GroundOffer, GroundQuery, Ride, through_stops
 from ...core.money import Money
 from ..base import Context, NotConfigured, Parsed, ParseError
-from .._mcp import Refused, call_tool, open_session
+from .._mcp import Refused, Server
 
 URL = "https://mcp.12go.asia/mcp"
 # 12Go's vehicle classes as our modes; flights are left to the flight sources.
@@ -19,6 +19,9 @@ MODES = {"train": "train", "bus": "bus", "ferry": "ferry", "van": "van", "miniva
 
 class Source:
     name = "12go"
+
+    def __init__(self) -> None:
+        self.server = Server(self.name, URL, queue="handshake")
 
     def max_requests(self, query: GroundQuery) -> int:
         return 3
@@ -29,7 +32,6 @@ class Source:
     async def fetch(self, query: GroundQuery, ctx: Context) -> list[bytes]:
         if query.children:
             raise NotConfigured("12Go shows one adult price per seat; children's fares are not known")
-        headers = await open_session(ctx, self.name, URL, queue="handshake")
         arguments = {
             "from": query.origin,
             "to": query.destination,
@@ -41,7 +43,7 @@ class Source:
             "sort": "Cheapest",
         }
         try:
-            payload = await call_tool(ctx, self.name, URL, headers, "search", arguments)
+            payload = await self.server.call(ctx, "search", arguments)
         except Refused as exc:
             return [json.dumps({"refused": str(exc)}).encode()]
         if not isinstance(payload, list):

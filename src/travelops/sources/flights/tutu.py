@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from datetime import datetime
@@ -21,28 +20,12 @@ from ...core.flights import (
     flight_number,
 )
 from ...core.money import Money
+from .._mcp import Server
 from ..base import Context, ParseError, Parsed
 
 URL = "https://mcp.tutu.ru/mcp"
 CLASSES = {"economy": "Y", "premium_economy": "S", "business": "C", "first": "F"}
 CITIES = {"MOW": "Moscow", "LED": "Saint Petersburg"}
-
-
-def envelope(raw: bytes) -> dict:
-    try:
-        text = raw.decode().strip()
-        if text.startswith("{"):
-            value = json.loads(text)
-        else:
-            frames = [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
-            value = next(json.loads(frame) for frame in reversed(frames) if frame.startswith("{"))
-        if not isinstance(value, dict):
-            raise ValueError("not an object")
-        if "error" in value:
-            raise ParseError(f"Tutu RPC error: {value['error'].get('message', 'unknown error')}")
-        return value
-    except (ValueError, TypeError, StopIteration) as exc:
-        raise ParseError("Tutu response is neither JSON-RPC JSON nor an SSE envelope") from exc
 
 
 class Source:
@@ -57,55 +40,14 @@ class Source:
         return len(query.origins) * len(query.destinations)
 
     def __init__(self) -> None:
-        self._opened: asyncio.Task | None = None
-
-    async def _open(self, ctx: Context) -> dict:
-        """The MCP handshake, giving the headers every later call needs."""
-        headers = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
-        response = await ctx.net.request(
-            self.name,
-            "POST",
-            URL,
-            headers=dict(headers),
-            queue="handshake",
-            json={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-03-26",
-                    "capabilities": {},
-                    "clientInfo": {"name": "travel-ops", "version": "0.1.0"},
-                },
-            },
-        )
-        initialized = envelope(response.body)
-        protocol = initialized.get("result", {}).get("protocolVersion")
-        if protocol:
-            headers["mcp-protocol-version"] = protocol
-        session = next((value for key, value in response.headers.items() if key.lower() == "mcp-session-id"), None)
-        if session:
-            headers["mcp-session-id"] = session
-        await ctx.net.request(
-            self.name,
-            "POST",
-            URL,
-            headers=dict(headers),
-            queue="handshake",
-            json={"jsonrpc": "2.0", "method": "notifications/initialized"},
-        )
-        return headers
+        # One handshake serves every route and date of a search: they are runs of this same object.
+        self.server = Server(self.name, URL, queue="handshake")
 
     async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
         if query.cabin not in CLASSES:
             raise ValueError(f"unsupported cabin: {query.cabin}")
-        # One handshake serves every route and date of a search: they are runs of this same object. A handshake
-        # that failed is not kept, so the next run tries again.
-        if self._opened is None or (self._opened.done() and (self._opened.cancelled() or self._opened.exception())):
-            self._opened = asyncio.ensure_future(self._open(ctx))
-        headers = await asyncio.shield(self._opened)
         raws = []
-        for index, (origin, destination) in enumerate(product(query.origins, query.destinations), 2):
+        for origin, destination in product(query.origins, query.destinations):
             arguments = {
                 "origin": CITIES.get(origin, origin),
                 "destination": CITIES.get(destination, destination),
@@ -121,31 +63,7 @@ class Source:
             }
             if query.return_:
                 arguments["return_date"] = query.return_.isoformat()
-            response = await ctx.net.request(
-                self.name,
-                "POST",
-                URL,
-                headers=dict(headers),
-                json={
-                    "jsonrpc": "2.0",
-                    "id": index,
-                    "method": "tools/call",
-                    "params": {"name": "search_avia", "arguments": arguments},
-                },
-            )
-            result = envelope(response.body).get("result", {})
-            if result.get("isError"):
-                message = "; ".join(item.get("text", "") for item in result.get("content", []))
-                raise ParseError(f"Tutu search refused the query: {message}")
-            payload = result.get("structuredContent")
-            if payload is None:
-                for item in result.get("content", []):
-                    if item.get("type") == "text":
-                        try:
-                            payload = json.loads(item["text"])
-                            break
-                        except ValueError:
-                            continue
+            payload = await self.server.call(ctx, "search_avia", arguments, timeout=None)
             if not isinstance(payload, dict) or "offers" not in payload:
                 raise ParseError("Tutu search result has no offers field")
             raws.append(json.dumps(payload).encode())

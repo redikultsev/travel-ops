@@ -8,7 +8,7 @@ from travelops.core.flights import FlightQuery
 from travelops.core.money import Money
 from travelops.net.client import Response
 from travelops.sources.base import Context, ParseError, SourceFault
-from travelops.sources.flights.kiwi import Source, payload_of
+from travelops.sources.flights.kiwi import Source
 
 NOW = datetime(2026, 10, 6, tzinfo=timezone.utc)
 FIXTURES = Path(__file__).parents[1] / "fixtures/kiwi"
@@ -90,8 +90,6 @@ def test_answers_that_do_not_fit_the_question_are_refused():
         Source().parse([json.dumps(payload).encode()], FlightQuery(("BEG",), ("TGD",), ROUND.depart), NOW)
     full = dict(payload, itineraries=payload["itineraries"] * 4)
     assert any("truncated: the 15 cheapest" in n for n in Source().parse([json.dumps(full).encode()], ROUND, NOW).notes)
-    with pytest.raises(ParseError):
-        payload_of(b'{"jsonrpc":"2.0","id":1,"error":{"message":"bad"}}', "Kiwi")
     assert Source().parse([b'{"itineraries": []}'], ROUND, NOW).offers == []
 
 

@@ -6,7 +6,7 @@ import pytest
 from travelops.core.flights import FlightQuery
 from travelops.net.client import Response
 from travelops.sources.base import Context, ParseError
-from travelops.sources.flights.tutu import Source, envelope
+from travelops.sources.flights.tutu import Source
 
 NOW = datetime(2026, 10, 5, tzinfo=timezone.utc)
 QUERY = FlightQuery(("BEG",), ("MOW",), date(2026, 11, 14))
@@ -55,12 +55,6 @@ async def test_one_handshake_serves_every_route_of_a_search():
     methods = [c["json"].get("method") for c in net.calls]
     assert methods.count("initialize") == 1 and methods.count("tools/call") == 3
     assert source.typical_requests(QUERY) == 1
-
-
-def test_sse_and_rpc_errors_are_not_empty_results():
-    assert envelope(b'event: message\ndata: {"result":{"offers":[]}}\n\n')["result"] == {"offers": []}
-    with pytest.raises(ParseError, match="RPC"):
-        envelope(b'{"error":{"message":"bad argument"}}')
 
 
 def recorded():

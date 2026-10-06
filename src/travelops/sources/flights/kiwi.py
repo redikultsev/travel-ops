@@ -22,46 +22,12 @@ from ...core.flights import (
     flight_number,
 )
 from ...core.money import Money
-from ..base import Context, Parsed, ParseError, SourceFault
+from .._mcp import Server
+from ..base import Context, Parsed, ParseError
 
 URL = "https://mcp.kiwi.com"
 CLASSES = {"economy": "M", "premium_economy": "W", "business": "C", "first": "F"}
 AT_MOST = 15  # what one answer holds
-
-
-def envelope(raw: bytes) -> dict:
-    """The JSON-RPC answer, sent either as JSON or as the last `data:` frame of an event stream."""
-    try:
-        text = raw.decode().strip()
-        if not text.startswith("{"):
-            frames = [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
-            text = next(frame for frame in reversed(frames) if frame.startswith("{"))
-        value = json.loads(text)
-        if not isinstance(value, dict):
-            raise ValueError("not an object")
-        return value
-    except (ValueError, StopIteration) as exc:
-        raise ParseError("answer is neither JSON-RPC JSON nor an event stream") from exc
-
-
-def payload_of(raw: bytes, source: str) -> dict:
-    """What the tool returned, without anything the server addressed to a model."""
-    answer = envelope(raw)
-    if "error" in answer:
-        raise ParseError(f"{source} RPC error: {answer['error'].get('message', 'unknown error')}")
-    result = answer.get("result") or {}
-    payload = result.get("structuredContent")
-    if payload is None:
-        for item in result.get("content") or []:
-            if item.get("type") == "text":
-                try:
-                    payload = json.loads(item["text"])
-                    break
-                except ValueError:
-                    continue
-    if result.get("isError") or not isinstance(payload, dict):
-        raise ParseError(f"{source} refused the query or answered without data")
-    return payload
 
 
 def each(total, seats: int) -> int | None:
@@ -80,6 +46,9 @@ def cabin_bag(total, seats: int) -> bool | None:
 class Source:
     name = "kiwi"
 
+    def __init__(self) -> None:
+        self.server = Server(self.name, URL, handshake=False)  # Kiwi keeps no session
+
     def max_requests(self, query: FlightQuery) -> int:
         return len(query.origins) * len(query.destinations)
 
@@ -87,7 +56,7 @@ class Source:
         if query.cabin not in CLASSES:
             raise ValueError(f"unsupported cabin: {query.cabin}")
         raws = []
-        for index, (origin, destination) in enumerate(product(query.origins, query.destinations), 1):
+        for origin, destination in product(query.origins, query.destinations):
             arguments = {
                 "flyFrom": origin,
                 "flyTo": destination,
@@ -104,24 +73,10 @@ class Source:
             }
             if query.return_:
                 arguments["returnDate"] = query.return_.strftime("%d/%m/%Y")
-            response = await ctx.net.request(
-                self.name,
-                "POST",
-                URL,
-                headers={"content-type": "application/json", "accept": "application/json, text/event-stream"},
-                json={
-                    "jsonrpc": "2.0",
-                    "id": index,
-                    "method": "tools/call",
-                    "params": {"name": "search-flight", "arguments": arguments},
-                },
-                timeout=60,
-            )
-            if response.status >= 500:
-                raise SourceFault(f"Kiwi answered HTTP {response.status}")
-            if response.status != 200:
-                raise ParseError(f"Kiwi answered HTTP {response.status}")
-            raws.append(json.dumps(payload_of(response.body, "Kiwi")).encode())
+            payload = await self.server.call(ctx, "search-flight", arguments)
+            if not isinstance(payload, dict):
+                raise ParseError("kiwi answered without a search result")
+            raws.append(json.dumps(payload).encode())
         return raws
 
     def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed:

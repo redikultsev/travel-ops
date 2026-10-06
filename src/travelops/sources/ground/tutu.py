@@ -10,7 +10,7 @@ from ...core.common import Link
 from ...core.ground import GroundOffer, GroundQuery, Ride
 from ...core.money import Money
 from ..base import Context, Parsed, ParseError
-from .._mcp import Refused, call_tool, open_session
+from .._mcp import Refused, Server
 from ...geo import locate
 
 URL = "https://mcp.tutu.ru/mcp"
@@ -57,6 +57,9 @@ def where(place: dict | None) -> str:
 class Source:
     name = "tutu"
 
+    def __init__(self) -> None:
+        self.server = Server(self.name, URL, queue="handshake")
+
     def max_requests(self, query: GroundQuery) -> int:
         return 2 + sum(mode in TOOLS for mode in query.modes)
 
@@ -68,9 +71,8 @@ class Source:
         if not modes:
             return []
         origin, destination = await russian(ctx, query.origin), await russian(ctx, query.destination)
-        headers = await open_session(ctx, self.name, URL, queue="handshake")
         raws = []
-        for index, mode in enumerate(modes, 2):
+        for mode in modes:
             arguments = {
                 "origin": origin,
                 "destination": destination,
@@ -88,7 +90,7 @@ class Source:
             else:
                 arguments["adults"], arguments["children"] = query.adults, query.children
             try:
-                payload = await call_tool(ctx, self.name, URL, headers, TOOLS[mode], arguments, index)
+                payload = await self.server.call(ctx, TOOLS[mode], arguments)
             except Refused as exc:
                 # An unknown place is an answer about the place, not a broken source.
                 raws.append(json.dumps({"mode": mode, "refused": str(exc)}).encode())

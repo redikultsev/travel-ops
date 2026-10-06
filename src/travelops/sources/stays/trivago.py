@@ -9,16 +9,18 @@ import re
 
 from ...core.common import Link
 from ...core.stays import Rate, Stay, StayOffer
-from ..base import NotConfigured, Parsed, ParseError, SourceFault
-from ..flights.kiwi import envelope, payload_of
+from .._mcp import Server
+from ..base import NotConfigured, Parsed, ParseError
 from ._html import money
 
 URL = "https://mcp.trivago.com/mcp"
-HEADERS = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
 
 
 class Source:
     name = "trivago"
+
+    def __init__(self) -> None:
+        self.server = Server(self.name, URL)
 
     def max_requests(self, query):
         return 3
@@ -26,36 +28,6 @@ class Source:
     async def fetch(self, query, ctx):
         if query.children and len(query.children_ages) != query.children:
             raise NotConfigured("trivago prices a child by age: pass children_ages")
-        headers = dict(HEADERS)
-        opened = await ctx.net.request(
-            self.name,
-            "POST",
-            URL,
-            headers=dict(headers),
-            json={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-03-26",
-                    "capabilities": {},
-                    "clientInfo": {"name": "travel-ops", "version": "0.1.0"},
-                },
-            },
-        )
-        protocol = envelope(opened.body).get("result", {}).get("protocolVersion")
-        if protocol:
-            headers["mcp-protocol-version"] = protocol
-        session = next((v for k, v in opened.headers.items() if k.lower() == "mcp-session-id"), None)
-        if session:
-            headers["mcp-session-id"] = session
-        await ctx.net.request(
-            self.name,
-            "POST",
-            URL,
-            headers=dict(headers),
-            json={"jsonrpc": "2.0", "method": "notifications/initialized"},
-        )
         arguments = {
             "query": query.place,
             "arrival": query.checkin.isoformat(),
@@ -68,24 +40,9 @@ class Source:
         if query.children_ages:
             arguments["children"] = query.children
             arguments["children_ages"] = "-".join(map(str, query.children_ages))
-        response = await ctx.net.request(
-            self.name,
-            "POST",
-            URL,
-            headers=dict(headers),
-            json={
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {"name": "trivago-accommodation-search", "arguments": arguments},
-            },
-            timeout=60,
-        )
-        if response.status >= 500:
-            raise SourceFault(f"trivago answered HTTP {response.status}")
-        if response.status != 200:
-            raise ParseError(f"trivago answered HTTP {response.status}")
-        payload = payload_of(response.body, "trivago")
+        payload = await self.server.call(ctx, "trivago-accommodation-search", arguments)
+        if not isinstance(payload, dict):
+            raise ParseError("trivago answered without a search result")
         # Only the list of stays is kept: `system_message` is the server talking to a model.
         return [json.dumps({"accommodations": payload.get("accommodations")}).encode()]
 
