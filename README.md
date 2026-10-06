@@ -59,9 +59,10 @@ Claude Code. Client configuration formats differ, but all clients call the same 
 search engine.
 
 The MCP tools are `search_trip`, `search_flights`, `search_stays`, `refine_flights`, `refine_stays`,
-`airports_near`, and `sources`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in
-Kotor" in one call: it finds the place, picks the airports that serve it, and searches flights there and back and
-stays for the same dates.
+`stay_details`, `stay_photos`, `airports_near`, `sources`, and the price watch tools `watch_price`, `watches` and
+`stop_watch`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one
+call: it finds the place, picks the airports that serve it, and searches flights there and back and stays for the
+same dates.
 
 Every search is remembered whole, and each result carries a `search_id`. A follow-up ("evening flights only",
 "with a bag", "no dormitories, under 40 EUR") is answered by a refine tool from memory: no request to any site,
@@ -72,6 +73,24 @@ does not say. The same search within 30 minutes is answered from memory too; `re
 return the cheapest cards (`limit`) with `shown` telling how many exist, a short `report` of who answered and where
 the answer is narrower than the question, plus exact statuses, timestamps, links, original currencies and
 conversion-rate dates.
+
+## Watching prices
+
+A watch is a saved search that runs again on its own and alerts when the cheapest offer that passes its filters
+falls. An agent saves one with `watch_price`; the command line does the same:
+
+```bash
+uv run travelops watch add flights '{"origin": "BEG", "destination": "LIS", "depart": "2026-11-14", "return_date": "2026-11-16"}' --filters '{"max_stops": 0}' --drop 5 --every 6
+uv run travelops watch list
+uv run travelops watch run
+```
+
+`watch run` checks the watches that are due, one search at a time, and exits; schedule it with cron or a systemd
+timer, or keep it running with `--every-minutes 30`. Checks are at least three hours apart, at most twenty
+watches run at once, and a watch ends on its departure or check-in day. A watch alerts when the price is
+`--drop` percent below the price it last told (the first check, then each alert), or first reaches `--below`.
+Alerts are printed; set `TRAVELOPS_NOTIFY_URL` to also POST them as plain text (an [ntfy](https://ntfy.sh) topic
+URL works as is), or `TRAVELOPS_NOTIFY_COMMAND` to pipe them into a command.
 
 ## Checking the agent
 

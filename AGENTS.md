@@ -97,6 +97,17 @@ request to any site and answers at once.
   separate-tickets comparison, unless that is what the human is about to buy),
   and say what changed for the offers you had recommended.
 
+## Watching a price
+
+"Tell me when it gets cheaper", "follow this price", or a trip far ahead that the
+human is not ready to buy: offer a watch, and save it with `watch_price` only
+after a yes. Its `arguments` are the search the human saw; its `filters` are the
+bars they set in follow-ups (evening only, a bag, no stops), so the watched
+price is the one they would buy. Say what will trigger an alert (a fall of
+`drop_percent` from the last price told, or `below`), how often it checks, and
+that it runs only where `travelops watch run` is scheduled. `watches` lists the
+checks; report a watch's prices with their check time, as old prices.
+
 ## What to report, and how long
 
 Write for a phone screen. A first answer fits in about 3500 characters, a

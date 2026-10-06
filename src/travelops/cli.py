@@ -2,7 +2,7 @@
 
 import argparse
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import shutil
@@ -67,6 +67,20 @@ def parser():
     d = commands.add_parser("doctor")
     d.add_argument("--live", action="store_true")
     commands.add_parser("mcp")
+    w = commands.add_parser("watch", help="price watches: saved searches repeated by `watch run`")
+    actions = w.add_subparsers(dest="action", required=True)
+    wa = actions.add_parser("add", help="save a watch; ARGUMENTS as the search tool takes them, in JSON")
+    wa.add_argument("kind", choices=("flights", "stays"))
+    wa.add_argument("arguments", type=json.loads)
+    wa.add_argument("--filters", type=json.loads, default=None, help="refine tool arguments, in JSON")
+    wa.add_argument("--below", type=float)
+    wa.add_argument("--drop", type=float, default=5.0, help="alert when this many percent cheaper")
+    wa.add_argument("--every", type=float, default=6.0, help="hours between checks, at least 3")
+    wa.add_argument("--currency")
+    actions.add_parser("list").add_argument("--all", action="store_true", help="stopped watches too")
+    actions.add_parser("stop").add_argument("watch_id")
+    wr = actions.add_parser("run", help="check the watches that are due, one search at a time")
+    wr.add_argument("--every-minutes", type=float, help="keep running, looking for due watches this often")
     e = commands.add_parser("eval", help="check an agent's answers to a recorded scenario; no network")
     e.add_argument("scenario", help="a directory under evals/scenarios")
     e.add_argument("run", help="a directory with turn-N.md and turn-N.trace.jsonl")
@@ -232,6 +246,35 @@ async def doctor(app, live, console):
     return 0 if all(checks) else 1
 
 
+async def watch(app, args):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from .mcp import Tools
+    from .watch import run_due
+
+    tools = Tools(app)
+    try:
+        if args.action == "add":
+            out = await tools.watch_price(
+                args.kind, args.arguments, args.filters, args.below, args.drop, args.every, args.currency
+            )
+        elif args.action == "list":
+            out = await tools.watches(include_stopped=args.all)
+        elif args.action == "stop":
+            out = await tools.stop_watch(args.watch_id)
+        else:
+            while True:
+                stamp = datetime.now().isoformat(timespec="minutes")
+                await run_due(tools, app.watches, lambda line: print(f"[{stamp}] {line}", flush=True))
+                if not args.every_minutes:
+                    return 0
+                await asyncio.sleep(max(5.0, args.every_minutes) * 60)
+    except ToolError as exc:
+        raise ValueError(str(exc)) from exc
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
 async def execute(args):
     app = build(Path.cwd(), getattr(args, "proxy", None))
     console = Console()
@@ -250,6 +293,8 @@ async def execute(args):
             return 0
         if args.command == "doctor":
             return await doctor(app, args.live, console)
+        if args.command == "watch":
+            return await watch(app, args)
         if args.command == "airports":
             from .geo import airports_near, locate, place_json
 

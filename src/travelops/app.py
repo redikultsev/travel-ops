@@ -13,6 +13,7 @@ from .net.limiter import Limiter
 from .profile import Profile, data_dir, load_profile
 from .sources import FLIGHT_SOURCES, STAY_SOURCES, RULES
 from .sources.base import Context
+from .watch import Watches
 
 
 def _sources(names, registry):
@@ -112,6 +113,7 @@ class App:
     profile: Profile
     results: Results
     replay: bool = False  # answers come from a recording; nothing goes to the network
+    watches: Watches | None = None  # saved searches that `travelops watch run` repeats
     closed: bool = False
 
     async def close(self):
@@ -122,6 +124,8 @@ class App:
                 self.net.cache.db.close()
                 self.limiter.db.close()
                 self.results.db.close()
+                if self.watches is not None:
+                    self.watches.db.close()
                 self.closed = True
 
 
@@ -145,4 +149,5 @@ def build(root: Path, proxy: str | None = None) -> App:
         limiter,
         profile,
         Results(data / "results.sqlite"),
+        watches=Watches(data / "watches.sqlite"),
     )

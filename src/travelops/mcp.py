@@ -22,6 +22,7 @@ from .rates import load_rates
 from .search import estimate_flights, estimate_stays
 from .trip import plan_trip, search_trip
 from .views import flights_view, stays_view
+from .watch import checked_arguments, watch_json
 
 DESCRIPTION = (
     "Search live prices with seen_at timestamps. Dates are YYYY-MM-DD; airports are IATA codes; stay ratings are "
@@ -421,6 +422,76 @@ class Tools:
             raise ValueError("currency must be a three-letter code")
         return value.upper()
 
+    def _watches(self):
+        if self.app.watches is None:
+            raise ValueError("this server keeps no watches (a replay has none)")
+        return self.app.watches
+
+    async def watch_price(
+        self,
+        kind: str,
+        arguments: dict[str, Any],
+        filters: dict[str, Any] | None = None,
+        below: float | None = None,
+        drop_percent: float = 5.0,
+        every_hours: float = 6.0,
+        currency: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            watches = self._watches()
+            if kind not in ("flights", "stays"):
+                raise ValueError("kind must be flights or stays")
+            search = self.search_flights if kind == "flights" else self.search_stays
+            refine = self.refine_flights if kind == "flights" else self.refine_stays
+            arguments = checked_arguments(search, arguments, "arguments")
+            filters = checked_arguments(refine, filters or {}, "filters", partial=True)
+            if "search_id" in filters:
+                raise ValueError("filters cannot set search_id: each check is a new search")
+            # The query must make sense now, not at three in the morning.
+            if kind == "flights":
+                flight_query(
+                    self.app.profile,
+                    arguments["origin"],
+                    arguments["destination"],
+                    arguments["depart"],
+                    arguments.get("return_date"),
+                    arguments.get("flex_days", 0),
+                    arguments.get("adults"),
+                    arguments.get("cabin"),
+                    arguments.get("children_ages"),
+                )
+            else:
+                stay_query(
+                    self.app.profile,
+                    arguments["place"],
+                    arguments["checkin"],
+                    arguments["checkout"],
+                    arguments.get("adults"),
+                    arguments.get("children_ages"),
+                )
+            watch = watches.add(kind, arguments, filters, self._currency(currency), below, drop_percent, every_hours)
+        except (ValueError, KeyError) as exc:
+            raise ToolError(f"Invalid watch: {exc}") from exc
+        return dict(
+            watch_json(watch, watches),
+            note="Saved. It runs only where `travelops watch run` is scheduled; the first check sets the price "
+            "the next alerts are measured against.",
+        )
+
+    async def watches(self, include_stopped: bool = False) -> dict[str, Any]:
+        try:
+            watches = self._watches()
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        return {"watches": [watch_json(w, watches) for w in watches.list(ended=include_stopped)]}
+
+    async def stop_watch(self, watch_id: str) -> dict[str, Any]:
+        try:
+            watches = self._watches()
+            return watch_json(watches.stop(watch_id), watches)
+        except ValueError as exc:
+            raise ToolError(f"Invalid watch: {exc}") from exc
+
     async def sources(self) -> dict[str, Any]:
         import time
 
@@ -462,6 +533,15 @@ def traced(tool, path: str | None):
     return wrapper
 
 
+WATCH = (
+    "Save a search to repeat on its own and alert when the price falls. `kind` is flights or stays; `arguments` "
+    "are exactly what search_flights or search_stays takes (without refresh, confirm, limit, currency); `filters` "
+    "are what refine_flights or refine_stays takes (without search_id), applied to every check, so the watched "
+    "price is the cheapest that passes them. An alert comes when the cheapest is `drop_percent` below the price "
+    "last told (the first check, then each alert), or first reaches `below` (in `currency`). Checks run every "
+    "`every_hours` (at least 3) until the departure or check-in day, one search at a time, only where "
+    "`travelops watch run` is scheduled. Saving makes no request to any site. Ask the human before saving one. "
+)
 TRIP = (
     "Whole trip in one call: flights from `origin` (IATA codes, e.g. BEG or a city code such as MOW) to the airports "
     "nearest to `place` and back, and stays in `place` for the same dates, searched side by side. `place` in Latin "
@@ -551,6 +631,25 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         "town. One request to a geocoder and one to a routing service, none to travel sites.",
         annotations=ToolAnnotations(
             read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True
+        ),
+    )
+    server.add_tool(
+        traced(tools.watch_price, trace),
+        description=WATCH,
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+        ),
+    )
+    server.add_tool(
+        traced(tools.watches, trace),
+        description="List the price watches with their last checks (newest first). No network requests.",
+        annotations=LOCAL,
+    )
+    server.add_tool(
+        traced(tools.stop_watch, trace),
+        description="Stop a price watch by `watch_id`. Its checks stay listed with include_stopped=true.",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False
         ),
     )
     server.add_tool(
