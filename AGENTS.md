@@ -1,6 +1,6 @@
 # travel-ops
 
-For travel requests, help one person find flights and stays. The deterministic
+For travel requests, help one person find flights, stays, trains and buses. The deterministic
 engine retrieves and compares prices; you understand the request, call it, and
 explain its results. Read `profile.yml` first. Without one the engine's own
 defaults apply: one adult, economy, EUR, at most one stop, stays rated 8 or more,
@@ -13,11 +13,12 @@ a profile.
 - A trip (a place and dates, flights and a stay together): read `modes/trip.md`. One `search_trip` call.
 - Flights only: read `modes/flights.md`.
 - Stays only: read `modes/stays.md`.
+- Trains and buses: read `modes/ground.md`.
 
 A follow-up inside a trip about its flights or its stays is shown the way that part's mode shows cards.
 
-Tools: `search_trip`, `search_flights`, `search_stays` search; `refine_flights`, `refine_stays` look again at a
-search already made; `stay_details` reads the property pages of a few stays and `stay_photos` shows you their
+Tools: `search_trip`, `search_flights`, `search_stays`, `search_ground` search; `refine_flights`, `refine_stays`,
+`refine_ground` look again at a search already made; `stay_details` reads the property pages of a few stays and `stay_photos` shows you their
 photos; `airports_near`, `sources`. Never guess which airport serves a town: `search_trip` resolves it, and
 `airports_near` answers the question alone.
 
@@ -106,7 +107,9 @@ bars they set in follow-ups (evening only, a bag, no stops), so the watched
 price is the one they would buy. Say what will trigger an alert (a fall of
 `drop_percent` from the last price told, or `below`), how often it checks, and
 that it runs only where `travelops watch run` is scheduled. `watches` lists the
-checks; report a watch's prices with their check time, as old prices.
+checks; report a watch's prices with their check time, as old prices. A drop is
+kept as an alert until `watch_alerts` collects it: the assistant that collects
+it is the one that tells the human, once.
 
 ## What to report, and how long
 

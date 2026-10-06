@@ -67,7 +67,11 @@ async def test_a_slow_slide_adds_up_to_an_alert():
     assert tools.calls[1][1] == {"limit": 1, "max_stops": 0}
     # 300 sets the reference; 290 is 3% down; 282 is 6% below 300 and alerts; 284 is above the new 282.
     alerts = [line for line in said if "—" in line]
-    assert len(alerts) == 1 and "282 EUR" in alerts[0] and "https://example.test/offer" in alerts[0]
+    assert len(alerts) == 1 and "282 EUR" in alerts[0]
+    (alert,) = watches.pending()
+    assert alert["price"] == 282 and alert["last_told"] == 300 and alert["link"] == "https://example.test/offer"
+    assert alert["watch_id"] == watch.id and alert["why"] == "6% below the 300 last told"
+    assert watches.pending() == []  # collected once: the assistant that took it tells the human
     assert watches.get(watch.id).told == 282
     assert [c["best"] for c in watches.history(watch.id)] == [284, 282, 290, 300]
 
@@ -117,3 +121,9 @@ async def test_tool_checks_arguments_without_searching():
     assert len((await tools.watches())["watches"]) == 1
     stopped = await tools.stop_watch(saved["watch_id"])
     assert stopped["active"] is False and (await tools.watches())["watches"] == []
+
+
+def test_a_ground_watch_lasts_until_its_day():
+    watches = Watches(None, Clock())
+    watch = watches.add("ground", {"origin": "Belgrade", "destination": "Vienna", "depart": "2026-11-14"}, {}, "EUR")
+    assert watch.until == "2026-11-14" and watch.label() == "Belgrade→Vienna 2026-11-14 by train/bus"

@@ -8,7 +8,7 @@ from .core.common import Link
 from .core.flights import Fare, Segment
 from .core.money import Money, Rates, UnknownCurrency
 from .core.stays import Rate
-from .search import FlightSearch, StaySearch
+from .search import FlightSearch, GroundSearch, StaySearch
 
 
 def money_json(money: Money) -> dict:
@@ -168,6 +168,60 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
             }
             for card in search.cards
         ],
+        "sources": [asdict(report) for report in search.reports],
+    }
+
+
+def ground_search_json(search: GroundSearch, rates: Rates) -> dict:
+    query, currency = search.query, search.currency
+    cards = []
+    for offer in search.offers:
+        cards.append(
+            {
+                "rides": [
+                    {
+                        "mode": r.mode,
+                        "from": r.origin,
+                        "to": r.destination,
+                        "departs": r.departs.isoformat(),
+                        "arrives": r.arrives.isoformat(),
+                        "carrier": r.carrier,
+                        "number": r.number,
+                    }
+                    for r in offer.rides
+                ],
+                "modes": sorted({r.mode for r in offer.rides}),
+                "changes": len(offer.rides) - 1,
+                "duration_min": offer.duration_min(),
+                "rating": offer.rating,
+                "reviews": offer.reviews,
+                "fares": [
+                    {
+                        "price": money_json(offer.price),
+                        "converted": converted_json(offer.price, rates, currency),
+                        "price_from": offer.price_from,
+                        "classes_per_seat": {k: money_json(v) for k, v in offer.classes.items()},
+                        "seller": offer.seller,
+                        "source": offer.source,
+                        "link": link_json(offer.link),
+                        "seen_at": offer.seen_at.isoformat(),
+                    }
+                ],
+            }
+        )
+    cards.sort(key=lambda c: _amount(c["fares"][0]))
+    return {
+        "query": {
+            "origin": query.origin,
+            "destination": query.destination,
+            "depart": query.depart.isoformat(),
+            "adults": query.adults,
+            "children": query.children,
+            "modes": list(query.modes),
+        },
+        "currency": currency,
+        "rates_day": rates.day,
+        "cards": cards,
         "sources": [asdict(report) for report in search.reports],
     }
 

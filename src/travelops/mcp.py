@@ -14,14 +14,14 @@ from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from . import recall
-from .app import App, build, flight_query, stay_query, flight_sources, stay_sources
+from .app import App, build, flight_query, ground_query, ground_sources, stay_query, flight_sources, stay_sources
 from .combine import separate_tickets as pair_tickets
 from .details import read_details, read_photos
 from .geo import airports_near, locate, place_json, with_roads
 from .rates import load_rates
-from .search import estimate_flights, estimate_stays
+from .search import estimate_flights, estimate_ground, estimate_stays
 from .trip import plan_trip, search_trip
-from .views import flights_view, stays_view
+from .views import flights_view, ground_view, stays_view
 from .watch import checked_arguments, watch_json
 
 DESCRIPTION = (
@@ -188,6 +188,69 @@ class Tools:
             raise ToolError(f"Invalid stay search: {exc}") from exc
         except TimeoutError as exc:
             raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+
+    async def search_ground(
+        self,
+        origin: str,
+        destination: str,
+        depart: str,
+        adults: int | None = None,
+        children_ages: list[int] | None = None,
+        modes: list[str] | None = None,
+        sources: list[str] | None = None,
+        currency: str | None = None,
+        confirm: bool = False,
+        limit: int = 10,
+        refresh: bool = False,
+    ) -> dict[str, Any]:
+        app = self.app
+        try:
+            self._limit(limit)
+            query = ground_query(app.profile, origin, destination, depart, adults, children_ages, modes)
+            selected = ground_sources(sources)
+            currency = self._currency(currency)
+            if refresh or not recall.remembered(app, "ground", query, selected, currency):
+                estimate = estimate_ground(query, selected, app.limiter, app.net.exit)
+                if estimate > app.profile.confirm_over_seconds and not confirm:
+                    return confirmation(estimate)
+            stored = await recall.ground(
+                app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
+            )
+            return stored.stamp(ground_view(stored.result, limit=limit), app.results.clock())
+        except ValueError as exc:
+            raise ToolError(f"Invalid ground search: {exc}") from exc
+        except TimeoutError as exc:
+            raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+
+    async def refine_ground(
+        self,
+        search_id: str,
+        limit: int = 10,
+        modes: list[str] | None = None,
+        depart_after: str | None = None,
+        depart_before: str | None = None,
+        max_changes: int | None = None,
+        max_price: float | None = None,
+        sources: list[str] | None = None,
+        sort: str = "price",
+    ) -> dict[str, Any]:
+        try:
+            self._limit(limit)
+            stored = self._stored(search_id, "ground")
+            view = ground_view(
+                stored.result,
+                limit=limit,
+                modes=modes,
+                depart_after=depart_after,
+                depart_before=depart_before,
+                max_changes=max_changes,
+                max_price=max_price,
+                sources=sources,
+                sort=sort,
+            )
+            return stored.stamp(view, self.app.results.clock())
+        except ValueError as exc:
+            raise ToolError(f"Invalid ground view: {exc}") from exc
 
     def _stored(self, search_id: str, kind: str):
         stored = self.app.results.get(search_id) if isinstance(search_id, str) else None
@@ -439,10 +502,9 @@ class Tools:
     ) -> dict[str, Any]:
         try:
             watches = self._watches()
-            if kind not in ("flights", "stays"):
-                raise ValueError("kind must be flights or stays")
-            search = self.search_flights if kind == "flights" else self.search_stays
-            refine = self.refine_flights if kind == "flights" else self.refine_stays
+            if kind not in ("flights", "stays", "ground"):
+                raise ValueError("kind must be flights, stays or ground")
+            search, refine = getattr(self, f"search_{kind}"), getattr(self, f"refine_{kind}")
             arguments = checked_arguments(search, arguments, "arguments")
             filters = checked_arguments(refine, filters or {}, "filters", partial=True)
             if "search_id" in filters:
@@ -459,6 +521,16 @@ class Tools:
                     arguments.get("adults"),
                     arguments.get("cabin"),
                     arguments.get("children_ages"),
+                )
+            elif kind == "ground":
+                ground_query(
+                    self.app.profile,
+                    arguments["origin"],
+                    arguments["destination"],
+                    arguments["depart"],
+                    arguments.get("adults"),
+                    arguments.get("children_ages"),
+                    arguments.get("modes"),
                 )
             else:
                 stay_query(
@@ -485,6 +557,17 @@ class Tools:
             raise ToolError(str(exc)) from exc
         return {"watches": [watch_json(w, watches) for w in watches.list(ended=include_stopped)]}
 
+    async def watch_alerts(self, take: bool = True) -> dict[str, Any]:
+        try:
+            watches = self._watches()
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        return {
+            "alerts": watches.pending(take),
+            "note": "Each alert is given out once with take=true: tell the human now. Its price is as old as "
+            "`seen_at`; search again before recommending a booking.",
+        }
+
     async def stop_watch(self, watch_id: str) -> dict[str, Any]:
         try:
             watches = self._watches()
@@ -498,6 +581,7 @@ class Tools:
         return {
             "flight_sources": [s.name for s in flight_sources()],
             "stay_sources": [s.name for s in stay_sources()],
+            "ground_sources": [s.name for s in ground_sources()],
             "buckets": [
                 {
                     "bucket": bucket,
@@ -534,13 +618,23 @@ def traced(tool, path: str | None):
 
 
 WATCH = (
-    "Save a search to repeat on its own and alert when the price falls. `kind` is flights or stays; `arguments` "
-    "are exactly what search_flights or search_stays takes (without refresh, confirm, limit, currency); `filters` "
-    "are what refine_flights or refine_stays takes (without search_id), applied to every check, so the watched "
+    "Save a search to repeat on its own and alert when the price falls. `kind` is flights, stays or ground; "
+    "`arguments` are exactly what that search tool takes (without refresh, confirm, limit, currency); `filters` "
+    "are what its refine tool takes (without search_id), applied to every check, so the watched "
     "price is the cheapest that passes them. An alert comes when the cheapest is `drop_percent` below the price "
     "last told (the first check, then each alert), or first reaches `below` (in `currency`). Checks run every "
     "`every_hours` (at least 3) until the departure or check-in day, one search at a time, only where "
-    "`travelops watch run` is scheduled. Saving makes no request to any site. Ask the human before saving one. "
+    "`travelops watch run` is scheduled. Alerts wait for `watch_alerts`. Saving makes no request to any site. "
+    "Ask the human before saving one. "
+)
+GROUND = (
+    "Trains and buses between two places on one day, one way: for a return, search the other way on its day. "
+    "Places are names in Latin script (Belgrade, Sarajevo, Moscow); each source says which place it understood, "
+    "and stations name where a ride really starts and ends. `modes`: train, bus, ferry, van (a shared minibus), "
+    "default train and bus. Prices are for the whole party. A train price is `price_from`: the cheapest class "
+    "for everyone, which the party may not all get; `classes_per_seat` gives one seat in each class (seat, "
+    "open_berth, compartment, sleeper). Sources: tutu (Russia and the CIS, some international buses), 12go "
+    "(Turkey, south-east Asia, parts of the Balkans, ferries). Flights are not here: use the flight tools. "
 )
 TRIP = (
     "Whole trip in one call: flights from `origin` (IATA codes, e.g. BEG or a city code such as MOW) to the airports "
@@ -583,6 +677,14 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         traced(tools.search_flights, trace), description=DESCRIPTION + " " + SEPARATE + PARTY, annotations=READ_ONLY
     )
     server.add_tool(traced(tools.search_stays, trace), description=DESCRIPTION + " " + PARTY, annotations=READ_ONLY)
+    server.add_tool(traced(tools.search_ground, trace), description=GROUND + DESCRIPTION, annotations=READ_ONLY)
+    server.add_tool(
+        traced(tools.refine_ground, trace),
+        description=REFINE + "Times are local to the station, HH:MM. `modes` keeps only these (train, bus, ferry, "
+        "van); `max_changes` 0 keeps direct rides; `max_price` is in the currency of the result. `sort`: price, "
+        "duration or departure; a ride whose source gives local times only has no duration and sorts last.",
+        annotations=LOCAL,
+    )
     server.add_tool(
         traced(tools.refine_flights, trace),
         description=REFINE + "Times are local to the departure airport, HH:MM. `airlines` keeps only these carrier "
@@ -644,6 +746,16 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         traced(tools.watches, trace),
         description="List the price watches with their last checks (newest first). No network requests.",
         annotations=LOCAL,
+    )
+    server.add_tool(
+        traced(tools.watch_alerts, trace),
+        description="Price drops found by the watches since the last collection, oldest first: what, the price "
+        "and the one last told, why it is worth telling, seller, link, `search_id`, when it was seen. With "
+        "take=true (default) each alert is given out once, so the assistant that collects them is the one that "
+        "tells the human; take=false only looks. No network requests.",
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+        ),
     )
     server.add_tool(
         traced(tools.stop_watch, trace),

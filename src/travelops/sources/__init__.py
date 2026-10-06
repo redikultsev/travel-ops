@@ -2,6 +2,7 @@
 
 FLIGHT_SOURCES: dict[str, type] = {}
 STAY_SOURCES: dict[str, type] = {}
+GROUND_SOURCES: dict[str, type] = {}
 
 from ..net.limiter import Rule
 
@@ -19,6 +20,8 @@ RULES: dict[str, Rule] = {
     # Public MCP servers made for agents.
     "kiwi": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "trivago": Rule(interval=3, jitter=1, window=30, per=600, quarantine=1800),
+    "12go": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
+    "12go/handshake": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
     # A public routing service that asks for one request a second at most.
     "routing": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
     # Photo CDNs, not the travel sites themselves.
@@ -60,3 +63,11 @@ STAY_SOURCES["airbnb"] = Airbnb
 from .stays.trivago import Source as Trivago
 
 STAY_SOURCES["trivago"] = Trivago
+
+from .ground.tutu import Source as TutuGround
+
+GROUND_SOURCES["tutu"] = TutuGround
+
+from .ground.twelvego import Source as TwelveGo
+
+GROUND_SOURCES["12go"] = TwelveGo

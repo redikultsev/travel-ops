@@ -5,13 +5,14 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from .core.flights import CABINS, FlightQuery
+from .core.ground import MODES, GroundQuery
 from .core.stays import StayQuery
 from .memory import Results
 from .net.client import Net
 from .net.browser import BrowserSessions
 from .net.limiter import Limiter
 from .profile import Profile, data_dir, load_profile
-from .sources import FLIGHT_SOURCES, STAY_SOURCES, RULES
+from .sources import FLIGHT_SOURCES, GROUND_SOURCES, STAY_SOURCES, RULES
 from .sources.base import Context
 from .watch import Watches
 
@@ -31,6 +32,10 @@ def flight_sources(names=None):
 
 def stay_sources(names=None):
     return _sources(names, STAY_SOURCES)
+
+
+def ground_sources(names=None):
+    return _sources(names, GROUND_SOURCES)
 
 
 def _airports(value):
@@ -100,6 +105,25 @@ def stay_query(profile, place, checkin, checkout, adults=None, children_ages=Non
         _positive(profile.stays.adults if adults is None else adults, "adults"),
         profile.travellers.children if ages is None else len(ages),
         children_ages=ages or (),
+    )
+
+
+def ground_query(profile, origin, destination, depart, adults=None, children_ages=None, modes=None):
+    depart = date.fromisoformat(depart) if isinstance(depart, str) else depart
+    for label, place in (("origin", origin), ("destination", destination)):
+        if not isinstance(place, str) or not place.strip():
+            raise ValueError(f"{label} must be a place name")
+    modes = ("train", "bus") if modes is None else tuple(dict.fromkeys(modes))
+    if not modes or any(m not in MODES for m in modes):
+        raise ValueError(f"modes must be some of {', '.join(MODES)}")
+    ages = _ages(children_ages)
+    return GroundQuery(
+        origin.strip(),
+        destination.strip(),
+        depart,
+        _positive(profile.travellers.adults if adults is None else adults, "adults"),
+        profile.travellers.children if ages is None else len(ages),
+        modes,
     )
 
 

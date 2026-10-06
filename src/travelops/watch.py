@@ -26,7 +26,7 @@ from .views import _comparable
 
 MIN_EVERY_HOURS = 3.0  # a watch is a background errand: it must not spend a source's patience
 MAX_ACTIVE = 20
-KINDS = ("flights", "stays")
+KINDS = ("flights", "stays", "ground")
 # Set by the watch itself, not by whoever adds it.
 RESERVED = ("refresh", "confirm", "limit", "currency")
 
@@ -52,6 +52,8 @@ class Watch:
         if self.kind == "flights":
             dates = a["depart"] + (f"/{a['return_date']}" if a.get("return_date") else "")
             return f"{a['origin']}→{a['destination']} {dates}"
+        if self.kind == "ground":
+            return f"{a['origin']}→{a['destination']} {a['depart']} by {'/'.join(a.get('modes') or ['train', 'bus'])}"
         return f"{a['place']} {a['checkin']}/{a['checkout']}"
 
 
@@ -66,10 +68,17 @@ def judge(told: float | None, best: float | None, below: float | None, drop_perc
     return None
 
 
+def offers_of(card: dict) -> list[dict]:
+    """The priced offers of a card, cheapest first, whatever its kind."""
+    if "groups" in card:
+        return [f for g in card["groups"] for f in g["fares"]]
+    return card["fares"] if "fares" in card else card["rates"]
+
+
 def cheapest(card: dict | None, currency: str) -> float | None:
     if card is None:
         return None
-    offers = [f for g in card["groups"] for f in g["fares"]] if "groups" in card else card["rates"]
+    offers = offers_of(card)
     amounts = [a for a in (_comparable(o, currency) for o in offers) if a is not None]
     return min(amounts) if amounts else None
 
@@ -82,6 +91,9 @@ class Watches:
             "CREATE TABLE IF NOT EXISTS watches (id TEXT PRIMARY KEY, body TEXT NOT NULL, active INTEGER NOT NULL)"
         )
         self.db.execute("CREATE TABLE IF NOT EXISTS checks (watch TEXT, at REAL, best REAL, search_id TEXT, note TEXT)")
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS alerts (id INTEGER PRIMARY KEY, at REAL, body TEXT, delivered INTEGER DEFAULT 0)"
+        )
 
     def _save(self, watch: Watch) -> None:
         body = {k: v for k, v in watch.__dict__.items() if k != "active"}
@@ -101,7 +113,7 @@ class Watches:
             raise ValueError("below must be a positive price in the watch currency")
         if len(self.list()) >= MAX_ACTIVE:
             raise ValueError(f"at most {MAX_ACTIVE} watches run at once; stop one first")
-        until = arguments["depart"] if kind == "flights" else arguments["checkin"]
+        until = arguments["checkin"] if kind == "stays" else arguments["depart"]
         at = self.clock()
         ident = "w" + base64.b32encode(hashlib.sha256(f"{kind}{arguments}{at}".encode()).digest()).decode()
         watch = Watch(
@@ -148,6 +160,18 @@ class Watches:
         self.db.execute("INSERT INTO checks VALUES (?, ?, ?, ?, ?)", (watch.id, watch.last_run, best, search_id, note))
         self.db.commit()
         return why
+
+    def alert(self, alert: dict) -> None:
+        self.db.execute("INSERT INTO alerts (at, body) VALUES (?, ?)", (self.clock(), json.dumps(alert)))
+        self.db.commit()
+
+    def pending(self, take: bool = True) -> list[dict]:
+        """Alerts nobody has collected yet, oldest first. `take` marks them collected: whoever asked now tells."""
+        rows = self.db.execute("SELECT id, body FROM alerts WHERE delivered = 0 ORDER BY id").fetchall()
+        if take and rows:
+            self.db.execute(f"UPDATE alerts SET delivered = 1 WHERE id <= {rows[-1][0]} AND delivered = 0")
+            self.db.commit()
+        return [json.loads(body) for _, body in rows]
 
     def history(self, ident: str, last: int = 10) -> list[dict]:
         rows = self.db.execute(
@@ -197,10 +221,10 @@ def checked_arguments(tool, given: dict, what: str, partial: bool = False) -> di
     return dict(given)
 
 
-async def check(tools, watches: Watches, watch: Watch) -> tuple[str | None, str]:
-    """Search again for one watch. Returns (why it is worth telling or None, the line to tell)."""
-    search = tools.search_flights if watch.kind == "flights" else tools.search_stays
-    refine = tools.refine_flights if watch.kind == "flights" else tools.refine_stays
+async def check(tools, watches: Watches, watch: Watch) -> tuple[dict | None, str]:
+    """Search again for one watch. Returns the alert, if the price is worth telling, and a line for the log."""
+    search = getattr(tools, f"search_{watch.kind}")
+    refine = getattr(tools, f"refine_{watch.kind}")
     try:
         result = await search(**watch.arguments, currency=watch.currency, refresh=True, confirm=True, limit=1)
         if watch.filters:
@@ -216,29 +240,38 @@ async def check(tools, watches: Watches, watch: Watch) -> tuple[str | None, str]
     why = watches.record(watch, best, result["search_id"], note)
     if best is None:
         return None, f"{watch.label()}: nothing matches now" + (f" ({note})" if note else "")
-    line = f"{watch.label()}: {best:g} {watch.currency}"
-    if previous is not None:
-        line += f" (last told {previous:g})"
-    offer = (card["groups"][0]["fares"][0] if "groups" in card else card["rates"][0]) if card else {}
-    link = (offer.get("link") or {}).get("url")
-    seller = offer.get("seller") or card.get("stay", {}).get("source")
-    line += f", {seller}" if seller else ""
-    line += f" — {why}" if why else ""
-    line += f"\n{link}" if why and link else ""
-    line += f"\nsearch_id {result['search_id']}" if why else ""
-    return why, line
+    offer = offers_of(card)[0]
+    line = f"{watch.label()}: {best:g} {watch.currency}" + (
+        f" (last told {previous:g})" if previous is not None else ""
+    )
+    if not why:
+        return None, line
+    alert = {
+        "watch_id": watch.id,
+        "what": watch.label(),
+        "price": best,
+        "currency": watch.currency,
+        "last_told": previous,
+        "why": why,
+        "seller": offer.get("seller") or card.get("stay", {}).get("source"),
+        "link": (offer.get("link") or {}).get("url"),
+        "search_id": result["search_id"],
+        "seen_at": result.get("searched_at"),
+        "sources_without_answer": problems or None,
+    }
+    return alert, f"{line} — {why}"
 
 
-async def notify(text: str) -> list[str]:
-    """Send an alert where the person running the watches pointed it. Nothing is configured by default: then the
-    alert is only printed. `TRAVELOPS_NOTIFY_URL` gets the text as a plain POST (an ntfy topic works as is);
-    `TRAVELOPS_NOTIFY_COMMAND` gets it on standard input."""
+async def notify(alert: dict, line: str) -> list[str]:
+    """Push an alert, besides keeping it for `watch_alerts`, where the person running the watches pointed it.
+    `TRAVELOPS_NOTIFY_URL` gets the line as a plain POST (an ntfy topic works as is); `TRAVELOPS_NOTIFY_COMMAND`
+    gets the alert as JSON on standard input, for an assistant that tells the human in its own words."""
     failures = []
     url = os.environ.get("TRAVELOPS_NOTIFY_URL")
     if url:
 
         def post():
-            request = urllib.request.Request(url, data=text.encode(), headers={"Title": "travel-ops"})
+            request = urllib.request.Request(url, data=line.encode(), headers={"Title": "travel-ops"})
             with urllib.request.urlopen(request, timeout=20) as response:
                 response.read()
 
@@ -249,20 +282,22 @@ async def notify(text: str) -> list[str]:
     command = os.environ.get("TRAVELOPS_NOTIFY_COMMAND")
     if command:
         process = await asyncio.create_subprocess_shell(command, stdin=asyncio.subprocess.PIPE)
-        await process.communicate(text.encode())
+        await process.communicate(json.dumps(alert, ensure_ascii=False).encode())
         if process.returncode:
             failures.append(f"notify command exited with {process.returncode}")
     return failures
 
 
 async def run_due(tools, watches: Watches, say: Callable[[str], None] = print) -> int:
-    """Check every watch that is due, one after another. Returns how many alerts there were."""
+    """Check every watch that is due, one after another. Alerts are kept until collected with `watch_alerts`, and
+    pushed if a hook is set. Returns how many alerts there were."""
     alerts = 0
     for watch in watches.due():
-        why, line = await check(tools, watches, watch)
+        alert, line = await check(tools, watches, watch)
         say(line)
-        if why:
+        if alert:
             alerts += 1
-            for failure in await notify("Price drop: " + line):
+            watches.alert(alert)
+            for failure in await notify(alert, line):
                 say(failure)
     return alerts

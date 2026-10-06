@@ -6,8 +6,8 @@ from __future__ import annotations
 from dataclasses import asdict
 
 from .memory import REUSE_SECONDS, Stored
-from .search import search_flights, search_stays
-from .serialize import flight_search_json, stay_search_json
+from .search import search_flights, search_ground, search_stays
+from .serialize import flight_search_json, ground_search_json, stay_search_json
 
 
 def _key(app, kind: str, query, sources: list, currency: str) -> str:
@@ -94,4 +94,10 @@ async def stays(
         refresh,
         selection,
         {"center": center} if center else None,
+    )
+
+
+async def ground(app, query, sources: list, rates, currency: str, *, refresh=False, selection=None) -> Stored:
+    return await _recall(
+        app, "ground", search_ground, ground_search_json, query, sources, rates, currency, refresh, selection
     )

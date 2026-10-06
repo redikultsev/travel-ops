@@ -1,0 +1,194 @@
+{
+ "mode": "bus",
+ "offers": [
+  {
+   "offer_id": "e0b5a2621226355aa3b06e4fa6b9e05e",
+   "transport": "bus",
+   "price": {
+    "amount": 8484.0,
+    "currency": "RUB"
+   },
+   "duration_min": 530,
+   "carriers": [
+    "Litas"
+   ],
+   "search_results_url": "https://bus.tutu.ru/bilety_na_avtobus/Belgrad/Vena/",
+   "segments_count": 1,
+   "departure_at": "2026-11-14T21:00:00+01:00",
+   "arrival_at": "2026-11-15T05:50:00+01:00",
+   "legs": [
+    {
+     "label": "outbound",
+     "from": "Автовокзал Новый",
+     "to": "Автовокзал Erdberg (VIB)",
+     "departure_at": "2026-11-14T21:00:00+01:00",
+     "arrival_at": "2026-11-15T05:50:00+01:00",
+     "duration_min": 530,
+     "segments": [
+      {
+       "from": "Автовокзал Новый",
+       "to": "Автовокзал Erdberg (VIB)",
+       "departure_at": "2026-11-14T21:00:00+01:00",
+       "arrival_at": "2026-11-15T05:50:00+01:00",
+       "duration_min": 530,
+       "carrier": "Litas",
+       "voyage_no": null,
+       "from_geo_point_id": 9847706,
+       "to_geo_point_id": 2943879
+      }
+     ]
+    }
+   ],
+   "variants": [
+    {
+     "variant_id": "fbf5948dc83041ea29f3d3c7b0a4b11b",
+     "offer_hash": "Exs1Ic1WJlbakoxer%2BlTfA%2FLDxM4aDi9xLWrilkot7BFwnClm%2B5civ0ojfZibqOY2n3untj6xcwK%2FcFhdtbZpso1vrV4%2FNMS7iExzSH9yF4VA5UVGWU4%2B4UpbFHqpPfY81NqQWBoWoHCFeMvq5RNrX33uSiECxoGLbrXKk%2B99thbbHhKl433HwtqUQPnP5EdH52l",
+     "price": {
+      "amount": 8484.0,
+      "currency": "RUB"
+     }
+    }
+   ],
+   "checkout_ref": {
+    "transport": "bus",
+    "offer_hash": "Exs1Ic1WJlbakoxer%2BlTfA%2FLDxM4aDi9xLWrilkot7BFwnClm%2B5civ0ojfZibqOY2n3untj6xcwK%2FcFhdtbZpso1vrV4%2FNMS7iExzSH9yF4VA5UVGWU4%2B4UpbFHqpPfY81NqQWBoWoHCFeMvq5RNrX33uSiECxoGLbrXKk%2B99thbbHhKl433HwtqUQPnP5EdH52l",
+    "search_id": "AD078863-851A-4416-A388-C15BE6352170",
+    "departure_geo_city_id": 2656983,
+    "arrival_geo_city_id": 2657018,
+    "departure_id": "1756314",
+    "arrival_id": "1031010",
+    "departure_stop_id": 9847706,
+    "arrival_stop_id": 2943879,
+    "departure_stop_name": "Автовокзал Новый",
+    "arrival_stop_name": "Автовокзал Erdberg (VIB)",
+    "city_from": "Белград",
+    "city_to": "Вена",
+    "departure_at": "2026-11-14T21:00:00+01:00",
+    "passengers": 2,
+    "passengers_adult": 2,
+    "passengers_child": 0
+   },
+   "details_ref": {
+    "transport": "bus",
+    "source": "api-bus.search.detail",
+    "departure_id": "1756314",
+    "arrival_id": "1031010",
+    "departure_date": "2026-11-14",
+    "seat_count": 2,
+    "passengers_adult": 2,
+    "passengers_child": 0,
+    "offer_hash": "Exs1Ic1WJlbakoxer%2BlTfA%2FLDxM4aDi9xLWrilkot7BFwnClm%2B5civ0ojfZibqOY2n3untj6xcwK%2FcFhdtbZpso1vrV4%2FNMS7iExzSH9yF4VA5UVGWU4%2B4UpbFHqpPfY81NqQWBoWoHCFeMvq5RNrX33uSiECxoGLbrXKk%2B99thbbHhKl433HwtqUQPnP5EdH52l",
+    "departure_stop_id": 9847706,
+    "arrival_stop_id": 2943879,
+    "departure_stop_name": "Автовокзал Новый",
+    "arrival_stop_name": "Автовокзал Erdberg (VIB)",
+    "price": {
+     "amount": 8484.0,
+     "currency": "RUB"
+    },
+    "carriers": [
+     "Litas"
+    ],
+    "duration_min": 530,
+    "departure_at": "2026-11-14T21:00:00+01:00",
+    "arrival_at": "2026-11-15T05:50:00+01:00",
+    "review_summary": {
+     "review_count": 0,
+     "source": "offers-api.feedback",
+     "scope": "carrier",
+     "subject": "Litas",
+     "aspects": [
+      {
+       "text": "Автобус",
+       "source": "offers-api.feedback",
+       "scope": "bus_aspect",
+       "subject": "Litas",
+       "label": "Автобус"
+      },
+      {
+       "text": "Водитель",
+       "source": "offers-api.feedback",
+       "scope": "bus_aspect",
+       "subject": "Litas",
+       "label": "Водитель"
+      },
+      {
+       "text": "Общее впечатление",
+       "source": "offers-api.feedback",
+       "scope": "bus_aspect",
+       "subject": "Litas",
+       "label": "Общее впечатление"
+      }
+     ],
+     "feedback_key": "VID-278162"
+    }
+   },
+   "review_summary": {
+    "review_count": 0,
+    "source": "offers-api.feedback",
+    "scope": "carrier",
+    "subject": "Litas",
+    "aspects": [
+     {
+      "text": "Автобус",
+      "source": "offers-api.feedback",
+      "scope": "bus_aspect",
+      "subject": "Litas",
+      "label": "Автобус"
+     },
+     {
+      "text": "Водитель",
+      "source": "offers-api.feedback",
+      "scope": "bus_aspect",
+      "subject": "Litas",
+      "label": "Водитель"
+     },
+     {
+      "text": "Общее впечатление",
+      "source": "offers-api.feedback",
+      "scope": "bus_aspect",
+      "subject": "Litas",
+      "label": "Общее впечатление"
+     }
+    ],
+    "feedback_key": "VID-278162"
+   }
+  }
+ ],
+ "meta": {
+  "pricing": {
+   "basis": "party_total",
+   "passengers": {
+    "adults": 2
+   }
+  },
+  "from": {
+   "name": "Белград",
+   "geo_id": "2656983",
+   "region": "Белградский округ"
+  },
+  "to": {
+   "name": "Вена",
+   "geo_id": "2657018",
+   "also_named": [
+    {
+     "geo_id": "7436623",
+     "name": "Вена",
+     "region": null
+    },
+    {
+     "geo_id": "2695465",
+     "name": "Вена",
+     "region": null
+    },
+    {
+     "geo_id": "7439617",
+     "name": "Вена",
+     "region": null
+    }
+   ]
+  },
+  "total_matched": 1,
+  "has_more": false
+ }
+}

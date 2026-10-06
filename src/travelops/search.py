@@ -10,6 +10,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 
 from .core.flights import FlightQuery, on_route
+from .core.ground import GroundOffer, GroundQuery
 from .core.money import Rates
 from .core.report import SourceReport, Status, combine, narrows
 from .core.stays import StayQuery
@@ -37,6 +38,14 @@ class StaySearch:
     query: StayQuery
     currency: str
     cards: list[StayCard]
+    reports: list[SourceReport]
+
+
+@dataclass
+class GroundSearch:
+    query: GroundQuery
+    currency: str
+    offers: list[GroundOffer]
     reports: list[SourceReport]
 
 
@@ -152,6 +161,22 @@ async def search_stays(
     results = await asyncio.gather(*(run_source(s, query, ctx, deadline(s, query, ctx, timeout)) for s in sources))
     offers = [o for found, _ in results for o in found]
     return StaySearch(query, currency, list_stays(offers, rates, currency), [rep for _, rep in results])
+
+
+async def search_ground(
+    query: GroundQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120
+) -> GroundSearch:
+    """Each source answers for every mode it carries. Offers are not merged across sources: two sources name one
+    station in two languages, and a bus at the same minute may be another company's."""
+    results = await asyncio.gather(*(run_source(s, query, ctx, deadline(s, query, ctx, timeout)) for s in sources))
+    offers = [o for found, _ in results for o in found]
+    return GroundSearch(query, currency, offers, [rep for _, rep in results])
+
+
+def estimate_ground(query: GroundQuery, sources: list, limiter, exit_: str) -> float:
+    return max(
+        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query)) for s in sources), default=0.0
+    )
 
 
 def expected_requests(source, query) -> int:

@@ -67,6 +67,10 @@ LIMITS = (
     "source selection",
     "no validated ticket",
     "summary fares only",
+    "understood as",
+    "refused the query",
+    "not searched",
+    "short of",
 )
 
 

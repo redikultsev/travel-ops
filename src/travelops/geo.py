@@ -60,8 +60,9 @@ def parse_places(payload: dict, country: str | None = None) -> list[Place]:
     return places
 
 
-async def locate(net: Net, name: str, country: str | None = None) -> list[Place]:
-    """Candidates for a place name, the geocoder's best first. Names in Latin script; a country narrows them."""
+async def locate(net: Net, name: str, country: str | None = None, language: str = "en") -> list[Place]:
+    """Candidates for a place name, the geocoder's best first. Names in Latin script; a country narrows them.
+    `language` is the language of the names returned."""
     query = name.split(",")[0].strip()
     if country is None and "," in name:
         country = name.split(",", 1)[1].strip() or None
@@ -70,7 +71,7 @@ async def locate(net: Net, name: str, country: str | None = None) -> list[Place]
         "GET",
         GEOCODER,
         cache_ttl=30 * 86400,
-        params={"name": query, "count": 10, "language": "en", "format": "json"},
+        params={"name": query, "count": 10, "language": language, "format": "json"},
     )
     return parse_places(response.json(), country)
 

@@ -1,0 +1,37 @@
+{
+ "trips": [
+  {
+   "from": "Belgrade New Bus Station",
+   "to": "Ustipraca",
+   "price": 27,
+   "departure": "2026-11-14 07:00:00",
+   "arrival": "2026-11-14 13:45:00",
+   "vehclasses": [
+    "bus"
+   ],
+   "booking_url": "https://12go.asia/en/travel/belgrade-new-bus-station/ustipraca?date=2026-11-14&people=2&vehclasses_tab=all&date2="
+  },
+  {
+   "from": "Belgrade New Bus Station",
+   "to": "Sarajevo East Bus Station",
+   "price": 30,
+   "departure": "2026-11-14 07:00:00",
+   "arrival": "2026-11-14 16:21:00",
+   "vehclasses": [
+    "bus"
+   ],
+   "booking_url": "https://12go.asia/en/travel/belgrade-new-bus-station/sarajevo-east-bus-station?date=2026-11-14&people=2&vehclasses_tab=all&date2="
+  },
+  {
+   "from": "Belgrade New Bus Station",
+   "to": "Sarajevo East Bus Station",
+   "price": 35,
+   "departure": "2026-11-14 11:30:00",
+   "arrival": "2026-11-14 19:30:00",
+   "vehclasses": [
+    "bus"
+   ],
+   "booking_url": "https://12go.asia/en/travel/belgrade-new-bus-station/sarajevo-east-bus-station?date=2026-11-14&people=2&vehclasses_tab=all&date2="
+  }
+ ]
+}

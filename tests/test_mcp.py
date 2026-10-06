@@ -86,6 +86,8 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
         assert {t.name for t in tools.tools} == {
             "search_flights",
             "search_stays",
+            "search_ground",
+            "refine_ground",
             "search_trip",
             "refine_flights",
             "refine_stays",
@@ -96,6 +98,7 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
             "watch_price",
             "watches",
             "stop_watch",
+            "watch_alerts",
         }
         search = next(t for t in tools.tools if t.name == "search_flights")
         assert search.annotations.read_only_hint is True

@@ -1,6 +1,6 @@
 # travel-ops
 
-Search live flight and stay offers through a command line interface or an MCP-compatible agent. The engine
+Search live flight, stay, train and bus offers through a command line interface or an MCP-compatible agent. The engine
 normalizes and compares offers, keeps prices in their original currencies, and reports each source's status and
 any limits on the results. It is read-only: it does not book, check out, create accounts, or handle traveler or
 payment details.
@@ -34,6 +34,7 @@ uv run travelops airports Kotor --country Montenegro
 uv run travelops flights IST MOW 2026-11-14
 uv run travelops flights MOW LED 2026-11-14 --flex 1 --sources aviasales,tutu
 uv run travelops stays Lisbon 2026-11-14 2026-11-16
+uv run travelops ground Belgrade Vienna 2026-11-14 --adults 2
 uv run travelops sources
 uv run travelops doctor
 ```
@@ -58,9 +59,9 @@ configuration. `AGENTS.md` contains shared operating instructions; `CLAUDE.md` i
 Claude Code. Client configuration formats differ, but all clients call the same MCP server and deterministic
 search engine.
 
-The MCP tools are `search_trip`, `search_flights`, `search_stays`, `refine_flights`, `refine_stays`,
-`stay_details`, `stay_photos`, `airports_near`, `sources`, and the price watch tools `watch_price`, `watches` and
-`stop_watch`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one
+The MCP tools are `search_trip`, `search_flights`, `search_stays`, `search_ground`, `refine_flights`,
+`refine_stays`, `refine_ground`, `stay_details`, `stay_photos`, `airports_near`, `sources`, and the price watch
+tools `watch_price`, `watches`, `watch_alerts` and `stop_watch`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one
 call: it finds the place, picks the airports that serve it, and searches flights there and back and stays for the
 same dates.
 
@@ -89,8 +90,10 @@ uv run travelops watch run
 timer, or keep it running with `--every-minutes 30`. Checks are at least three hours apart, at most twenty
 watches run at once, and a watch ends on its departure or check-in day. A watch alerts when the price is
 `--drop` percent below the price it last told (the first check, then each alert), or first reaches `--below`.
-Alerts are printed; set `TRAVELOPS_NOTIFY_URL` to also POST them as plain text (an [ntfy](https://ntfy.sh) topic
-URL works as is), or `TRAVELOPS_NOTIFY_COMMAND` to pipe them into a command.
+Alerts are kept until collected: an assistant calls `watch_alerts` (or `travelops watch alerts`) and tells the
+human; each alert is given out once. To push them as well, set `TRAVELOPS_NOTIFY_URL` to POST each as plain text
+(an [ntfy](https://ntfy.sh) topic URL works as is), or `TRAVELOPS_NOTIFY_COMMAND` to pipe each, as JSON, into a
+command. Watches cover flights, stays, and trains and buses.
 
 ## Checking the agent
 
@@ -111,6 +114,8 @@ search, every source must be reported. See `evals/README.md`.
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |
+| Tutu | Trains and buses | Tutu MCP search; Russia and the CIS, some international buses |
+| 12Go | Trains, buses, ferries | 12Go's public MCP server; Turkey, south-east Asia, parts of the Balkans |
 
 Sites may limit automated requests or block them. Respect each site's terms and use the tool for personal-volume
 searches. Do not bypass blocks with proxies or use booking, checkout, or passenger-data flows.

@@ -373,3 +373,65 @@ def stays_view(
     result["shown"]["sorted_by"] = sort
     result["report"] = brief(result.get("sources", []))
     return result
+
+
+GROUND_SORTS = ("price", "duration", "departure")
+
+
+def ground_view(
+    result: dict,
+    *,
+    limit: int = 10,
+    modes: list[str] | None = None,
+    depart_after: str | None = None,
+    depart_before: str | None = None,
+    max_changes: int | None = None,
+    max_price: float | None = None,
+    sources: list[str] | None = None,
+    sort: str = "price",
+) -> dict:
+    """Trains and buses. Times are local to the station, as the source printed them."""
+    if sort not in GROUND_SORTS:
+        raise ValueError(f"sort must be one of {', '.join(GROUND_SORTS)}")
+    result = dict(result, cards=[dict(c) for c in result["cards"]])
+    cards, hidden = result["cards"], Hidden()
+    if modes is not None:
+        wanted = {m.strip().lower() for m in (modes.split(",") if isinstance(modes, str) else modes)}
+        cards = hidden.apply(cards, "modes", sorted(wanted), lambda c: set(c["modes"]) <= wanted)
+    for name, value, keep in (
+        ("depart_after", depart_after, lambda at, bar: at >= bar),
+        ("depart_before", depart_before, lambda at, bar: at <= bar),
+    ):
+        if value is not None:
+            bar = _clock(value, name)
+            cards = hidden.apply(
+                cards, name, bar, lambda c, keep=keep, bar=bar: keep(c["rides"][0]["departs"][11:16], bar)
+            )
+    if max_changes is not None:
+        if type(max_changes) is not int or max_changes < 0:
+            raise ValueError("max_changes must be a whole number from 0")
+        cards = hidden.apply(cards, "max_changes", max_changes, lambda c: c["changes"] <= max_changes)
+    if sources is not None:
+        chosen = {s.strip().lower() for s in (sources.split(",") if isinstance(sources, str) else sources)}
+        cards = hidden.apply(cards, "sources", sorted(chosen), lambda c: c["fares"][0]["source"] in chosen)
+    if max_price is not None:
+        if not isinstance(max_price, (int, float)) or isinstance(max_price, bool) or max_price <= 0:
+            raise ValueError("max_price must be a positive number in the currency of the result")
+
+        def affordable(card):
+            amount = _comparable(card["fares"][0], result["currency"])
+            return None if amount is None else amount <= max_price
+
+        cards = hidden.apply(cards, "max_price", max_price, affordable)
+    cards.sort(key=lambda c: _amount(c["fares"][0]))
+    if sort == "duration":
+        cards.sort(key=lambda c: (c["duration_min"] is None, c["duration_min"] or 0))
+    elif sort == "departure":
+        cards.sort(key=lambda c: c["rides"][0]["departs"][:16])
+    result["cards"] = cards
+    if hidden.by:
+        result["filtered"] = hidden.report()
+    shortlist(result, limit, varied=False)
+    result["shown"]["sorted_by"] = sort
+    result["report"] = brief(result.get("sources", []))
+    return result

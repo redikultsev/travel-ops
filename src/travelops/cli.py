@@ -9,7 +9,7 @@ import shutil
 import sys
 import time
 from rich.console import Console
-from .app import build, flight_query, stay_query, flight_sources, stay_sources
+from .app import build, flight_query, ground_sources, stay_query, flight_sources, stay_sources
 from .core.report import Status
 from .profile import data_dir
 from .rates import load_rates
@@ -58,6 +58,15 @@ def parser():
     t.add_argument("--proxy")
     t.add_argument("--limit", type=int, default=5)
     t.add_argument("--yes", action="store_true")
+    g = commands.add_parser("ground", help="trains and buses, one way, between two places named in Latin script")
+    g.add_argument("origin")
+    g.add_argument("destination")
+    g.add_argument("depart")
+    g.add_argument("--adults", type=int)
+    g.add_argument("--modes", help="comma-separated: train, bus, ferry, van")
+    g.add_argument("--sources")
+    g.add_argument("--currency")
+    g.add_argument("--limit", type=int, default=15)
     a = commands.add_parser("airports", help="airports near a place, nearest first")
     a.add_argument("place")
     a.add_argument("--country")
@@ -70,7 +79,7 @@ def parser():
     w = commands.add_parser("watch", help="price watches: saved searches repeated by `watch run`")
     actions = w.add_subparsers(dest="action", required=True)
     wa = actions.add_parser("add", help="save a watch; ARGUMENTS as the search tool takes them, in JSON")
-    wa.add_argument("kind", choices=("flights", "stays"))
+    wa.add_argument("kind", choices=("flights", "stays", "ground"))
     wa.add_argument("arguments", type=json.loads)
     wa.add_argument("--filters", type=json.loads, default=None, help="refine tool arguments, in JSON")
     wa.add_argument("--below", type=float)
@@ -79,6 +88,9 @@ def parser():
     wa.add_argument("--currency")
     actions.add_parser("list").add_argument("--all", action="store_true", help="stopped watches too")
     actions.add_parser("stop").add_argument("watch_id")
+    actions.add_parser(
+        "alerts", help="price drops not yet collected; --peek leaves them for the assistant"
+    ).add_argument("--peek", action="store_true")
     wr = actions.add_parser("run", help="check the watches that are due, one search at a time")
     wr.add_argument("--every-minutes", type=float, help="keep running, looking for due watches this often")
     e = commands.add_parser("eval", help="check an agent's answers to a recorded scenario; no network")
@@ -262,6 +274,8 @@ async def watch(app, args):
             out = await tools.watches(include_stopped=args.all)
         elif args.action == "stop":
             out = await tools.stop_watch(args.watch_id)
+        elif args.action == "alerts":
+            out = await tools.watch_alerts(take=not args.peek)
         else:
             while True:
                 stamp = datetime.now().isoformat(timespec="minutes")
@@ -285,6 +299,7 @@ async def execute(args):
                 console.print(f"Reset {args.reset}", markup=False)
             console.print("Known flights: " + ", ".join(s.name for s in flight_sources()))
             console.print("Known stays: " + ", ".join(s.name for s in stay_sources()))
+            console.print("Known trains and buses: " + ", ".join(s.name for s in ground_sources()))
             for bucket, interval, until in app.limiter.overview():
                 console.print(
                     f"{bucket}: interval {interval:.1f}s; quarantine {max(0, until - time.time()):.0f}s remaining",
@@ -295,6 +310,28 @@ async def execute(args):
             return await doctor(app, args.live, console)
         if args.command == "watch":
             return await watch(app, args)
+        if args.command == "ground":
+            from .mcp import Tools
+
+            from mcp.server.mcpserver.exceptions import ToolError
+
+            try:
+                out = await Tools(app).search_ground(
+                    args.origin,
+                    args.destination,
+                    args.depart,
+                    adults=args.adults,
+                    modes=args.modes.split(",") if args.modes else None,
+                    sources=args.sources.split(",") if args.sources else None,
+                    currency=args.currency,
+                    confirm=True,
+                    limit=args.limit,
+                    refresh=True,  # a command typed by a human is a request for new prices
+                )
+            except ToolError as exc:
+                raise ValueError(str(exc)) from exc
+            print(json.dumps(out, ensure_ascii=False))
+            return 0
         if args.command == "airports":
             from .geo import airports_near, locate, place_json
 
