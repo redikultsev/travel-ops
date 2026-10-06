@@ -24,7 +24,11 @@ def located(monkeypatch):
     async def locate(net, name, country=None):
         return [] if name == "Nowhere" else [KOTOR, Place("Kotor", "Bosnia and Herzegovina", "BA", None, 44.6, 17.4)]
 
+    async def roads(net, lat, lon, airports, at_most=4):
+        return airports, "offline test: no road distances"
+
     monkeypatch.setattr(trip, "locate", locate)
+    monkeypatch.setattr(trip, "with_roads", roads)
 
 
 async def test_plan_picks_the_nearest_airports_and_the_same_dates_for_the_stay(app, located):

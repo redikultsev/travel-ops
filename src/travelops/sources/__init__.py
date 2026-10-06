@@ -19,6 +19,8 @@ RULES: dict[str, Rule] = {
     # Public MCP servers made for agents.
     "kiwi": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "trivago": Rule(interval=3, jitter=1, window=30, per=600, quarantine=1800),
+    # A public routing service that asks for one request a second at most.
+    "routing": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
     # Photo CDNs, not the travel sites themselves.
     "images": Rule(interval=0.3, jitter=0.2, window=120, per=60, quarantine=600),
 }

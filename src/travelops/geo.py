@@ -11,6 +11,11 @@ import airportsdata
 from .net.client import Net
 
 GEOCODER = "https://geocoding-api.open-meteo.com/v1/search"
+# FOSSGIS's public OSRM (https://routing.openstreetmap.de/about.html): one request a second at most, a real user
+# agent, attribution. One request per trip, kept for a month, is well inside that.
+ROUTING = "https://routing.openstreetmap.de/routed-car/table/v1/driving/"
+AGENT = "travel-ops/0.1 (+https://github.com/redikultsev/travel-ops)"
+ROAD_CREDIT = "road distances: OSRM on OpenStreetMap data, routing.openstreetmap.de; © OpenStreetMap contributors"
 _AIRPORTS = airportsdata.load("IATA")
 
 
@@ -90,3 +95,42 @@ def airports_near(lat: float, lon: float, radius_km: float = 100, limit: int = 6
 
 def place_json(place: Place) -> dict:
     return asdict(place)
+
+
+async def with_roads(
+    net: Net, lat: float, lon: float, airports: list[dict], at_most: int = 4
+) -> tuple[list[dict], str]:
+    """Add the drive from each of the nearest airports to the place: `km_road` and `minutes_road`, by car, without
+    traffic, waiting at a border or a ferry. A routing service that does not answer costs these fields, nothing
+    else: the airports keep their straight-line distance. Returns the airports and a note on what was done."""
+    near = [a for a in airports[:at_most] if a["iata"] in _AIRPORTS]
+    if not near:
+        return airports, ""
+    points = ";".join(
+        f"{lon:.5f},{lat:.5f}"
+        for lon, lat in [(lon, lat)] + [(_AIRPORTS[a["iata"]]["lon"], _AIRPORTS[a["iata"]]["lat"]) for a in near]
+    )
+    try:
+        response = await net.request(
+            "routing",
+            "GET",
+            ROUTING + points,
+            params={
+                "sources": ";".join(str(i) for i in range(1, len(near) + 1)),
+                "destinations": "0",
+                "annotations": "duration,distance",
+            },
+            headers={"user-agent": AGENT},
+            cache_ttl=30 * 86400,
+            timeout=20,
+        )
+        table = response.json()
+        if table.get("code") != "Ok":
+            raise ValueError(table.get("code"))
+        for airport, km, seconds in zip(near, table["distances"], table["durations"]):
+            if km[0] is not None and seconds[0] is not None:
+                airport["km_road"] = round(km[0] / 1000)
+                airport["minutes_road"] = round(seconds[0] / 60)
+    except Exception as exc:  # the drive is a courtesy: never fail a trip over it
+        return airports, f"road distances unavailable ({type(exc).__name__}); km_straight is a straight line"
+    return airports, ROAD_CREDIT

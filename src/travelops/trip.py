@@ -13,7 +13,7 @@ from .combine import separate_tickets
 from .core.flights import FlightQuery
 from .core.money import Rates
 from .core.stays import StayQuery
-from .geo import Place, airports_near, locate, place_json
+from .geo import Place, airports_near, locate, place_json, with_roads
 from .search import estimate_flights, estimate_stays
 from .views import flights_view, stays_view
 
@@ -26,6 +26,7 @@ class TripPlan:
     flights: FlightQuery
     stays: StayQuery | None  # None when no night is asked for: a way there with no date to leave
     one_ways: tuple[FlightQuery, FlightQuery] | None = None  # out and back, when separate tickets are compared
+    roads: str = ""  # where the road distances come from, or why there are none
 
     def flight_queries(self) -> list[FlightQuery]:
         return [self.flights, *(self.one_ways or ())]
@@ -80,7 +81,7 @@ async def plan_trip(
     if not candidates:
         raise ValueError(f"place not found: {place!r}; write it in Latin script and add the country")
     here = candidates[0]
-    reach = airports_near(here.lat, here.lon, radius_km)
+    reach, roads = await with_roads(app.net, here.lat, here.lon, airports_near(here.lat, here.lon, radius_km))
     chosen = airports or ",".join(a["iata"] for a in reach[:max_airports])
     if not chosen:
         raise ValueError(f"no airport within {radius_km:.0f} km of {here.label()}; pass `airports` yourself")
@@ -107,7 +108,7 @@ async def plan_trip(
             flights, origins=flights.destinations, destinations=flights.origins, depart=flights.return_, return_=None
         )
         one_ways = (out, back)
-    return TripPlan(here, candidates[1:4], reach, flights, stays, one_ways)
+    return TripPlan(here, candidates[1:4], reach, flights, stays, one_ways, roads)
 
 
 async def search_trip(
@@ -159,10 +160,12 @@ async def search_trip(
         "place": place_json(plan.place),
         "other_places_with_this_name": [place_json(p) for p in plan.alternatives],
         "airports_in_reach": [dict(a, searched=a["iata"] in searched) for a in plan.airports],
+        "roads": plan.roads,
         "flights": flight_view(found[0], limit),
     }
     not_included = [
-        "transfer between the airport and the place (km_straight is a straight line; the road is longer)",
+        "transfer between the airport and the place: no price; `minutes_road` is a drive without traffic, border "
+        "or ferry waiting, and where it is missing `km_straight` is a straight line",
         "anything the sources do not price",
     ]
     if plan.one_ways:

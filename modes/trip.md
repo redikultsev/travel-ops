@@ -14,9 +14,12 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
 3. Read the result before writing:
    - `place` is what the engine understood. If `other_places_with_this_name` could be what the human meant,
      say which one you searched.
-   - `airports_in_reach` gives every airport with `km_straight` (a straight line, the road is longer) and
-     whether it was searched. Name the searched ones with distances, and mention an unsearched one that is
-     close, with its country if it differs.
+   - `airports_in_reach` gives every airport with `km_straight` and, for the nearest ones, the drive:
+     `km_road` and `minutes_road` (by car, without traffic, border or ferry waiting). Name the searched ones
+     with the drive when it is there, and mention an unsearched one that is close, with its country if it
+     differs and that a border lies on the way. Compare airports by the drive, not the straight line: 40 km
+     straight can be an hour and a half in the mountains. When `roads` says the drive is unavailable, say the
+     distances are straight lines. Credit the routing service once, in a few words, when you give a drive.
    - A card pairs one outbound with one return; the shortlist is the cheapest pairs, and always includes the
      cheapest one into each searched airport. `outbound_options` and `return_options` list the eight cheapest flights each way (`_total` counts
      the distinct flights that exist), each with the cheapest round trip it belongs to: use them for timings

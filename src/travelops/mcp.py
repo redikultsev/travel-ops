@@ -17,7 +17,7 @@ from . import recall
 from .app import App, build, flight_query, stay_query, flight_sources, stay_sources
 from .combine import separate_tickets as pair_tickets
 from .details import read_details, read_photos
-from .geo import airports_near, locate, place_json
+from .geo import airports_near, locate, place_json, with_roads
 from .rates import load_rates
 from .search import estimate_flights, estimate_stays
 from .trip import plan_trip, search_trip
@@ -334,11 +334,15 @@ class Tools:
                 "message": "Place not found; write it in Latin script with its country.",
             }
         here = places[0]
+        airports, roads = await with_roads(
+            self.app.net, here.lat, here.lon, airports_near(here.lat, here.lon, radius_km)
+        )
         return {
             "place": place_json(here),
             "other_places_with_this_name": [place_json(p) for p in places[1:4]],
-            "airports": airports_near(here.lat, here.lon, radius_km),
-            "note": "Sorted by distance. Scheduled service is not known here; a flight search tells.",
+            "airports": airports,
+            "roads": roads,
+            "note": "Sorted by straight-line distance. Scheduled service is not known here; a flight search tells.",
         }
 
     async def search_trip(
@@ -532,8 +536,9 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
     )
     server.add_tool(
         traced(tools.airports_near, trace),
-        description="Find a place and the airports near it, nearest first, with distances in km. Use it instead of "
-        "guessing which airport serves a town. One request to a geocoder, none to travel sites.",
+        description="Find a place and the airports near it, nearest first, with the straight-line distance and, for "
+        "the nearest four, the drive (`km_road`, `minutes_road`). Use it instead of guessing which airport serves a "
+        "town. One request to a geocoder and one to a routing service, none to travel sites.",
         annotations=ToolAnnotations(
             read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True
         ),
