@@ -81,11 +81,15 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         log.exception("%s failed", source.name)
         return [], report(Status.FAILED, f"{type(exc).__name__}: {exc}")
     status = Status.OK if parsed.offers else Status.EMPTY
-    # A note that narrows the answer says which date or route it is about; the others read the same for all.
-    notes = [
-        f"{label}: {note}" if label and narrows(note) and not note.startswith(label.split(" ")[-1]) else note
-        for note in parsed.notes
-    ]
+
+    # A note that narrows the answer says which date and route it is about; the others read the same for all.
+    def labelled(note: str) -> str:
+        if not label or not narrows(note):
+            return note
+        missing = [part for part in label.split(" ") if not note.startswith(part) and f" {part}" not in note[:40]]
+        return f"{' '.join(missing)}: {note}" if missing else note
+
+    notes = [labelled(note) for note in parsed.notes]
     return parsed.offers, report(status, notes=notes, offers=len(parsed.offers))
 
 

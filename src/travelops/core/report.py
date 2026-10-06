@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -74,7 +75,8 @@ def narrows(note: str) -> bool:
 
 def brief(reports: list[dict]) -> dict:
     """What must reach the human about the sources, short enough to say in a chat: who answered, who did not and
-    why, and where the answer is narrower than the question. The full reports stay in `sources`."""
+    why, and where the answer is narrower than the question. The full reports stay in `sources`. A limit that
+    repeats for every date or route is said once, with how many runs it touched."""
     out: dict = {"ok": [], "empty": [], "problems": [], "limits": []}
     for report in reports:
         if report["status"] == Status.OK:
@@ -83,7 +85,13 @@ def brief(reports: list[dict]) -> dict:
             out["empty"].append(report["source"])
         else:
             out["problems"].append({k: report[k] for k in ("source", "status", "reason")})
+        alike: dict[str, list[str]] = {}
         for note in report["notes"]:
             if narrows(note):
-                out["limits"].append(f"{report['source']}: {note}")
+                # Same words, other numbers, dates or routes: one kind of limit.
+                body = re.sub(r"^(\d{4}-\d{2}-\d{2}:? )?([A-Z]{3}-[A-Z]{3}: )?", "", note)
+                alike.setdefault(re.sub(r"\d+", "#", body), []).append(note)
+        for notes in alike.values():
+            more = f" (and {len(notes) - 1} more dates or routes like it)" if len(notes) > 1 else ""
+            out["limits"].append(f"{report['source']}: {notes[0]}{more}")
     return out

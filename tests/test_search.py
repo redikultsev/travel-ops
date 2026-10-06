@@ -193,3 +193,32 @@ async def test_runs_of_one_source_count_their_own_requests(tmp_path):
     query = FlightQuery(("BEG",), ("TIV", "TGD"), date(2026, 10, 22))
     result = await search_flights(query, [Source()], Context(net, None, lambda: NOW), Rates("EUR", {}, "d"), "EUR")
     assert result.reports[0].requests == 4 == net.counts["any"], "three and one, not each run counting both"
+
+
+async def test_a_route_note_of_a_shifted_date_gains_the_date():
+    from travelops.core.flights import FlightQuery as Query
+    from travelops.search import run_source
+    from travelops.sources.base import Parsed
+
+    class Source:
+        name = "any"
+
+        async def fetch(self, query, ctx):
+            return [b""]
+
+        def parse(self, raws, query, seen_at):
+            return Parsed([object()], ["BEG-TIV: results truncated: 30 of 62", "26 halves were left out"])
+
+    class Ctx:
+        net = None
+
+        def now(self):
+            return None
+
+    _, report = await run_source(
+        Source(), Query(("BEG",), ("TIV",), date(2026, 10, 21)), Ctx(), 5, "2026-10-21 BEG-TIV"
+    )
+    assert report.notes == [
+        "2026-10-21: BEG-TIV: results truncated: 30 of 62",
+        "2026-10-21 BEG-TIV: 26 halves were left out",
+    ]
