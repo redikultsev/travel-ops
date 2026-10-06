@@ -246,3 +246,27 @@ def test_a_fare_of_another_cabin_is_not_shown_as_this_one():
     view = flights_view(data)
     assert all(g["cabin"] != "business" for c in view["cards"] for g in c["groups"])
     assert view["filtered"]["by"][0] == {"filter": "cabin", "value": "economy", "hidden": 1}
+
+
+def test_bedrooms_are_read_from_the_room_name():
+    from travelops.core.stays import bedrooms_of
+
+    assert [
+        bedrooms_of(r)
+        for r in (
+            "Two-Bedroom Apartment",
+            "Apartment in Lisbon, 2 bedrooms, 3 beds",
+            "Studio",
+            "1 bedroom",
+            "Double Room",
+            None,
+        )
+    ] == [2, 2, 0, 1, None, None]
+    data = stays()
+    for card, room in zip(
+        data["cards"], ("Bunk Bed in Dormitory", "Two-Bedroom Apartment", "Apartment, 1 bedroom", None)
+    ):
+        card["rates"][0]["room"] = room
+    view = stays_view(data, min_bedrooms=2)
+    assert [c["stay"]["name"] for c in view["cards"]] == ["room"]
+    assert view["filtered"]["by"] == [{"filter": "min_bedrooms", "value": 2, "hidden": 1, "hidden_unknown": 2}]

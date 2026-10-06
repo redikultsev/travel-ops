@@ -64,6 +64,19 @@ def payload_of(raw: bytes, source: str) -> dict:
     return payload
 
 
+def each(total, seats: int) -> int | None:
+    """A party's total as a count per traveller, when it divides evenly; otherwise not known per traveller."""
+    if total is None or seats < 1 or total % seats:
+        return None
+    return total // seats
+
+
+def cabin_bag(total, seats: int) -> bool | None:
+    if total is None:
+        return None
+    return True if total >= seats else (False if total == 0 else None)
+
+
 class Source:
     name = "kiwi"
 
@@ -160,7 +173,8 @@ class Source:
                         legs.append((tuple(chain), leg.get("cabinClass")))
                     if not legs or bool(query.return_) != (len(legs) == 2):
                         raise ValueError("legs do not match the asked trip")
-                    bags = item.get("baggage") or {}
+                    # Kiwi counts bags for the whole party; the model counts them per traveller with a seat.
+                    bags, seats = item.get("baggage") or {}, query.adults + query.children
                     classes = {cabin(value) for _, value in legs}
                     offers.append(
                         FlightOffer(
@@ -171,9 +185,9 @@ class Source:
                                 self.name,
                                 next(iter(classes)) if len(classes) == 1 else None,
                                 Baggage(
-                                    bags.get("checkedBag"),
+                                    each(bags.get("checkedBag"), seats),
                                     None,
-                                    None if bags.get("cabinBag") is None else bags["cabinBag"] > 0,
+                                    cabin_bag(bags.get("cabinBag"), seats),
                                 ),
                                 Link(item["bookingUrl"], "ticket")
                                 if str(item.get("bookingUrl", "")).startswith("https://")

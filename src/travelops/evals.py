@@ -43,6 +43,8 @@ def clean_url(url: str) -> str:
     while url and url[-1] in ")]" and url.count(url[-1]) > url.count("(" if url[-1] == ")" else "["):
         url = url[:-1].rstrip(".,;:!?")
     return url
+
+
 ALIASES = {
     "aviasales": ("aviasales", "авиасейлс"),
     "tutu": ("tutu", "туту"),

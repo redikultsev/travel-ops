@@ -17,7 +17,9 @@ without the stop limit, chains of three low-cost flights fill it.
 
 `itineraries[]` with `price` (a number, for the whole party as Kiwi states it),
 `bookingUrl` (a short link to that itinerary), `baggage` (counts across all
-travellers), and `outbound` / `inbound` legs whose `segments` carry `from`, `to`,
+travellers: a party of three with one personal item each shows 3; the adapter
+divides by travellers with a seat and leaves a count unknown when it does not
+divide evenly), and `outbound` / `inbound` legs whose `segments` carry `from`, `to`,
 `carrier`, `flightNumber` and local times.
 
 ## Limits

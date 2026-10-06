@@ -137,6 +137,8 @@ class Itinerary:
 
 @dataclass(frozen=True)
 class Baggage:
+    """Per traveller. A source that counts for the whole party is divided at its boundary."""
+
     checked: int | None = None  # pieces included; 0 = none; None = the source did not say
     checked_kg: int | None = None
     carry_on: bool | None = None

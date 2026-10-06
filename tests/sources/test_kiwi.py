@@ -93,3 +93,17 @@ def test_answers_that_do_not_fit_the_question_are_refused():
     with pytest.raises(ParseError):
         payload_of(b'{"jsonrpc":"2.0","id":1,"error":{"message":"bad"}}', "Kiwi")
     assert Source().parse([b'{"itineraries": []}'], ROUND, NOW).offers == []
+
+
+def test_bags_of_a_party_are_counted_per_traveller():
+    from travelops.sources.flights.kiwi import cabin_bag, each
+
+    assert each(3, 3) == 1 and each(0, 3) == 0 and each(2, 3) is None and each(None, 3) is None
+    assert cabin_bag(3, 3) is True and cabin_bag(0, 3) is False and cabin_bag(1, 3) is None
+    payload = json.loads((FIXTURES / "beg-tgd-round-trip-2026-10-22.json").read_text())
+    payload["passengers"] = {"adults": 2, "children": 1, "infants": 0}
+    for item in payload["itineraries"]:
+        item["baggage"] = {"personalItem": 3, "cabinBag": 3, "checkedBag": 3}
+    family = FlightQuery(("BEG",), ("TGD",), ROUND.depart, ROUND.return_, adults=2, children=1)
+    bags = Source().parse([json.dumps(payload).encode()], family, NOW).offers[0].fare.baggage
+    assert (bags.checked, bags.carry_on) == (1, True), "three bags for three travellers is one each"

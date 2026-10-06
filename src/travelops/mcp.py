@@ -249,6 +249,7 @@ class Tools:
         kinds: list[str] | None = None,
         exclude_kinds: list[str] | None = None,
         no_hostels: bool = False,
+        min_bedrooms: int | None = None,
         sources: list[str] | None = None,
         max_center_km: float | None = None,
         free_cancellation: bool | None = None,
@@ -268,6 +269,7 @@ class Tools:
                 kinds=kinds,
                 exclude_kinds=exclude_kinds,
                 no_hostels=no_hostels,
+                min_bedrooms=min_bedrooms,
                 sources=sources,
                 free_cancellation=free_cancellation,
                 must_have=must_have,
@@ -515,7 +517,8 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         description=REFINE + "`max_total` is for the whole stay in the currency of the result, with the stated "
         "taxes and charges. `min_reviews` drops ratings that rest on a handful of reviews. Kinds: hotel, apartment, "
         "room, house, shared_room (a bed in a dormitory), other (the source does not say). `no_hostels=true` drops "
-        "every stay whose name or link says hostel, private rooms included. `max_center_km` is the "
+        "every stay whose name or link says hostel, private rooms included. `min_bedrooms` reads the bedrooms from "
+        "the room name (a studio has none apart); a name that does not say is `hidden_unknown`. `max_center_km` is the "
         "distance from the centre. `free_cancellation=true` keeps stays that state it. `must_have` names amenities "
         "(wifi, kitchen, parking, ac, washer, breakfast, pool, balcony, workspace, elevator, pets, or any word of a "
         "page's list); only a stay whose page `stay_details` has read can pass, the rest are `hidden_unknown`. "

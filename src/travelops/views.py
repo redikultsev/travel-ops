@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 
 from .core.report import brief
-from .core.stays import has_amenity
+from .core.stays import bedrooms_of, has_amenity
 from .geo import distance_km
 from .serialize import _amount, leg_options, shortlist
 
@@ -223,6 +223,7 @@ def stays_view(
     kinds=None,
     exclude_kinds=None,
     no_hostels: bool = False,
+    min_bedrooms: int | None = None,
     sources=None,
     max_center_km: float | None = None,
     must_have=None,
@@ -241,6 +242,7 @@ def stays_view(
         stay["details_read"] = bool(known)
         # A hostel also lets private rooms, so this is apart from `kind`: it is the house, not the bed.
         link = card["rates"][0]["link"]["url"].split("?")[0] if card["rates"] and card["rates"][0].get("link") else ""
+        stay["bedrooms"] = bedrooms_of(card["rates"][0].get("room") if card["rates"] else None)
         stay["hostel"] = any(
             word in text.lower() for text in (stay["name"], stay["source_id"], link) for word in ("hostel", "homestel")
         )
@@ -285,6 +287,15 @@ def stays_view(
             cards = hidden.apply(
                 cards, name, sorted(chosen), lambda c, chosen=chosen, keep=keep: (c["stay"]["kind"] in chosen) is keep
             )
+    if min_bedrooms is not None:
+        if type(min_bedrooms) is not int or min_bedrooms < 1:
+            raise ValueError("min_bedrooms must be an integer >= 1")
+
+        def roomy(card):
+            count = card["stay"].get("bedrooms")
+            return None if count is None else count >= min_bedrooms
+
+        cards = hidden.apply(cards, "min_bedrooms", min_bedrooms, roomy)
     if no_hostels:
         cards = hidden.apply(cards, "no_hostels", True, lambda c: not c["stay"].get("hostel"))
     if sources is not None:

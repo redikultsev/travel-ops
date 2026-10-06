@@ -131,3 +131,20 @@ def has_amenity(amenities: list[str], wanted: str) -> bool:
     squeeze = lambda text: "".join(ch for ch in text.lower() if ch.isalnum())
     needles = AMENITY_WORDS.get(wanted.strip().lower(), (squeeze(wanted),))
     return any(needle in squeeze(item) for item in amenities for needle in needles)
+
+
+NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+
+
+def bedrooms_of(room: str | None) -> int | None:
+    """Bedrooms as a room name states them: "Two-Bedroom Apartment", "2 bedrooms", "Studio" (none apart)."""
+    import re
+
+    text = (room or "").lower()
+    match = re.search(r"\b(one|two|three|four|five|six|\d)[- ]bedrooms?\b", text)
+    if match:
+        word = match[1]
+        return int(word) if word.isdigit() else NUMBERS[word]
+    if "studio" in text:
+        return 0
+    return None

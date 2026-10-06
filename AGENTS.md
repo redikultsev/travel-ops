@@ -44,8 +44,7 @@ How to read a fare's baggage: `checked` is the number of checked pieces included
 (0 is none), `checked_kg` the weight allowed per piece, `carry_on` whether a cabin
 bag is included; `null` in any of them means the seller does not say. A group's
 `checked_bag` sums it up: true, false, or null for "not stated". A price is for
-the whole party searched; for more than one traveller, whether a bag count is per
-person or per booking is not stated, so say that. A search shows the cabin asked
+the whole party searched, and bag counts are per traveller. A search shows the cabin asked
 for; fares of other cabins are hidden and counted in `filtered`.
 
 A rating that rests on a handful of reviews is weak evidence: always give the
@@ -78,7 +77,8 @@ request to any site and answers at once.
   from 17:00, night from 22:00; "in the very centre" is within one kilometre,
   "central" or "in town" within two; "no hostels" is `no_hostels=true` together
   with `exclude_kinds=["shared_room"]`; "a short connection" is
-  `max_connection_hours=3` unless a number is given. Say which bar you took. For a comparative ("better
+  `max_connection_hours=3` unless a number is given; "two bedrooms" is
+  `min_bedrooms=2`. Say which bar you took. For a comparative ("better
   rated", "cheaper") keep the current bar, order by that quality with `sort`, and
   say what would remain at a stricter bar; do not invent a threshold silently.
 - A view starts from the profile's bars, as the search did: `max_stops`, and
