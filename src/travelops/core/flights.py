@@ -3,6 +3,7 @@ here, at the boundary, because merging identical flights across sellers is impos
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -62,6 +63,38 @@ def at_airport(value: str | datetime, airport: str) -> datetime:
     moment = datetime.fromisoformat(value) if isinstance(value, str) else value
     tz = airport_tz(airport)
     return moment.astimezone(tz) if moment.tzinfo else moment.replace(tzinfo=tz)
+
+
+def serves(asked: str, airport: str) -> bool:
+    """Whether a flight to `airport` answers a question about `asked`: the same airport, or another one of the
+    same country within 80 km (Sabiha Gokcen for Istanbul). City names in the data differ by airport, so place
+    decides, not name. A code that is not an airport (a city code such as MOW) cannot be checked and passes."""
+    asked, airport = asked.upper(), airport.upper()
+    if asked == airport or asked not in _AIRPORTS:
+        return True
+    a, b = _AIRPORTS[asked], _AIRPORTS.get(airport)
+    if not b or a["country"] != b["country"]:
+        return False
+    p = math.pi / 180
+    h = (
+        0.5
+        - math.cos((b["lat"] - a["lat"]) * p) / 2
+        + math.cos(a["lat"] * p) * math.cos(b["lat"] * p) * (1 - math.cos((b["lon"] - a["lon"]) * p)) / 2
+    )
+    return 12742 * math.asin(math.sqrt(h)) <= 80
+
+
+def on_route(itinerary: "Itinerary", origins, destinations) -> bool:
+    """A source can answer another question than it was asked: a resolver that takes one city for another."""
+    out, back = itinerary.outbound, itinerary.inbound
+    ok = any(serves(o, out[0].origin) for o in origins) and any(serves(d, out[-1].destination) for d in destinations)
+    if back:
+        ok = (
+            ok
+            and any(serves(d, back[0].origin) for d in destinations)
+            and any(serves(o, back[-1].destination) for o in origins)
+        )
+    return ok
 
 
 @dataclass(frozen=True)

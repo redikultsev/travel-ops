@@ -14,7 +14,10 @@
      quote `total` and say that taxes and fees are not stated. Order and
      `max_total` already use `all_in` where known.
    - Place: `center_km` is the distance from the centre and `district` the
-     source's name for the area. A cheap stay eight kilometres out is another
+     source's name for the area. Sites file the next town under the city's
+     name, so a view hides stays beyond the profile's `max_center_km` (15 km by
+     default) and says how many; pass a larger value when the human wants the
+     coast or the suburbs. A cheap stay eight kilometres out is another
      trip: give the distance with every stay, and prefer `max_center_km` or
      `sort="center"` when the human wants to be in town.
    - Kind: `shared_room` is a bed in a dormitory; `room` a private room;

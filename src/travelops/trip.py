@@ -120,6 +120,7 @@ async def search_trip(
     limit: int = 5,
     max_stops: int | None = None,
     min_rating: float | None = None,
+    max_center_km: float | None = None,
     refresh: bool = False,
 ) -> dict:
     # One list of sources for every flight search of the trip: a source can then keep one session for all of them.
@@ -179,6 +180,7 @@ async def search_trip(
                 stays.result,
                 limit=limit,
                 min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+                max_center_km=app.profile.stays.max_center_km if max_center_km is None else max_center_km,
                 details=app.results.details,
             ),
             now,

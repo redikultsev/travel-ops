@@ -92,7 +92,10 @@ async def test_search_runs_both_parts_and_reports_the_plan(app, located, monkeyp
         ],
     }
     assert result["flights"]["shown"]["cards"] == 0 and result["stays"]["shown"]["cards"] == 0
-    assert result["stays"]["filtered"]["by"] == [{"filter": "min_rating", "value": 8.0, "hidden": 0}]
+    assert result["stays"]["filtered"]["by"] == [
+        {"filter": "min_rating", "value": 8.0, "hidden": 0},
+        {"filter": "max_center_km", "value": 15.0, "hidden": 0},
+    ]
     assert result["not_included"][0].startswith("transfer between the airport and the place")
     assert result["flights"]["search_id"].startswith("f") and result["stays"]["search_id"].startswith("s")
     assert result["flights"]["from_memory"] is False and result["flights"]["age_minutes"] == 0

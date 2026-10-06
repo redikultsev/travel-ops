@@ -12,3 +12,4 @@ stays:
   adults: 2
   min_rating: 8.0
   must_have: []
+  max_center_km: 15

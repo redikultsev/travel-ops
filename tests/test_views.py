@@ -220,3 +220,12 @@ def test_the_shortlist_shows_the_cheapest_way_into_every_airport():
     view = flights_view({"currency": "EUR", "cards": cards}, limit=3)
     assert [c["outbound"][-1]["destination"] for c in view["cards"]] == ["TGD", "TGD", "TIV"]
     assert view["shown"]["of"] == 7
+
+
+def test_the_next_town_is_hidden_and_a_stay_of_unknown_place_is_kept():
+    data = stays()
+    data["cards"][0]["stay"]["center_km"] = 21.9  # filed under the city, in the next town
+    data["cards"][1]["stay"]["center_km"] = 0.6
+    view = stays_view(data, max_center_km=15)
+    assert [c["stay"]["name"] for c in view["cards"]] == ["room", "flat", "hotel"]
+    assert view["filtered"]["by"] == [{"filter": "max_center_km", "value": 15, "hidden": 1, "kept_without_distance": 2}]

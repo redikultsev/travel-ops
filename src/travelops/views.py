@@ -284,9 +284,13 @@ def stays_view(
 
         def near(card):
             km = card["stay"].get("center_km")
-            return None if km is None else km <= max_center_km
+            return True if km is None else km <= max_center_km
 
         cards = hidden.apply(cards, "max_center_km", max_center_km, near)
+        # A stay whose place no source states is kept: the bar is there to drop the next town, not the unknown.
+        unplaced = sum(1 for card in cards if card["stay"].get("center_km") is None)
+        if unplaced:
+            hidden.by[-1]["kept_without_distance"] = unplaced
     if free_cancellation is not None:
         if free_cancellation is not True:
             raise ValueError("free_cancellation can only be true: stays that state free cancellation")

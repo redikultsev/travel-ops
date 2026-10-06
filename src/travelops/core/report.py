@@ -61,6 +61,7 @@ LIMITS = (
     "first page",
     "one advertiser",
     "several tickets",
+    "fly elsewhere",
     "band is missing",
     "inventory is not complete",
     "source selection",

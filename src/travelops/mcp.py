@@ -152,6 +152,7 @@ class Tools:
         confirm: bool = False,
         limit: int = 10,
         min_rating: float | None = None,
+        max_center_km: float | None = None,
         refresh: bool = False,
     ) -> dict[str, Any]:
         app = self.app
@@ -178,6 +179,7 @@ class Tools:
                 stored.result,
                 limit=limit,
                 min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+                max_center_km=app.profile.stays.max_center_km if max_center_km is None else max_center_km,
                 details=app.results.details,
             )
             return stored.stamp(view, app.results.clock())
@@ -258,13 +260,13 @@ class Tools:
                 stored.result,
                 limit=limit,
                 min_rating=self.app.profile.stays.min_rating if min_rating is None else min_rating,
+                max_center_km=self.app.profile.stays.max_center_km if max_center_km is None else max_center_km,
                 min_reviews=min_reviews,
                 max_total=max_total,
                 kinds=kinds,
                 exclude_kinds=exclude_kinds,
                 no_hostels=no_hostels,
                 sources=sources,
-                max_center_km=max_center_km,
                 free_cancellation=free_cancellation,
                 must_have=must_have,
                 details=self.app.results.details,
@@ -363,6 +365,7 @@ class Tools:
         cabin: str | None = None,
         max_stops: int | None = None,
         min_rating: float | None = None,
+        max_center_km: float | None = None,
         currency: str | None = None,
         confirm: bool = False,
         limit: int = 5,
@@ -402,6 +405,7 @@ class Tools:
                 limit=limit,
                 max_stops=max_stops,
                 min_rating=min_rating,
+                max_center_km=max_center_km,
                 refresh=refresh,
             )
         except ValueError as exc:

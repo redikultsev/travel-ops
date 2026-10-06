@@ -125,7 +125,7 @@ async def test_a_route_that_fails_costs_only_that_route():
             return [b"x"]
 
     ctx = Context(net=None, browser=None, now=lambda: NOW)
-    two = FlightQuery(("BEG",), ("TIV", "TGD"), date(2026, 11, 15))
+    two = FlightQuery(("BEG",), ("MOW", "TGD"), date(2026, 11, 15))
     result = await search_flights(two, [OneRouteHangs()], ctx, Rates("EUR", {}, "d"), "EUR")
     report = result.reports[0]
     assert report.status is Status.OK and report.offers == 1
@@ -222,3 +222,42 @@ async def test_a_route_note_of_a_shifted_date_gains_the_date():
         "2026-10-21: BEG-TIV: results truncated: 30 of 62",
         "2026-10-21 BEG-TIV: 26 halves were left out",
     ]
+
+
+async def test_offers_to_another_city_than_asked_are_left_out_and_said():
+    from travelops.core.flights import FlightQuery as Query
+    from travelops.search import run_source
+    from travelops.sources.base import Parsed
+
+    def offer(*legs):
+        segments = [
+            Segment("TK", f"TK{i}", a, b, at_airport("2026-11-12T08:00", a), at_airport("2026-11-12T10:00", b))
+            for i, (a, b) in enumerate(legs)
+        ]
+        fare = Fare(Money(100, "EUR"), "s", "tutu", "economy", Baggage(), None, NOW)
+        return FlightOffer(Itinerary(tuple(segments)), fare)
+
+    good, stray, same_city = (
+        offer(("BEG", "IST"), ("IST", "LIS")),
+        offer(("BEG", "IST"), ("IST", "LED")),
+        offer(("BEG", "SAW")),
+    )
+
+    class Source:
+        name = "tutu"
+
+        async def fetch(self, query, ctx):
+            return [b""]
+
+        def parse(self, raws, query, seen_at):
+            return Parsed([good, stray, same_city], [])
+
+    class Ctx:
+        net = None
+
+        def now(self):
+            return None
+
+    found, report = await run_source(Source(), Query(("BEG",), ("LIS", "IST"), date(2026, 11, 12)), Ctx(), 5)
+    assert found == [good, same_city], "Sabiha Gokcen serves Istanbul; Pulkovo does not serve Lisbon"
+    assert report.offers == 2 and "1 offers fly elsewhere than asked (LED)" in report.notes[0]

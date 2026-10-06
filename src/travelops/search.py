@@ -9,7 +9,7 @@ import time
 from collections import Counter
 from dataclasses import dataclass, replace
 
-from .core.flights import FlightQuery
+from .core.flights import FlightQuery, on_route
 from .core.money import Rates
 from .core.report import SourceReport, Status, combine, narrows
 from .core.stays import StayQuery
@@ -80,7 +80,19 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
     except Exception as exc:  # our bug: keep the search alive, name it
         log.exception("%s failed", source.name)
         return [], report(Status.FAILED, f"{type(exc).__name__}: {exc}")
-    status = Status.OK if parsed.offers else Status.EMPTY
+    offers, notes = parsed.offers, list(parsed.notes)
+    if isinstance(query, FlightQuery):
+        kept = [
+            o for o in offers if not hasattr(o, "itinerary") or on_route(o.itinerary, query.origins, query.destinations)
+        ]
+        if len(kept) < len(offers):
+            strays = {o.itinerary.outbound[-1].destination for o in offers if o not in kept}
+            notes.append(
+                f"{len(offers) - len(kept)} offers fly elsewhere than asked ({', '.join(sorted(strays))}) "
+                "and were left out: the source took the place for another"
+            )
+        offers = kept
+    status = Status.OK if offers else Status.EMPTY
 
     # A note that narrows the answer says which date and route it is about; the others read the same for all.
     def labelled(note: str) -> str:
@@ -89,8 +101,8 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         missing = [part for part in label.split(" ") if not note.startswith(part) and f" {part}" not in note[:40]]
         return f"{' '.join(missing)}: {note}" if missing else note
 
-    notes = [labelled(note) for note in parsed.notes]
-    return parsed.offers, report(status, notes=notes, offers=len(parsed.offers))
+    notes = [labelled(note) for note in notes]
+    return offers, report(status, notes=notes, offers=len(offers))
 
 
 def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> float:

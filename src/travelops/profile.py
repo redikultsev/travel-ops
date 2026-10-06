@@ -19,6 +19,7 @@ class StaysProfile:
     adults: int = 2
     min_rating: float = 8.0
     must_have: tuple[str, ...] = ()  # checked against a property page, so each one costs a `stay_details` read
+    max_center_km: float = 15.0  # a stay farther out is in another town, whatever the site files it under
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,12 @@ def _strings(value, label):
     return tuple(value)
 
 
+def _distance(value) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        raise ValueError("stays.max_center_km must be a positive number")
+    return float(value)
+
+
 def load_profile(root: Path) -> Profile:
     path = Path(root) / "profile.yml"
     try:
@@ -79,7 +86,12 @@ def load_profile(root: Path) -> Profile:
     stays = values.get("stays", {})
     if not isinstance(traveller, dict) or not isinstance(stays, dict):
         raise ValueError("travellers and stays must be mappings")
-    if set(traveller) - {"adults", "children", "infants"} or set(stays) - {"adults", "min_rating", "must_have"}:
+    if set(traveller) - {"adults", "children", "infants"} or set(stays) - {
+        "adults",
+        "min_rating",
+        "must_have",
+        "max_center_km",
+    }:
         raise ValueError("unknown travellers or stays fields")
     party = Travellers(
         _count(traveller.get("adults", 1), "travellers.adults", 1),
@@ -108,6 +120,7 @@ def load_profile(root: Path) -> Profile:
             _count(stays.get("adults", 2), "stays.adults", 1),
             float(score),
             _strings(stays.get("must_have", ()), "stays.must_have"),
+            _distance(stays.get("max_center_km", 15.0)),
         ),
         _count(values.get("confirm_over_seconds", defaults.confirm_over_seconds), "confirm_over_seconds"),
         _count(values.get("max_leg_hours", defaults.max_leg_hours), "max_leg_hours", 1),
