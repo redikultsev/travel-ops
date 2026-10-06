@@ -9,7 +9,8 @@ from datetime import datetime
 from .core.report import brief
 from .core.stays import bedrooms_of, has_amenity
 from .geo import distance_km
-from .serialize import _amount, leg_options, shortlist
+from .cards import amount, order
+from .serialize import leg_options, shortlist
 
 FLIGHT_SORTS = ("price", "duration", "departure")
 STAY_SORTS = ("price", "rating", "reviews", "center")
@@ -56,15 +57,6 @@ def _codes(value, name: str) -> set[str]:
     if not codes:
         raise ValueError(f"{name} cannot be empty")
     return codes
-
-
-def _comparable(offer: dict, currency: str) -> float | None:
-    """An amount in the currency of the result, or None when the offer cannot be compared in it."""
-    # A stay is compared by what it costs with the stated taxes and charges, when the source states them.
-    if offer.get("all_in_converted") or offer.get("converted"):
-        return float((offer.get("all_in_converted") or offer["converted"])["amount"])
-    money = offer.get("all_in") or offer.get("price") or offer.get("total")
-    return float(money["amount"]) if money["currency"] == currency else None
 
 
 def flights_view(
@@ -184,7 +176,7 @@ def flights_view(
         def affordable(card):
             groups, unknown = [], False
             for group in card["groups"]:
-                amounts = [(fare, _comparable(fare, currency)) for fare in group["fares"]]
+                amounts = [(fare, amount(fare, currency)) for fare in group["fares"]]
                 unknown = unknown or any(amount is None for _, amount in amounts)
                 fares = [fare for fare, amount in amounts if amount is not None and amount <= max_price]
                 if fares:
@@ -196,9 +188,10 @@ def flights_view(
 
         cards = hidden.apply(cards, "max_price", max_price, affordable)
 
+    currency = result["currency"]
     for card in cards:
-        card["groups"].sort(key=lambda g: _amount(g["fares"][0]))
-    cards.sort(key=lambda c: _amount(c["groups"][0]["fares"][0]))
+        card["groups"].sort(key=lambda g: order(g["fares"][0], currency))
+    cards.sort(key=lambda c: order(c["groups"][0]["fares"][0], currency))
     result["cards"] = cards
     if hidden.by:
         result["filtered"] = hidden.report()
@@ -307,7 +300,7 @@ def stays_view(
         currency = result["currency"]
 
         def affordable(card):
-            amounts = [(rate, _comparable(rate, currency)) for rate in card["rates"]]
+            amounts = [(rate, amount(rate, currency)) for rate in card["rates"]]
             rates = [rate for rate, amount in amounts if amount is not None and amount <= max_total]
             if rates:
                 card["rates"] = rates
@@ -419,11 +412,11 @@ def ground_view(
             raise ValueError("max_price must be a positive number in the currency of the result")
 
         def affordable(card):
-            amount = _comparable(card["fares"][0], result["currency"])
-            return None if amount is None else amount <= max_price
+            value = amount(card["fares"][0], result["currency"])
+            return None if value is None else value <= max_price
 
         cards = hidden.apply(cards, "max_price", max_price, affordable)
-    cards.sort(key=lambda c: _amount(c["fares"][0]))
+    cards.sort(key=lambda c: order(c["fares"][0], result["currency"]))
     if sort == "duration":
         cards.sort(key=lambda c: (c["duration_min"] is None, c["duration_min"] or 0))
     elif sort == "departure":

@@ -4,23 +4,13 @@ first flight is cancelled or moved, nobody owes the traveller the second."""
 
 from __future__ import annotations
 
+from .cards import cheapest
 from .serialize import _leg_key
 
 RISK = (
     "Two separate tickets: a change or a cancellation of one does not protect the other, and each is paid and "
     "refunded on its own terms."
 )
-
-
-def _best(card: dict, currency: str) -> tuple[float, dict] | None:
-    """The cheapest fare of a one-way card that can be added up in the currency of the result."""
-    fares = [f for g in card["groups"] for f in g["fares"]]
-    priced = [
-        (float(f["converted"]["amount"]) if f["converted"] else float(f["price"]["amount"]), f)
-        for f in fares
-        if f["converted"] or f["price"]["currency"] == currency
-    ]
-    return min(priced, key=lambda item: item[0]) if priced else None
 
 
 def _leg(card: dict, fare: dict) -> dict:
@@ -44,7 +34,7 @@ def separate_tickets(out: dict, back: dict, round_trip: dict | None, limit: int 
     for view in (out, back):
         found = []
         for card in view["cards"][:pool]:
-            best = _best(card, currency)
+            best = cheapest(card, currency)
             if best:
                 found.append((best[0], card, best[1]))
         ways.append(found)
@@ -90,12 +80,9 @@ def separate_tickets(out: dict, back: dict, round_trip: dict | None, limit: int 
         "lands at one airport and leaves from another. For other times or airports, refine each one-way search "
         "by its id.",
     }
-    cheapest = None
-    if round_trip and round_trip["cards"]:
-        best = _best({"groups": round_trip["cards"][0]["groups"]}, currency)
-        cheapest = best[0] if best else None
-    if cheapest is not None and chosen:
-        result["cheapest_round_trip"] = {"amount": f"{cheapest:.2f}", "currency": currency}
-        saving = cheapest - float(chosen[0]["total"]["amount"])
+    best = cheapest(round_trip["cards"][0], currency) if round_trip and round_trip["cards"] else None
+    if best is not None and chosen:
+        result["cheapest_round_trip"] = {"amount": f"{best[0]:.2f}", "currency": currency}
+        saving = best[0] - float(chosen[0]["total"]["amount"])
         result["separate_is_cheaper_by"] = {"amount": f"{saving:.2f}", "currency": currency} if saving > 0 else None
     return result

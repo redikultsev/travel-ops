@@ -127,3 +127,20 @@ def test_a_ground_watch_lasts_until_its_day():
     watches = Watches(None, Clock())
     watch = watches.add("ground", {"origin": "Belgrade", "destination": "Vienna", "depart": "2026-11-14"}, {}, "EUR")
     assert watch.until == "2026-11-14" and watch.label() == "Belgrade→Vienna 2026-11-14 by train/bus"
+
+
+async def test_an_alert_gives_the_seller_and_link_of_the_price_it_tells():
+    # The first fare of the card has no rate into EUR: it is not the price the watch tells, so not its link either.
+    foreign = {"price": {"amount": "90", "currency": "XXX"}, "converted": None, "seller": "far", "link": {"url": "x"}}
+    priced = {"converted": {"amount": "120", "currency": "EUR"}, "seller": "kiwi", "link": {"url": "https://k.test"}}
+
+    class Mixed(FakeTools):
+        async def search_flights(self, **kw):
+            result = flights(0)
+            result["cards"] = [{"groups": [{"fares": [foreign]}, {"fares": [priced]}]}]
+            return result
+
+    watches = Watches(None, Clock())
+    watch = watches.add("flights", ARGS, {}, "EUR", below=150)
+    alert, _ = await check(Mixed([]), watches, watch)
+    assert (alert["price"], alert["seller"], alert["link"]) == (120, "kiwi", "https://k.test")

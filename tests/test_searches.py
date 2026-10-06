@@ -48,7 +48,8 @@ async def rides(query, sources, ctx, rates, currency, **kwargs):
         ride("bus", "2026-11-14T22:00:00+01:00", "2026-11-15T07:00:00+01:00", 45, "EUR", "12go"),
         ride("train", "2026-11-14T07:00:00+01:00", "2026-11-14T17:00:00+01:00", 60, "EUR", "tutu"),
         ride("bus", "2026-11-14T08:00:00+01:00", "2026-11-14T16:30:00+01:00", 30, "EUR", "12go"),
-        ride("bus", "2026-11-14T09:00:00+01:00", "2026-11-14T18:00:00+01:00", 2000, "XXX", "tutu"),
+        # No rate into EUR: cheapest by its own number, but not comparable, so it goes last.
+        ride("bus", "2026-11-14T09:00:00+01:00", "2026-11-14T18:00:00+01:00", 5, "XXX", "tutu"),
     ]
     reports = [SourceReport("tutu", Status.OK, "", [], 2, 2, 1.0), SourceReport("12go", Status.OK, "", [], 2, 1, 1.0)]
     return GroundSearch(query, currency, offers, reports)
@@ -99,6 +100,8 @@ async def test_trains_and_buses_through_the_tools(app):
         "sorted_by": "price",
     }
     assert [c["fares"][0]["price"]["amount"] for c in found["cards"]] == ["30", "45"]
+    everything = await tools.refine_ground(found["search_id"], limit=10)
+    assert [c["fares"][0]["price"]["amount"] for c in everything["cards"]] == ["30", "45", "60", "5"]
     assert found["report"]["ok"] == ["tutu", "12go"]
     view = await tools.refine_ground(found["search_id"], modes=["bus"], depart_after="07:30", max_price=40)
     assert [c["rides"][0]["departs"][11:16] for c in view["cards"]] == ["08:00"]

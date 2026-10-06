@@ -22,8 +22,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from .cards import cheapest
 from .kinds import KINDS
-from .views import _comparable
 
 MIN_EVERY_HOURS = 3.0  # a watch is a background errand: it must not spend a source's patience
 MAX_ACTIVE = 20
@@ -60,21 +60,6 @@ def judge(told: float | None, best: float | None, below: float | None, drop_perc
     if told is not None and best <= told * (1 - drop_percent / 100):
         return f"{(1 - best / told) * 100:.0f}% below the {told:g} last told"
     return None
-
-
-def offers_of(card: dict) -> list[dict]:
-    """The priced offers of a card, cheapest first, whatever its kind."""
-    if "groups" in card:
-        return [f for g in card["groups"] for f in g["fares"]]
-    return card["fares"] if "fares" in card else card["rates"]
-
-
-def cheapest(card: dict | None, currency: str) -> float | None:
-    if card is None:
-        return None
-    offers = offers_of(card)
-    amounts = [a for a in (_comparable(o, currency) for o in offers) if a is not None]
-    return min(amounts) if amounts else None
 
 
 class Watches:
@@ -226,15 +211,15 @@ async def check(tools, watches: Watches, watch: Watch) -> tuple[dict | None, str
     except Exception as exc:  # one watch failing must not stop the others
         watches.record(watch, None, None, f"failed: {exc}")
         return None, f"{watch.label()}: the search failed ({exc})"
-    card = result["cards"][0] if result["cards"] else None
-    best = cheapest(card, watch.currency)
+    # The offer that is told is the one that was priced: its seller and link go with its amount.
+    found = cheapest(result["cards"][0], watch.currency) if result["cards"] else None
+    best, offer = found if found else (None, None)
     problems = ", ".join(p["source"] for p in result["report"]["problems"])
     note = f"no answer from {problems}" if problems else ""
     previous = watch.told
     why = watches.record(watch, best, result["search_id"], note)
     if best is None:
         return None, f"{watch.label()}: nothing matches now" + (f" ({note})" if note else "")
-    offer = offers_of(card)[0]
     line = f"{watch.label()}: {best:g} {watch.currency}" + (
         f" (last told {previous:g})" if previous is not None else ""
     )
@@ -247,7 +232,7 @@ async def check(tools, watches: Watches, watch: Watch) -> tuple[dict | None, str
         "currency": watch.currency,
         "last_told": previous,
         "why": why,
-        "seller": offer.get("seller") or card.get("stay", {}).get("source"),
+        "seller": offer.get("seller") or offer.get("source"),
         "link": (offer.get("link") or {}).get("url"),
         "search_id": result["search_id"],
         "seen_at": result.get("searched_at"),

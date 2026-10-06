@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from .cards import order
 from .core.common import Link
 from .core.flights import Fare, Segment
 from .core.money import Money, Rates, UnknownCurrency
@@ -209,7 +210,7 @@ def ground_search_json(search: GroundSearch, rates: Rates) -> dict:
                 ],
             }
         )
-    cards.sort(key=lambda c: _amount(c["fares"][0]))
+    cards.sort(key=lambda c: order(c["fares"][0], currency))
     return {
         "query": {
             "origin": query.origin,
@@ -230,18 +231,7 @@ def _leg_key(segments: list[dict]) -> tuple:
     return tuple((s["flight"], s["departs"]) for s in segments)
 
 
-def _amount(offer: dict) -> float:
-    money = (
-        offer.get("all_in_converted")
-        or offer.get("all_in")
-        or offer.get("converted")
-        or offer.get("price")
-        or offer.get("total")
-    )
-    return float(money["amount"])
-
-
-def _varied(cards: list[dict], count: int) -> list[dict]:
+def _varied(cards: list[dict], count: int, currency: str) -> list[dict]:
     """The cheapest cards, but each must bring a flight not shown yet: five round trips that differ only in one
     leg are one choice, not five. Cards arrive cheapest first; what is left over fills the remaining places."""
     if not cards or "inbound" not in cards[0]:
@@ -263,7 +253,7 @@ def _varied(cards: list[dict], count: int) -> list[dict]:
             seen_back.add(back)
         else:
             rest.append(card)
-    return sorted(picked + rest[: count - len(picked)], key=lambda c: _amount(c["groups"][0]["fares"][0]))
+    return sorted(picked + rest[: count - len(picked)], key=lambda c: order(c["groups"][0]["fares"][0], currency))
 
 
 def leg_options(result: dict, limit: int = 8) -> dict:
@@ -271,12 +261,13 @@ def leg_options(result: dict, limit: int = 8) -> dict:
     of. The shortlist shows pairs; this shows what the pairs are made of. Call it before `shortlist`."""
     if not any(card["inbound"] for card in result["cards"]):
         return result
+    currency = result["currency"]
     for name, legs in (("outbound_options", "outbound"), ("return_options", "inbound")):
         best: dict[tuple, dict] = {}
         for card in result["cards"]:
             fare = card["groups"][0]["fares"][0]
             key = _leg_key(card[legs])
-            if key and (key not in best or _amount(fare) < _amount(best[key]["cheapest_round_trip"])):
+            if key and (key not in best or order(fare, currency) < order(best[key]["cheapest_round_trip"], currency)):
                 segments = card[legs]
                 best[key] = {
                     "flights": [s["flight"] for s in segments],
@@ -287,7 +278,7 @@ def leg_options(result: dict, limit: int = 8) -> dict:
                     "stops": len(segments) - 1,
                     "cheapest_round_trip": {k: fare[k] for k in ("price", "converted", "seller", "link", "seen_at")},
                 }
-        options = sorted(best.values(), key=lambda o: _amount(o["cheapest_round_trip"]))[:limit]
+        options = sorted(best.values(), key=lambda o: order(o["cheapest_round_trip"], currency))[:limit]
         result[name] = sorted(options, key=lambda o: o["departs"])
         result[f"{name}_total"] = len(best)
     return result
@@ -301,7 +292,7 @@ def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3, varied
     for card in result["cards"]:
         if "stay" in card:
             by_source[card["stay"]["source"]] = by_source.get(card["stay"]["source"], 0) + 1
-    result["cards"] = _varied(result["cards"], cards) if varied else result["cards"][:cards]
+    result["cards"] = _varied(result["cards"], cards, result["currency"]) if varied else result["cards"][:cards]
     for card in result["cards"]:
         for holder in card.get("groups", [card]):
             key = "fares" if "fares" in holder else "rates"
