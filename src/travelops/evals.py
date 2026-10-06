@@ -33,7 +33,16 @@ CURRENCIES = {
 _NUMBER = r"(?<![\d.,:])(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d{1,2})?(?!\d)"
 _CODE = r"EUR|€|евро|euro|RUB|₽|руб(?:лей|ля|\.)?|USD|\$|RSD"
 MONEY = re.compile(rf"(?:(?P<pre>{_CODE})\s?(?P<a>{_NUMBER}))|(?:(?P<b>{_NUMBER})\s?(?P<post>{_CODE}))", re.IGNORECASE)
-URL = re.compile(r"https?://[^\s<>\"'`\]|]+")
+URL = re.compile(r"https?://[^\s<>\"'`|]+")
+
+
+def clean_url(url: str) -> str:
+    """A link as written in prose or markdown: brackets of the link syntax and trailing punctuation are not part of
+    it, brackets inside it (route[0]=...) are."""
+    url = url.rstrip(".,;:!?")
+    while url and url[-1] in ")]" and url.count(url[-1]) > url.count("(" if url[-1] == ")" else "["):
+        url = url[:-1].rstrip(".,;:!?")
+    return url
 ALIASES = {
     "aviasales": ("aviasales", "авиасейлс"),
     "tutu": ("tutu", "туту"),
@@ -147,7 +156,7 @@ def check_turn(turn: dict, answer: str, calls: list[dict], amounts: set, links: 
         ):
             continue
         failures.append(f"price {written!r} is in no tool result")
-    written_links = {url.rstrip(".,;:)") for url in URL.findall(answer)}
+    written_links = {clean_url(url) for url in URL.findall(answer)}
     for url in sorted(written_links - links):
         failures.append(f"link is in no tool result: {url[:120]}")
     if len(written_links) < expect.get("links_at_least", 0):

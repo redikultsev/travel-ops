@@ -43,7 +43,10 @@ that a result does not state.
 How to read a fare's baggage: `checked` is the number of checked pieces included
 (0 is none), `checked_kg` the weight allowed per piece, `carry_on` whether a cabin
 bag is included; `null` in any of them means the seller does not say. A group's
-`checked_bag` sums it up: true, false, or null for "not stated".
+`checked_bag` sums it up: true, false, or null for "not stated". A price is for
+the whole party searched; for more than one traveller, whether a bag count is per
+person or per booking is not stated, so say that. A search shows the cabin asked
+for; fares of other cabins are hidden and counted in `filtered`.
 
 A rating that rests on a handful of reviews is weak evidence: always give the
 review count next to a rating, and prefer `min_reviews` when the human asks for

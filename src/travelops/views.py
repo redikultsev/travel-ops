@@ -92,6 +92,18 @@ def flights_view(
     if (return_after or return_before) and cards and not round_trip:
         raise ValueError("this search has no return flights to filter")
 
+    # A source can add other cabins to an answer: a business fare is not a cheaper or dearer economy one.
+    asked = (result.get("query") or {}).get("cabin")
+    if asked:
+
+        def in_cabin(card):
+            groups = [g for g in card["groups"] if g["cabin"] in (asked, None)]
+            if groups:
+                card["groups"] = groups
+                return True
+            return False
+
+        cards = hidden.apply(cards, "cabin", asked, in_cabin)
     if max_stops is not None:
         if type(max_stops) is not int or max_stops < 0:
             raise ValueError("max_stops must be an integer >= 0")

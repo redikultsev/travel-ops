@@ -136,6 +136,7 @@ async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app, monkey
     view = await tools.refine_flights(first["search_id"], depart_after="17:00", sort="duration")
     assert view["search_id"] == first["search_id"] and view["shown"]["sorted_by"] == "duration"
     assert view["filtered"]["by"] == [
+        {"filter": "cabin", "value": "business", "hidden": 0},
         {"filter": "max_stops", "value": 1, "hidden": 0},
         {"filter": "max_leg_hours", "value": 24, "hidden": 0},
         {"filter": "depart_after", "value": "17:00", "hidden": 0},

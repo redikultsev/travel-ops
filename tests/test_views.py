@@ -235,3 +235,14 @@ def test_a_long_wait_between_flights_is_hidden_with_a_count():
     view = flights_view(flights(), max_connection_hours=4)
     assert "TK1" not in [c["outbound"][0]["flight"] for c in view["cards"]], "06:00 to 12:00 in Istanbul is six hours"
     assert view["filtered"]["by"] == [{"filter": "max_connection_hours", "value": 4, "hidden": 1}]
+
+
+def test_a_fare_of_another_cabin_is_not_shown_as_this_one():
+    data = flights()
+    data["query"] = {"cabin": "economy"}
+    data["cards"][0]["groups"].append({"cabin": "business", "checked_bag": True, "fares": [fare(90)]})
+    data["cards"].append(card([seg("LH1", "BEG", "TIV", "10:00")], [seg("LH2", "TIV", "BEG", "20:00")], []))
+    data["cards"][-1]["groups"] = [{"cabin": "business", "checked_bag": True, "fares": [fare(80)]}]
+    view = flights_view(data)
+    assert all(g["cabin"] != "business" for c in view["cards"] for g in c["groups"])
+    assert view["filtered"]["by"][0] == {"filter": "cabin", "value": "economy", "hidden": 1}

@@ -151,3 +151,11 @@ async def test_the_family_scenario_replays_with_its_party_and_its_refusals():
         assert bags["cards"][0]["groups"][0]["fares"][0]["converted"]["amount"] == "1163.33"
     finally:
         await app.close()
+
+
+def test_links_with_brackets_are_read_whole():
+    from travelops.evals import URL, clean_url
+
+    url = "https://avia.tutu.ru/f/A/B/?travelers=3&route[0]=144-1&route[1]=303-1"
+    written = f"см. [Tutu]({url}). И ещё ({url})."
+    assert [clean_url(u) for u in URL.findall(written)] == [url, url]
