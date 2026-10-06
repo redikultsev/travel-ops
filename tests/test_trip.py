@@ -48,8 +48,12 @@ async def test_plan_respects_given_airports_and_party(app, located):
 async def test_plan_refuses_what_it_cannot_search(app, located):
     with pytest.raises(ValueError, match="not found"):
         await trip.plan_trip(app, "BEG", "Nowhere", "2026-10-22", "2026-10-23")
-    with pytest.raises(ValueError, match="both dates"):
-        await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", None)
+    with pytest.raises(ValueError, match="separate tickets need a return date"):
+        await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", None, separate=True)
+    with pytest.raises(ValueError, match="choose one"):
+        await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", separate=True, flex_days=1)
+    with pytest.raises(ValueError, match="at most 3"):
+        await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", flex_days=7)
     with pytest.raises(ValueError, match="return"):
         await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-20")
 
@@ -130,3 +134,101 @@ def test_the_estimate_is_what_a_search_usually_costs_not_its_ceiling():
             return n * 10.0
 
     assert estimate_flights(query, [source], Limiter(), "") == 80.0, "two routes, four usual requests each"
+
+
+async def test_a_one_way_trip_has_a_stay_only_when_a_last_day_is_given(app, located):
+    gone = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22")
+    assert gone.flights.return_ is None and gone.stays is None
+    settled = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", checkout="2026-10-25")
+    assert settled.flights.return_ is None and settled.stays.nights == 3
+    longer = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-29", checkout="2026-10-25")
+    assert longer.flights.return_ == date(2026, 10, 29) and longer.stays.checkout == date(2026, 10, 25)
+
+
+async def test_children_are_counted_as_each_side_counts_them(app, located):
+    plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", adults=2, children_ages=[1, 7, 14])
+    assert (plan.flights.adults, plan.flights.children, plan.flights.infants) == (3, 1, 1), "an airline's adult is 12+"
+    assert (plan.stays.adults, plan.stays.children, plan.stays.children_ages) == (2, 3, (1, 7, 14))
+    with pytest.raises(ValueError, match="ages from 0 to 17"):
+        await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", children_ages=[30])
+
+
+async def test_separate_tickets_search_each_way_and_pair_them(app, located, monkeypatch):
+    from datetime import datetime, timezone
+    from travelops.core.common import Link
+    from travelops.core.flights import Baggage, Fare, FlightOffer, Itinerary, Segment, at_airport
+    from travelops.core.money import Money
+    from travelops.merge.flights import merge_flights
+
+    now = datetime(2026, 10, 5, tzinfo=timezone.utc)
+    asked = []
+
+    def offer(flight, origin, destination, day, hour, price, back=None):
+        def seg(f, a, b, d, h):
+            return Segment(
+                f[:2], f, a, b, at_airport(f"2026-10-{d}T{h:02d}:00", a), at_airport(f"2026-10-{d}T{h + 1:02d}:00", b)
+            )
+
+        legs = ((seg(flight, origin, destination, day, hour),), (seg(*back),) if back else ())
+        fare = Fare(
+            Money(price, "EUR"),
+            "seller",
+            "tutu",
+            "economy",
+            Baggage(),
+            Link("https://t.example/" + flight, "ticket"),
+            now,
+        )
+        return FlightOffer(Itinerary(*legs), fare)
+
+    async def flights(query, sources, ctx, rates, currency, **kwargs):
+        asked.append((query.origins, query.destinations, query.return_, kwargs.get("sharing")))
+        if query.return_:
+            found = [offer("JU1", "BEG", "TGD", 22, 8, 150, back=("JU2", "TGD", "BEG", 23, 20))]
+        elif query.origins == ("BEG",):
+            found = [offer("JU1", "BEG", "TGD", 22, 8, 60), offer("4O5", "BEG", "TIV", 22, 10, 40)]
+        else:
+            found = [offer("JU2", "TGD", "BEG", 23, 20, 55), offer("4O6", "TIV", "BEG", 23, 7, 70)]
+        return FlightSearch(query, currency, merge_flights(found, rates, currency), [])
+
+    async def stays(query, sources, ctx, rates, currency, **kwargs):
+        return StaySearch(query, currency, [], [])
+
+    monkeypatch.setattr(recall, "search_flights", flights)
+    monkeypatch.setattr(recall, "search_stays", stays)
+    plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", separate=True)
+    assert plan.estimate(app, "EUR") > 0
+    result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR")
+    assert {(a[0], a[1], str(a[2])) for a in asked} == {
+        (("BEG",), ("TIV", "TGD"), "2026-10-23"),
+        (("BEG",), ("TIV", "TGD"), "None"),
+        (("TIV", "TGD"), ("BEG",), "None"),
+    }
+    assert {a[3] for a in asked} == {3}, "three searches share the queues of the sources"
+    block = result["separate_tickets"]
+    best = block["pairs"][0]
+    assert best["total"] == {"amount": "95.00", "currency": "EUR"} and best["open_jaw"] is True
+    assert (best["outbound"]["flights"], best["return"]["flights"]) == (["4O5"], ["JU2"])
+    assert best["outbound"]["link"]["url"] == "https://t.example/4O5" and "Two separate tickets" in block["risk"]
+    assert block["cheapest_round_trip"]["amount"] == "150.00" and block["separate_is_cheaper_by"]["amount"] == "55.00"
+    assert block["pairs_possible"] == 4 and block["outbound_search_id"] != block["return_search_id"]
+    assert [p["open_jaw"] for p in block["pairs"]] == [True, False, False, True]
+
+
+async def test_shifted_dates_do_not_move_the_stay(app, located, monkeypatch):
+    async def flights(query, sources, ctx, rates, currency, **kwargs):
+        return FlightSearch(query, currency, [], [])
+
+    async def stays(query, sources, ctx, rates, currency, **kwargs):
+        return StaySearch(query, currency, [], [])
+
+    monkeypatch.setattr(recall, "search_flights", flights)
+    monkeypatch.setattr(recall, "search_stays", stays)
+    plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", flex_days=1)
+    assert len(plan.flights.date_pairs()) == 3 and plan.stays.checkin == date(2026, 10, 22)
+    result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR")
+    assert any("asked dates only" in line for line in result["not_included"])
+    bare = await trip.search_trip(
+        app, await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22"), Rates("EUR", {}, "d"), "EUR"
+    )
+    assert bare["stays"] is None and any("pass `checkout`" in line for line in bare["not_included"])

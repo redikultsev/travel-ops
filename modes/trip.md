@@ -21,7 +21,7 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
      cheapest one into each searched airport. `outbound_options` and `return_options` list the eight cheapest flights each way (`_total` counts
      the distinct flights that exist), each with the cheapest round trip it belongs to: use them for timings
      the cards do not show. Flying into one airport and out of another is not in a round-trip result; offer it
-     as a next step.
+     as a next step (`separate_tickets`).
    - Check each pair against the stay: an early return on the last morning or a late arrival on the first
      night changes what the human gets from the nights paid for. Say so when it matters, and when the nearest
      airport offers only such a flight, look with `refine_flights` (`destination`, `return_after`) whether it
@@ -49,7 +49,21 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
    - the report: how many offers exist, what the filters hid, and the source report as AGENTS.md describes it.
 5. Close with one line of what you can do next: another airport, each direction as a separate ticket, other
    dates, more stays, a stricter or looser filter. Do not run new searches unasked.
-6. When the human then asks about what you already found (later flights, a bag, cheaper stays, no dormitories,
+6. Other shapes of a trip are parameters of the same call, not other tools:
+   - one way ("I fly to Tbilisi on the 5th, three nights, no return yet"): omit `return_date` and pass
+     `checkout` for the last day of the stay; with neither, only flights are searched and the result says so;
+   - a stay shorter or longer than the flights: `checkout`;
+   - "around the 22nd", "any day that week": `flex_days` from 1 to 3 shifts the whole trip by that many days
+     each way and keeps its length. Stays are searched for the asked dates only: say so, and search stays again
+     for the dates the human picks;
+   - "is it cheaper as two tickets?", "into Tivat, out of Podgorica": `separate_tickets=true`. The result adds
+     `separate_tickets.pairs`: one way out plus one way back, each with its own seller and link, the sum, and
+     `open_jaw` when the airports differ. Always pass on `risk`: two tickets are two contracts. Say what the
+     best pair saves against the cheapest round trip, or that it saves nothing. It takes about three times as
+     long, so use it when asked or when you offered it and the human agreed;
+   - children: `children_ages` with the age of each child on the travel dates; `adults` counts the grown-ups
+     only. Some sellers cannot price a party with children and say so in their status: name them.
+7. When the human then asks about what you already found (later flights, a bag, cheaper stays, no dormitories,
    more options), answer from `refine_flights` or `refine_stays` with the `search_id` of that part. Search again
    only for other dates, another place or party, or new prices.
 

@@ -32,8 +32,8 @@ class Source:
         return 1 + len(BANDS)
 
     async def fetch(self, query, ctx):
-        if query.children:
-            raise NotConfigured("Booking child searches require ages absent from the query model")
+        if query.children and len(query.children_ages) != query.children:
+            raise NotConfigured("Booking prices a child by age: pass children_ages")
         params = {
             "ss": query.place,
             "checkin": query.checkin.isoformat(),
@@ -45,8 +45,14 @@ class Source:
             "order": "price",
         }
         # The token is short-lived; a stale one earns a challenge, which would quarantine the address.
+        if query.children_ages:
+            params["age"] = list(query.children_ages)  # one `age` per child
         session = await ctx.browser.get(
-            self.name, URL + "?" + urlencode(params), engine="chromium", ready_cookie="aws-waf-token", max_age=240
+            self.name,
+            URL + "?" + urlencode(params, doseq=True),
+            engine="chromium",
+            ready_cookie="aws-waf-token",
+            max_age=240,
         )
         raws, faults = [], []
         try:

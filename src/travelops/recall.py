@@ -11,7 +11,9 @@ from .serialize import flight_search_json, stay_search_json
 
 
 def _key(app, kind: str, query, sources: list, currency: str) -> str:
-    return app.results.key(kind, asdict(query), [s.name for s in sources], currency)
+    # Empty optional fields are left out, so a query written before a field existed still finds its answer.
+    asked = {name: value for name, value in asdict(query).items() if value != ()}
+    return app.results.key(kind, asked, [s.name for s in sources], currency)
 
 
 def remembered(app, kind: str, query, sources: list, currency: str) -> Stored | None:
@@ -28,7 +30,7 @@ def _note(result: dict, selection) -> dict:
 
 
 async def _recall(
-    app, kind, search, to_json, query, sources, rates, currency, refresh, selection, extra=None
+    app, kind, search, to_json, query, sources, rates, currency, refresh, selection, extra=None, **options
 ) -> Stored:
     stored = None if refresh and not app.replay else remembered(app, kind, query, sources, currency)
     if stored is not None:
@@ -41,14 +43,27 @@ async def _recall(
         return stored
     if app.replay:
         raise ValueError(f"the replay has no {kind} search for {asdict(query)}")
-    result = to_json(await search(query, sources, app.ctx, rates, currency), rates)
+    result = to_json(await search(query, sources, app.ctx, rates, currency, **options), rates)
     result.update(extra or {})
     return app.results.put(kind, _key(app, kind, query, sources, currency), _note(result, selection))
 
 
-async def flights(app, query, sources: list, rates, currency: str, *, refresh=False, selection=None) -> Stored:
+async def flights(
+    app, query, sources: list, rates, currency: str, *, refresh=False, selection=None, sharing: int = 1
+) -> Stored:
+    """`sharing`: how many flight searches run at once over these sources (see `search_flights`)."""
     return await _recall(
-        app, "flights", search_flights, flight_search_json, query, sources, rates, currency, refresh, selection
+        app,
+        "flights",
+        search_flights,
+        flight_search_json,
+        query,
+        sources,
+        rates,
+        currency,
+        refresh,
+        selection,
+        sharing=sharing,
     )
 
 

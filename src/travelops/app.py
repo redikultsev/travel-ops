@@ -45,7 +45,19 @@ def _positive(value, label, minimum=1):
     return value
 
 
-def flight_query(profile, origin, destination, depart, return_date=None, flex_days=0, adults=None, cabin=None):
+def _ages(children_ages) -> tuple[int, ...] | None:
+    if children_ages is None:
+        return None
+    if not isinstance(children_ages, (list, tuple)) or any(
+        type(a) is not int or not 0 <= a <= 17 for a in children_ages
+    ):
+        raise ValueError("children_ages must be a list of ages from 0 to 17")
+    return tuple(children_ages)
+
+
+def flight_query(
+    profile, origin, destination, depart, return_date=None, flex_days=0, adults=None, cabin=None, children_ages=None
+):
     depart = date.fromisoformat(depart) if isinstance(depart, str) else depart
     return_date = date.fromisoformat(return_date) if isinstance(return_date, str) else return_date
     if return_date and return_date < depart:
@@ -54,32 +66,39 @@ def flight_query(profile, origin, destination, depart, return_date=None, flex_da
     if cabin not in CABINS:
         raise ValueError(f"unknown cabin: {cabin}")
     _positive(flex_days, "flex_days", 0)
+    if flex_days > 3:
+        raise ValueError("flex_days must be at most 3: every shifted date is a search of its own")
+    adults = _positive(profile.travellers.adults if adults is None else adults, "adults")
+    ages = _ages(children_ages)
+    if ages is None:
+        children, infants = profile.travellers.children, profile.travellers.infants
+    else:
+        # As airlines count: under 2 is an infant on a lap, 2 to 11 a child, 12 and over pays as an adult.
+        infants = sum(1 for age in ages if age < 2)
+        children = sum(1 for age in ages if 2 <= age < 12)
+        adults += sum(1 for age in ages if age >= 12)
+    if infants > adults:
+        raise ValueError("infants cannot exceed adults")
     return FlightQuery(
-        _airports(origin),
-        _airports(destination),
-        depart,
-        return_date,
-        flex_days,
-        _positive(profile.travellers.adults if adults is None else adults, "adults"),
-        profile.travellers.children,
-        profile.travellers.infants,
-        cabin,
+        _airports(origin), _airports(destination), depart, return_date, flex_days, adults, children, infants, cabin
     )
 
 
-def stay_query(profile, place, checkin, checkout, adults=None):
+def stay_query(profile, place, checkin, checkout, adults=None, children_ages=None):
     checkin = date.fromisoformat(checkin) if isinstance(checkin, str) else checkin
     checkout = date.fromisoformat(checkout) if isinstance(checkout, str) else checkout
     if checkout <= checkin:
         raise ValueError("checkout must be after checkin")
     if not isinstance(place, str) or not place.strip():
         raise ValueError("place cannot be empty")
+    ages = _ages(children_ages)
     return StayQuery(
         place.strip(),
         checkin,
         checkout,
         _positive(profile.stays.adults if adults is None else adults, "adults"),
-        profile.travellers.children,
+        profile.travellers.children if ages is None else len(ages),
+        children_ages=ages or (),
     )
 
 

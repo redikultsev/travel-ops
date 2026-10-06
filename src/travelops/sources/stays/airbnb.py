@@ -33,7 +33,11 @@ class Source:
                 "checkin": query.checkin.isoformat(),
                 "checkout": query.checkout.isoformat(),
                 "adults": query.adults,
-                "children": query.children,
+                # Airbnb counts under-twos apart; without ages every child is a child.
+                "children": sum(1 for age in query.children_ages if age >= 2)
+                if query.children_ages
+                else query.children,
+                "infants": sum(1 for age in query.children_ages if age < 2),
                 "currency": "EUR",
             },
             headers={"accept-language": "en-US,en;q=0.9"},

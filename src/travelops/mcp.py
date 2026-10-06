@@ -1,10 +1,12 @@
 """Read-only MCP tools over one application lifetime."""
 
+import asyncio
 import functools
 import inspect
 import json
 import os
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from mcp.server import MCPServer
@@ -13,6 +15,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from . import recall
 from .app import App, build, flight_query, stay_query, flight_sources, stay_sources
+from .combine import separate_tickets as pair_tickets
 from .details import read_details, read_photos
 from .geo import airports_near, locate, place_json
 from .rates import load_rates
@@ -65,35 +68,73 @@ class Tools:
         return_date: str | None = None,
         flex_days: int = 0,
         adults: int | None = None,
+        children_ages: list[int] | None = None,
         cabin: str | None = None,
         sources: list[str] | None = None,
         currency: str | None = None,
         confirm: bool = False,
         limit: int = 10,
         max_stops: int | None = None,
+        separate_tickets: bool = False,
         refresh: bool = False,
     ) -> dict[str, Any]:
         app = self.app
         try:
             self._limit(limit)
-            query = flight_query(app.profile, origin, destination, depart, return_date, flex_days, adults, cabin)
+            query = flight_query(
+                app.profile, origin, destination, depart, return_date, flex_days, adults, cabin, children_ages
+            )
+            queries = [query]
+            if separate_tickets:
+                if query.return_ is None:
+                    raise ValueError("separate tickets need a return date: a one-way trip is one ticket already")
+                if query.flex_days:
+                    raise ValueError("separate tickets with flexible dates are too many searches at once: choose one")
+                queries += [
+                    replace(query, return_=None),
+                    replace(
+                        query,
+                        origins=query.destinations,
+                        destinations=query.origins,
+                        depart=query.return_,
+                        return_=None,
+                    ),
+                ]
             selected = flight_sources(sources)
             currency = self._currency(currency)
-            if refresh or not recall.remembered(app, "flights", query, selected, currency):
-                estimate = estimate_flights(query, selected, app.limiter, app.net.exit)
-                if estimate > app.profile.confirm_over_seconds and not confirm:
-                    return confirmation(estimate)
-            stored = await recall.flights(
-                app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
+            # Searches of one call wait in the same queues: their times add up.
+            estimate = sum(
+                estimate_flights(q, selected, app.limiter, app.net.exit)
+                for q in queries
+                if refresh or not recall.remembered(app, "flights", q, selected, currency)
             )
-            view = flights_view(
-                stored.result,
-                limit=limit,
-                max_stops=app.profile.max_stops if max_stops is None else max_stops,
-                max_leg_hours=app.profile.max_leg_hours,
-                avoid_airlines=app.profile.avoid_airlines,
+            if estimate > app.profile.confirm_over_seconds and not confirm:
+                return confirmation(estimate)
+            rates = await load_rates(app.net)
+            found = await asyncio.gather(
+                *(
+                    recall.flights(
+                        app, q, selected, rates, currency, refresh=refresh, selection=sources, sharing=len(queries)
+                    )
+                    for q in queries
+                )
             )
-            return stored.stamp(view, app.results.clock())
+            now = app.results.clock()
+
+            def view(stored, cards):
+                shown = flights_view(
+                    stored.result,
+                    limit=cards,
+                    max_stops=app.profile.max_stops if max_stops is None else max_stops,
+                    max_leg_hours=app.profile.max_leg_hours,
+                    avoid_airlines=app.profile.avoid_airlines,
+                )
+                return stored.stamp(shown, now)
+
+            result = view(found[0], limit)
+            if separate_tickets:
+                result["separate_tickets"] = pair_tickets(view(found[1], 12), view(found[2], 12), result, limit)
+            return result
         except ValueError as exc:
             raise ToolError(f"Invalid flight search: {exc}") from exc
         except TimeoutError as exc:
@@ -105,6 +146,7 @@ class Tools:
         checkin: str,
         checkout: str,
         adults: int | None = None,
+        children_ages: list[int] | None = None,
         sources: list[str] | None = None,
         currency: str | None = None,
         confirm: bool = False,
@@ -115,7 +157,7 @@ class Tools:
         app = self.app
         try:
             self._limit(limit)
-            query = stay_query(app.profile, place, checkin, checkout, adults)
+            query = stay_query(app.profile, place, checkin, checkout, adults, children_ages)
             selected = stay_sources(sources)
             currency = self._currency(currency)
             if refresh or not recall.remembered(app, "stays", query, selected, currency):
@@ -302,12 +344,16 @@ class Tools:
         origin: str,
         place: str,
         depart: str,
-        return_date: str,
+        return_date: str | None = None,
+        checkout: str | None = None,
+        flex_days: int = 0,
+        separate_tickets: bool = False,
         country: str | None = None,
         airports: str | None = None,
         max_airports: int = 2,
         adults: int | None = None,
         stay_adults: int | None = None,
+        children_ages: list[int] | None = None,
         cabin: str | None = None,
         max_stops: int | None = None,
         min_rating: float | None = None,
@@ -325,11 +371,15 @@ class Tools:
                 place,
                 depart,
                 return_date,
+                checkout=checkout,
+                flex_days=flex_days,
+                separate=separate_tickets,
                 country=country,
                 airports=airports,
                 max_airports=max_airports,
                 adults=adults,
                 stay_adults=stay_adults,
+                children_ages=children_ages,
                 cabin=cabin,
             )
             currency = self._currency(currency)
@@ -403,7 +453,20 @@ TRIP = (
     "nearest to `place` and back, and stays in `place` for the same dates, searched side by side. `place` in Latin "
     "script, with `country` when the name is ambiguous. Returns the place it understood, the airports in reach with "
     "distances and which were searched, flight and stay shortlists each with its own `search_id`, and every source "
-    "report. "
+    "report. Shapes: omit `return_date` for a one-way trip (then `checkout` is the last day of the stay, or no stay "
+    "is searched); `checkout` also sets a stay that ends on another day than the flight back; `flex_days` (1 to 3) "
+    "tries the same trip shifted by that many days each way, flights only; `separate_tickets=true` also searches "
+    "each direction one way and returns the cheapest pairs of two tickets, including into one airport and out of "
+    "another, which roughly triples the time; `children_ages` lists the age of every child on the travel dates. "
+)
+PARTY = (
+    "`children_ages` lists the age of every child (0 to 17) on the travel dates; `adults` counts the grown-ups only. "
+    "Sources that cannot price that party say so in their status. "
+)
+SEPARATE = (
+    "`separate_tickets=true` (round trips only) also searches each direction one way and adds `separate_tickets`: "
+    "the cheapest pairs of two tickets, with what they save against the cheapest round trip. About three times "
+    "the waiting. "
 )
 
 
@@ -422,8 +485,10 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
     server = MCPServer("travel-ops", version="0.1.0", instructions=DESCRIPTION, lifespan=lifespan)
     trace = os.environ.get("TRAVELOPS_TRACE")
     server.add_tool(traced(tools.search_trip, trace), description=TRIP + DESCRIPTION, annotations=READ_ONLY)
-    server.add_tool(traced(tools.search_flights, trace), description=DESCRIPTION, annotations=READ_ONLY)
-    server.add_tool(traced(tools.search_stays, trace), description=DESCRIPTION, annotations=READ_ONLY)
+    server.add_tool(
+        traced(tools.search_flights, trace), description=DESCRIPTION + " " + SEPARATE + PARTY, annotations=READ_ONLY
+    )
+    server.add_tool(traced(tools.search_stays, trace), description=DESCRIPTION + " " + PARTY, annotations=READ_ONLY)
     server.add_tool(
         traced(tools.refine_flights, trace),
         description=REFINE + "Times are local to the departure airport, HH:MM. `airlines` keeps only these carrier "

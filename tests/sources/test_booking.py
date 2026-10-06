@@ -42,6 +42,24 @@ async def test_children_need_actual_ages():
         )
 
 
+async def test_children_are_sent_with_one_age_each():
+    class Browser:
+        async def get(self, name, url, **kw):
+            assert "group_children=2" in url and "age=3&age=9" in url
+            return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"])
+            return Response(200, b"<html>searchresults</html>")
+
+    family = StayQuery(QUERY.place, QUERY.checkin, QUERY.checkout, adults=2, children=2, children_ages=(3, 9))
+    await Source().fetch(family, Context(Net(), Browser(), lambda: NOW))
+    assert all(call["age"] == [3, 9] and call["group_children"] == 2 for call in Net.calls)
+
+
 def test_waf_is_blocked_but_scripts_on_real_pages_are_allowed():
     assert challenge(Response(202, b"Challenge"))
     assert challenge(Response(200, b"normal", {"x-amzn-waf-action": "challenge"}))

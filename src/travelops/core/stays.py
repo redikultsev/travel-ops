@@ -23,6 +23,7 @@ class StayQuery:
     adults: int = 2
     children: int = 0
     rooms: int = 1
+    children_ages: tuple[int, ...] = ()  # sites price a child by age; a count alone is not enough for some
 
     @property
     def nights(self) -> int:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -50,9 +51,15 @@ class Source:
     def max_requests(self, query: FlightQuery) -> int:
         return 2 + len(query.origins) * len(query.destinations)
 
-    async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
-        if query.cabin not in CLASSES:
-            raise ValueError(f"unsupported cabin: {query.cabin}")
+    def typical_requests(self, query: FlightQuery) -> int:
+        # The handshake is made once for a whole search, so a route usually costs one request and a share of it.
+        return 1 + len(query.origins) * len(query.destinations)
+
+    def __init__(self) -> None:
+        self._opened: asyncio.Task | None = None
+
+    async def _open(self, ctx: Context) -> dict:
+        """The MCP handshake, giving the headers every later call needs."""
         headers = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
         response = await ctx.net.request(
             self.name,
@@ -84,6 +91,16 @@ class Source:
             headers=dict(headers),
             json={"jsonrpc": "2.0", "method": "notifications/initialized"},
         )
+        return headers
+
+    async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
+        if query.cabin not in CLASSES:
+            raise ValueError(f"unsupported cabin: {query.cabin}")
+        # One handshake serves every route and date of a search: they are runs of this same object. A handshake
+        # that failed is not kept, so the next run tries again.
+        if self._opened is None or (self._opened.done() and (self._opened.cancelled() or self._opened.exception())):
+            self._opened = asyncio.ensure_future(self._open(ctx))
+        headers = await asyncio.shield(self._opened)
         raws = []
         for index, (origin, destination) in enumerate(product(query.origins, query.destinations), 2):
             arguments = {

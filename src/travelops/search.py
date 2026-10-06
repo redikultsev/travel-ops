@@ -89,9 +89,11 @@ def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> floa
 
 
 async def search_flights(
-    query: FlightQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120
+    query: FlightQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120, sharing: int = 1
 ) -> FlightSearch:
-    """Every date and every route is its own run of a source: one that fails costs that date or route only."""
+    """Every date and every route is its own run of a source: one that fails costs that date or route only.
+    `sharing` is how many searches run at once over the same sources: they wait in the same queues, so each
+    gets that much more time before it is called a timeout."""
     dates = query.date_pairs()
     routes = [(o, d) for o in query.origins for d in query.destinations]
     jobs = []
@@ -109,7 +111,7 @@ async def search_flights(
                 jobs.append(
                     (source, replace(query.on(depart, back), origins=(origin,), destinations=(destination,)), label)
                 )
-    runs = len(dates) * len(routes)
+    runs = len(dates) * len(routes) * sharing
     results = await asyncio.gather(
         *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, runs), label) for s, q, label in jobs)
     )

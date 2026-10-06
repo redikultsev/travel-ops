@@ -45,7 +45,10 @@ def parser():
     t.add_argument("origin")
     t.add_argument("place")
     t.add_argument("depart", type=date.fromisoformat)
-    t.add_argument("return_date", type=date.fromisoformat)
+    t.add_argument("return_date", type=date.fromisoformat, nargs="?", help="omit for a one-way trip")
+    t.add_argument("--checkout", type=date.fromisoformat, help="last day of the stay, when not the flight back")
+    t.add_argument("--flex", dest="flex_days", type=int, default=0, help="also try the trip shifted by 1 to 3 days")
+    t.add_argument("--separate", action="store_true", help="also price each direction as its own ticket")
     t.add_argument("--country")
     t.add_argument("--airports", help="destination airports to search instead of the nearest ones")
     t.add_argument("--max-airports", type=int, default=2)
@@ -271,6 +274,9 @@ async def execute(args):
                 args.place,
                 args.depart,
                 args.return_date,
+                checkout=args.checkout,
+                flex_days=args.flex_days,
+                separate=args.separate,
                 country=args.country,
                 airports=args.airports,
                 max_airports=args.max_airports,

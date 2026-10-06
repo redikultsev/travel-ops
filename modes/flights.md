@@ -11,12 +11,13 @@
 2. Call `search_flights` once for the approved query. Respect its confirmation
    gate. Explain unsupported party compositions from the source reports; do not
    replace the party with one adult or multiply a one-person price.
-3. With a return date, compare a round-trip search with the two corresponding
-   one-way searches after approval for those additional searches. Compare the
-   whole party and the same cabin/baggage conditions. Sum actual returned totals
-   only in a common established currency. State separate-ticket/self-transfer
-   risks and show when no fair comparison is possible. Never repeat a source
-   that reported a block as part of this comparison.
+3. When the human asks whether two one-way tickets are cheaper, or wants to
+   leave from another airport than the one of arrival, search with
+   `separate_tickets=true`. The engine searches each direction one way, pairs
+   them and returns `separate_tickets`: the pairs, their sums in one currency,
+   and what the best pair saves against the cheapest round trip. Always pass on
+   its `risk`. It takes about three times as long as a plain search. For a party
+   with children pass `children_ages`; name the sellers that could not price it.
 4. The engine applies the profile's `max_stops` and `avoid_airlines` itself and says
    in `filtered` what it hid. Narrow further with `refine_flights`, not by eye:
    `checked_bag=true` when the profile or the human needs a checked bag, times of
