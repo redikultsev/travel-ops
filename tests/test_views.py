@@ -79,6 +79,12 @@ def test_each_filter_says_what_it_hid():
     assert view["shown"]["of"] == 2 and view["shown"]["sorted_by"] == "price"
 
 
+def test_a_journey_that_waits_for_days_is_hidden_with_a_count():
+    view = flights_view(flights(), max_leg_hours=6)
+    assert [c["outbound"][0]["flight"] for c in view["cards"]] == ["JU170", "JU172", "4O100"]
+    assert view["filtered"]["by"] == [{"filter": "max_leg_hours", "value": 6, "hidden": 1}]
+
+
 def test_airline_and_airport_filters():
     assert len(flights_view(flights(), airlines=["ju"])["cards"]) == 2
     assert len(flights_view(flights(), avoid_airlines="JU,TK")["cards"]) == 1
@@ -96,7 +102,11 @@ def test_a_bag_filter_keeps_the_fares_with_a_bag_and_counts_the_unknown_apart():
 def test_a_price_ceiling_drops_dearer_fares_and_does_not_guess_other_currencies():
     data = flights()
     data["cards"].append(
-        card([seg("SU1", "BEG", "TIV", "10:00")], [seg("SU2", "TIV", "BEG", "11:00")], [(False, [fare(50, "ru", "RUB", False)])])
+        card(
+            [seg("SU1", "BEG", "TIV", "10:00")],
+            [seg("SU2", "TIV", "BEG", "11:00")],
+            [(False, [fare(50, "ru", "RUB", False)])],
+        )
     )
     view = flights_view(data, max_price=125)
     assert [c["groups"][0]["fares"][0]["price"]["amount"] for c in view["cards"]] == ["90", "100", "120"]
@@ -160,6 +170,9 @@ def test_stay_filters_and_orders():
     }
     assert [c["stay"]["name"] for c in stays_view(stays(), sort="rating")["cards"]] == ["hotel", "dorm", "room", "flat"]
     assert stays_view(stays(), sort="reviews")["cards"][0]["stay"]["name"] == "room"
+    trusted = stays_view(stays(), min_reviews=100, sort="rating")
+    assert [c["stay"]["name"] for c in trusted["cards"]] == ["room"]
+    assert trusted["filtered"]["by"] == [{"filter": "min_reviews", "value": 100, "hidden": 3}]
     assert [c["stay"]["name"] for c in stays_view(stays(), sources=["airbnb"])["cards"]] == ["flat"]
     with pytest.raises(ValueError, match="kinds"):
         stays_view(stays(), kinds=["castle"])
@@ -179,3 +192,15 @@ def test_memory_keeps_the_whole_result_and_forgets_after_a_week():
     now[0] += 8 * 86400
     memory.put("stays", "other", {})
     assert memory.get(stored.id) is None
+
+
+def test_the_shortlist_shows_the_cheapest_way_into_every_airport():
+    cards = [
+        card(
+            [seg(f"4O{i}", "BEG", "TGD", "10:00")], [seg(f"4O9{i}", "TGD", "BEG", "20:00")], [(False, [fare(100 + i)])]
+        )
+        for i in range(6)
+    ] + [card([seg("JU1", "BEG", "TIV", "10:00")], [seg("JU2", "TIV", "BEG", "07:30")], [(False, [fare(180)])])]
+    view = flights_view({"currency": "EUR", "cards": cards}, limit=3)
+    assert [c["outbound"][-1]["destination"] for c in view["cards"]] == ["TGD", "TGD", "TIV"]
+    assert view["shown"]["of"] == 7

@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import re
 
+from .core.report import brief
 from .serialize import _amount, leg_options, shortlist
 
 FLIGHT_SORTS = ("price", "duration", "departure")
 STAY_SORTS = ("price", "rating", "reviews")
-STAY_KINDS = ("hotel", "apartment", "shared_room", "other")
+STAY_KINDS = ("hotel", "apartment", "room", "house", "shared_room", "other")
 
 
 class Hidden:
@@ -67,6 +68,7 @@ def flights_view(
     *,
     limit: int = 10,
     max_stops: int | None = None,
+    max_leg_hours: float | None = None,
     depart_after: str | None = None,
     depart_before: str | None = None,
     return_after: str | None = None,
@@ -89,6 +91,15 @@ def flights_view(
         if type(max_stops) is not int or max_stops < 0:
             raise ValueError("max_stops must be an integer >= 0")
         cards = hidden.apply(cards, "max_stops", max_stops, lambda c: c["stops"] <= max_stops)
+    if max_leg_hours is not None:
+        if not isinstance(max_leg_hours, (int, float)) or isinstance(max_leg_hours, bool) or max_leg_hours <= 0:
+            raise ValueError("max_leg_hours must be a positive number")
+        cards = hidden.apply(
+            cards,
+            "max_leg_hours",
+            max_leg_hours,
+            lambda c: max(c["duration_min"], c["return_duration_min"] or 0) <= max_leg_hours * 60,
+        )
     # Times are local to the airport of departure, as printed on a ticket.
     for name, value, leg, keep in (
         ("depart_after", depart_after, "outbound", lambda at, bar: at >= bar),
@@ -164,6 +175,7 @@ def flights_view(
         cards.sort(key=lambda c: c["outbound"][0]["departs"])
     shortlist(result, limit, varied=sort == "price")
     result["shown"]["sorted_by"] = sort
+    result["report"] = brief(result.get("sources", []))
     return result
 
 
@@ -172,6 +184,7 @@ def stays_view(
     *,
     limit: int = 10,
     min_rating: float | None = None,
+    min_reviews: int | None = None,
     max_total: float | None = None,
     kinds=None,
     exclude_kinds=None,
@@ -191,6 +204,15 @@ def stays_view(
             return None if rating is None else rating >= min_rating
 
         cards = hidden.apply(cards, "min_rating", min_rating, rated)
+    if min_reviews is not None:
+        if type(min_reviews) is not int or min_reviews < 1:
+            raise ValueError("min_reviews must be an integer >= 1")
+
+        def reviewed(card):
+            reviews = card["stay"]["reviews"]
+            return None if reviews is None else reviews >= min_reviews
+
+        cards = hidden.apply(cards, "min_reviews", min_reviews, reviewed)
     for name, value, keep in (("kinds", kinds, True), ("exclude_kinds", exclude_kinds, False)):
         if value is not None:
             chosen = {k.lower() for k in _codes(value, name)}
@@ -226,4 +248,5 @@ def stays_view(
         result["filtered"] = hidden.report()
     shortlist(result, limit)
     result["shown"]["sorted_by"] = sort
+    result["report"] = brief(result.get("sources", []))
     return result

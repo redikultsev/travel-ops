@@ -64,7 +64,13 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app, monkeypatch):
 
     tools = api.Tools(app)
     flights = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=3)
-    assert flights["shown"] == {"cards": 0, "of": 0, "offers_per_group_at_most": 5, "sorted_by": "price"}
+    assert flights["shown"] == {
+        "cards": 0,
+        "of": 0,
+        "offers_per_group_at_most": 5,
+        "of_counts": "cards left after `filtered`",
+        "sorted_by": "price",
+    }
     with pytest.raises(ToolError, match="limit"):
         await tools.search_flights("BEG", "MOW", "2026-11-14", limit=0)
     with pytest.raises(ToolError, match="limit"):
@@ -127,7 +133,12 @@ async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app, monkey
     assert again["from_memory"] is True and again["search_id"] == first["search_id"]
     view = await tools.refine_flights(first["search_id"], depart_after="17:00", sort="duration")
     assert view["search_id"] == first["search_id"] and view["shown"]["sorted_by"] == "duration"
-    assert view["filtered"]["by"] == [{"filter": "depart_after", "value": "17:00", "hidden": 0}]
+    assert view["filtered"]["by"] == [
+        {"filter": "max_stops", "value": 1, "hidden": 0},
+        {"filter": "max_leg_hours", "value": 24, "hidden": 0},
+        {"filter": "depart_after", "value": "17:00", "hidden": 0},
+    ], "a view starts from the bars of the profile, as the search did"
+    assert view["report"] == {"ok": [], "empty": [], "problems": [], "limits": []}
     assert not app.net.counts
     with pytest.raises(ToolError, match="no search"):
         await tools.refine_flights("f0000000")

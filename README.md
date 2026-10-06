@@ -58,13 +58,26 @@ configuration. `AGENTS.md` contains shared operating instructions; `CLAUDE.md` i
 Claude Code. Client configuration formats differ, but all clients call the same MCP server and deterministic
 search engine.
 
-The MCP tools are `search_trip`, `search_flights`, `search_stays`, `airports_near`, and `sources`. `search_trip`
-answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one call: it finds the place, picks
-the airports that serve it, and searches flights there and back and stays for the same dates.
-`scripts/call_tool.py` calls any tool from a terminal and prints exactly what an agent receives. The `sources` tool is read-only and does not
-contact travel sites. The search tools return the cheapest cards (`limit`, 10 by default) with `shown` telling how many
-exist, plus exact source statuses, timestamps, links, original currencies, conversion-rate dates, and narrowing
-details for the agent to present.
+The MCP tools are `search_trip`, `search_flights`, `search_stays`, `refine_flights`, `refine_stays`,
+`airports_near`, and `sources`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in
+Kotor" in one call: it finds the place, picks the airports that serve it, and searches flights there and back and
+stays for the same dates.
+
+Every search is remembered whole, and each result carries a `search_id`. A follow-up ("evening flights only",
+"with a bag", "no dormitories, under 40 EUR") is answered by a refine tool from memory: no request to any site,
+no waiting. Each filter reports how many offers it hid, and separately how many it hid only because the source
+does not say. The same search within 30 minutes is answered from memory too; `refresh=true` forces new prices.
+
+`scripts/call_tool.py` calls any tool from a terminal and prints exactly what an agent receives. The search tools
+return the cheapest cards (`limit`) with `shown` telling how many exist, a short `report` of who answered and where
+the answer is narrower than the question, plus exact statuses, timestamps, links, original currencies and
+conversion-rate dates.
+
+## Checking the agent
+
+`evals/` holds conversations over searches that really happened, replayed offline. `uv run travelops eval` checks
+an agent's answers mechanically: every price and link must come from a tool result, a follow-up must not spend a
+search, every source must be reported. See `evals/README.md`.
 
 ## Sources
 

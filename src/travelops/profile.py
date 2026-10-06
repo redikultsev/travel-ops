@@ -33,6 +33,7 @@ class Profile:
     avoid_airlines: tuple[str, ...] = ()
     stays: StaysProfile = field(default_factory=StaysProfile)
     confirm_over_seconds: int = 300  # a search estimated longer than this asks the human first
+    max_leg_hours: int = 24  # door to door one way; a connection that waits two days is not an option
 
 
 def data_dir(root: Path) -> Path:
@@ -109,4 +110,5 @@ def load_profile(root: Path) -> Profile:
             _strings(stays.get("must_have", ("wifi",)), "stays.must_have"),
         ),
         _count(values.get("confirm_over_seconds", defaults.confirm_over_seconds), "confirm_over_seconds"),
+        _count(values.get("max_leg_hours", defaults.max_leg_hours), "max_leg_hours", 1),
     )

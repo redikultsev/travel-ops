@@ -6,6 +6,7 @@ travellers: {adults: 1, children: 0, infants: 0}
 cabin: economy
 baggage: carry_on
 max_stops: 1
+max_leg_hours: 24
 avoid_airlines: []
 stays:
   adults: 2

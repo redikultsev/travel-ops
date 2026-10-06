@@ -105,6 +105,7 @@ async def search_trip(
                 flights.result,
                 limit=limit,
                 max_stops=app.profile.max_stops if max_stops is None else max_stops,
+                max_leg_hours=app.profile.max_leg_hours,
                 avoid_airlines=app.profile.avoid_airlines,
             ),
             now,

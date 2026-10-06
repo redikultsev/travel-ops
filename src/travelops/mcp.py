@@ -1,5 +1,9 @@
 """Read-only MCP tools over one application lifetime."""
 
+import functools
+import inspect
+import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -25,9 +29,12 @@ DESCRIPTION = (
 )
 REFINE = (
     "Another view of a search already made, by its `search_id`: more cards, another order, filters. No request to "
-    "any travel site, so it is instant and free. Every filter reports in `filtered` how many cards it hid, and "
-    "`hidden_unknown` counts those hidden only because the source does not say. Prices are as old as the search: "
-    "see `age_minutes`; when `stale` is present, search again before recommending a booking. "
+    "any travel site, so it is instant and free. A view starts from the profile's bars, as the search did "
+    "(max_stops and max_leg_hours for flights, min_rating for stays); pass a value to loosen or tighten one. "
+    "Filters apply in the "
+    "order `filtered.by` lists them, each to what the earlier ones left: `hidden` failed the filter, "
+    "`hidden_unknown` (not included in `hidden`) was hidden only because the source does not say. Prices are as "
+    "old as the search: see `age_minutes`; when `stale` is present, search again before recommending a booking. "
 )
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 LOCAL = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
@@ -78,7 +85,11 @@ class Tools:
                 app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
             )
             view = flights_view(
-                stored.result, limit=limit, max_stops=max_stops, avoid_airlines=app.profile.avoid_airlines
+                stored.result,
+                limit=limit,
+                max_stops=app.profile.max_stops if max_stops is None else max_stops,
+                max_leg_hours=app.profile.max_leg_hours,
+                avoid_airlines=app.profile.avoid_airlines,
             )
             return stored.stamp(view, app.results.clock())
         except ValueError as exc:
@@ -112,7 +123,12 @@ class Tools:
             stored = await recall.stays(
                 app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
             )
-            return stored.stamp(stays_view(stored.result, limit=limit, min_rating=min_rating), app.results.clock())
+            view = stays_view(
+                stored.result,
+                limit=limit,
+                min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+            )
+            return stored.stamp(view, app.results.clock())
         except ValueError as exc:
             raise ToolError(f"Invalid stay search: {exc}") from exc
         except TimeoutError as exc:
@@ -131,6 +147,7 @@ class Tools:
         search_id: str,
         limit: int = 10,
         max_stops: int | None = None,
+        max_leg_hours: float | None = None,
         depart_after: str | None = None,
         depart_before: str | None = None,
         return_after: str | None = None,
@@ -148,7 +165,9 @@ class Tools:
             view = flights_view(
                 stored.result,
                 limit=limit,
-                max_stops=max_stops,
+                # A view starts from the same bars as the search, or it would quietly show what the search hid.
+                max_stops=self.app.profile.max_stops if max_stops is None else max_stops,
+                max_leg_hours=self.app.profile.max_leg_hours if max_leg_hours is None else max_leg_hours,
                 depart_after=depart_after,
                 depart_before=depart_before,
                 return_after=return_after,
@@ -169,6 +188,7 @@ class Tools:
         search_id: str,
         limit: int = 10,
         min_rating: float | None = None,
+        min_reviews: int | None = None,
         max_total: float | None = None,
         kinds: list[str] | None = None,
         exclude_kinds: list[str] | None = None,
@@ -181,7 +201,8 @@ class Tools:
             view = stays_view(
                 stored.result,
                 limit=limit,
-                min_rating=min_rating,
+                min_rating=self.app.profile.stays.min_rating if min_rating is None else min_rating,
+                min_reviews=min_reviews,
                 max_total=max_total,
                 kinds=kinds,
                 exclude_kinds=exclude_kinds,
@@ -295,6 +316,27 @@ class Tools:
         }
 
 
+def traced(tool, path: str | None):
+    """Write every call, its arguments and its answer to a file: what the agent asked and what it was told."""
+    if not path:
+        return tool
+
+    @functools.wraps(tool)
+    async def wrapper(*args, **kwargs):
+        entry = {"tool": tool.__name__, "arguments": inspect.signature(tool).bind(*args, **kwargs).arguments}
+        try:
+            entry["result"] = await tool(*args, **kwargs)
+            return entry["result"]
+        except Exception as exc:
+            entry["error"] = str(exc)
+            raise
+        finally:
+            with open(path, "a") as file:
+                file.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+
+    return wrapper
+
+
 TRIP = (
     "Whole trip in one call: flights from `origin` (IATA codes, e.g. BEG or a city code such as MOW) to the airports "
     "nearest to `place` and back, and stays in `place` for the same dates, searched side by side. `place` in Latin "
@@ -317,24 +359,26 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
             await tools.app.close()
 
     server = MCPServer("travel-ops", version="0.1.0", instructions=DESCRIPTION, lifespan=lifespan)
-    server.add_tool(tools.search_trip, description=TRIP + DESCRIPTION, annotations=READ_ONLY)
-    server.add_tool(tools.search_flights, description=DESCRIPTION, annotations=READ_ONLY)
-    server.add_tool(tools.search_stays, description=DESCRIPTION, annotations=READ_ONLY)
+    trace = os.environ.get("TRAVELOPS_TRACE")
+    server.add_tool(traced(tools.search_trip, trace), description=TRIP + DESCRIPTION, annotations=READ_ONLY)
+    server.add_tool(traced(tools.search_flights, trace), description=DESCRIPTION, annotations=READ_ONLY)
+    server.add_tool(traced(tools.search_stays, trace), description=DESCRIPTION, annotations=READ_ONLY)
     server.add_tool(
-        tools.refine_flights,
+        traced(tools.refine_flights, trace),
         description=REFINE + "Times are local to the departure airport, HH:MM. `airlines` keeps only these carrier "
         "codes, `destination` only flights landing at these airports, `checked_bag=true` only fares that include "
         "one, `max_price` is in the currency of the result. `sort`: price, duration or departure.",
         annotations=LOCAL,
     )
     server.add_tool(
-        tools.refine_stays,
-        description=REFINE + "`max_total` is for the whole stay in the currency of the result. Kinds: hotel, "
-        "apartment, shared_room (a bed in a dormitory), other. `sort`: price, rating or reviews.",
+        traced(tools.refine_stays, trace),
+        description=REFINE + "`max_total` is for the whole stay in the currency of the result. `min_reviews` "
+        "drops ratings that rest on a handful of reviews. Kinds: hotel, apartment, room, house, shared_room (a bed "
+        "in a dormitory), other (the source does not say). `sort`: price, rating or reviews.",
         annotations=LOCAL,
     )
     server.add_tool(
-        tools.airports_near,
+        traced(tools.airports_near, trace),
         description="Find a place and the airports near it, nearest first, with distances in km. Use it instead of "
         "guessing which airport serves a town. One request to a geocoder, none to travel sites.",
         annotations=ToolAnnotations(
@@ -342,7 +386,7 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         ),
     )
     server.add_tool(
-        tools.sources,
+        traced(tools.sources, trace),
         description="List known sources, request spacing and remaining quarantine. No network requests.",
         annotations=LOCAL,
     )

@@ -44,6 +44,39 @@ def combine(reports: list[SourceReport]) -> SourceReport:
         if r in good or len(reports) == 1:
             new = r.notes
         else:
-            new = [f"{', '.join(r.notes) or 'one run'}: {r.reason}"]
+            new = [f"failed for {', '.join(r.notes) or 'one run'}: {r.reason}"]
         out.notes += [n for n in new if n not in out.notes]
+    return out
+
+
+# Notes that say the answer is narrower than the question. The rest describe how a source was read.
+LIMITS = (
+    "failed for",
+    "truncated",
+    "partial results",
+    "left out",
+    "cap reached",
+    "first ssr page",
+    "band is missing",
+    "inventory is not complete",
+    "source selection",
+    "no validated ticket",
+    "summary fares only",
+)
+
+
+def brief(reports: list[dict]) -> dict:
+    """What must reach the human about the sources, short enough to say in a chat: who answered, who did not and
+    why, and where the answer is narrower than the question. The full reports stay in `sources`."""
+    out: dict = {"ok": [], "empty": [], "problems": [], "limits": []}
+    for report in reports:
+        if report["status"] == Status.OK:
+            out["ok"].append(report["source"])
+        elif report["status"] == Status.EMPTY:
+            out["empty"].append(report["source"])
+        else:
+            out["problems"].append({k: report[k] for k in ("source", "status", "reason")})
+        for note in report["notes"]:
+            if any(word in note.lower() for word in LIMITS):
+                out["limits"].append(f"{report['source']}: {note}")
     return out

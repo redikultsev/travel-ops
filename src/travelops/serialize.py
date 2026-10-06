@@ -177,9 +177,17 @@ def _varied(cards: list[dict], count: int) -> list[dict]:
     if not cards or "inbound" not in cards[0]:
         return cards[:count]
     picked, rest, seen_out, seen_back = [], [], set(), set()
+    # The cheapest way into every airport comes first: an answer that shows one airport only looks as if the
+    # other had no flights.
+    airports = {}
+    for card in cards:
+        airports.setdefault(card["outbound"][-1]["destination"], card)
+    reserved = list(airports.values())[:count] if len(airports) > 1 else []
     for card in cards:
         out, back = _leg_key(card["outbound"]), _leg_key(card["inbound"])
-        if len(picked) < count and (out not in seen_out or (back and back not in seen_back)):
+        mine = any(card is r for r in reserved)
+        room = len(picked) + sum(1 for r in reserved if not any(r is p for p in picked)) < count
+        if mine or (room and (out not in seen_out or (back and back not in seen_back))):
             picked.append(card)
             seen_out.add(out)
             seen_back.add(back)

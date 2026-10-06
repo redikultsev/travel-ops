@@ -4,18 +4,20 @@
    profile's stays.adults when omitted. Ask once for missing place/dates or any
    condition the query model cannot express. Keep the requested nights and
    party fixed; a nightly price is not a verified full-stay total.
-2. Call `search_stays` once for the approved query and respect confirmation.
-3. Apply profile stays.min_rating and must_have to returned fields. Exclude
-   known failures; a missing rating or amenity is unverified and cannot satisfy
-   a hard minimum or must-have. Count known failures and unknown exclusions
-   separately. If no offer satisfies the requirements, explain this and ask
-   whether the human wants to inspect unverified alternatives. Do not claim
-   that unknown amenities are absent or present.
-4. Show a short set of cards with exact full-stay/whole-party total, per-night
-   amount, source/seller, name, normalized rating out of 10 and review count,
-   explicit cancellation cutoff, meals/room when known, one returned photo URL
-   and the property link containing the requested dates. Keep unknowns visible.
-   Show previews using their returned URLs; do not request galleries/details.
-5. End with all source statuses, reasons, first-page/price-band coverage notes,
-   and the number of cards displayed or excluded. Booking and Airbnb properties
-   are not deduplicated across sources in v1.
+2. Call `search_stays` once for the approved query and respect confirmation. The
+   engine applies the profile's `min_rating` itself and says in `filtered` what it
+   hid: stays below the bar, and separately stays with no rating at all.
+3. Narrow with `refine_stays`, not by eye: `min_rating`, `min_reviews`, `max_total`,
+   `exclude_kinds` (pass `shared_room` to drop dormitory beds), `sources`, `sort`.
+   A `kind` of `other` means the source does not say what the place is; do not
+   call it a private room. If nothing satisfies the requirements, say so and ask
+   whether the human wants to see what a looser bar or the unrated ones hold.
+   Do not claim that unknown amenities are absent or present.
+4. Show a short set of cards: the total for the whole stay and party, the amount
+   per night, the seller, the name, rating out of 10 with its review count, the
+   room and meals when known, the cancellation terms when stated, and the property
+   link carrying the requested dates. Keep unknowns visible in one line for the
+   whole answer rather than under every card.
+5. End with what the filters hid and the source report as AGENTS.md describes it.
+   Booking and Airbnb are not deduplicated: the same property can appear under
+   both, with different names and ratings.

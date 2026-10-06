@@ -64,6 +64,9 @@ def parser():
     d = commands.add_parser("doctor")
     d.add_argument("--live", action="store_true")
     commands.add_parser("mcp")
+    e = commands.add_parser("eval", help="check an agent's answers to a recorded scenario; no network")
+    e.add_argument("scenario", help="a directory under evals/scenarios")
+    e.add_argument("run", help="a directory with turn-N.md and turn-N.trace.jsonl")
     return p
 
 
@@ -348,6 +351,16 @@ def main(argv=None):
 
             create_server(Path.cwd()).run(transport="stdio")
             return 0
+        if args.command == "eval":
+            from .evals import check_run
+
+            report = check_run(Path(args.scenario), Path(args.run))
+            for turn in report:
+                verdict = "pass" if not turn["failures"] else "FAIL"
+                print(f"turn {turn['turn']}: {verdict} — calls: {', '.join(turn['calls']) or 'none'}")
+                for failure in turn["failures"]:
+                    print(f"  - {failure}")
+            return 1 if any(turn["failures"] for turn in report) else 0
         return asyncio.run(execute(args))
     except (ValueError, OSError) as exc:
         Console(stderr=True).print(f"Error: {exc}", markup=False)

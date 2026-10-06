@@ -129,4 +129,4 @@ async def test_a_route_that_fails_costs_only_that_route():
     result = await search_flights(two, [OneRouteHangs()], ctx, Rates("EUR", {}, "d"), "EUR")
     report = result.reports[0]
     assert report.status is Status.OK and report.offers == 1
-    assert "BEG-TGD: a request got no answer in 30 s" in report.notes
+    assert "failed for BEG-TGD: a request got no answer in 30 s" in report.notes

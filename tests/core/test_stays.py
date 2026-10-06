@@ -32,4 +32,5 @@ def test_room_name_tells_a_dormitory_bed_from_a_room():
     assert kind_of_room("Bunk Bed in Mixed Dormitory Room") == "shared_room"
     assert kind_of_room("Bed in 6-Bed Mixed Dormitory Room with Private External Bathroom") == "shared_room"
     assert kind_of_room("One-Bedroom Apartment") == "apartment"
-    assert kind_of_room("Twin Room") == "other" and kind_of_room(None) == "other"
+    assert kind_of_room("Twin Room") == "room" and kind_of_room(None) == "other"
+    assert kind_of_room("Mobile Home") == "house" and kind_of_room("Junior Suite") == "apartment"

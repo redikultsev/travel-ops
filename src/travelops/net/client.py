@@ -21,6 +21,10 @@ class Blocked(Exception):
     """The site refused us: banned address, anti-bot, captcha. The reason is shown to the user as is."""
 
 
+class Offline(ValueError):
+    """A replay was asked for something it did not record. Nothing goes to the network in a replay."""
+
+
 @dataclass
 class Response:
     status: int
@@ -60,13 +64,14 @@ class Net:
         cache: RawCache | None = None,
         impersonate: str = "chrome",
         timeout: float = 30.0,
+        offline: bool = False,
     ) -> None:
         data_dir.mkdir(parents=True, exist_ok=True)
         self.proxy = proxy if not proxy or "://" in proxy else f"http://{proxy}"
         self.exit = exit_of(proxy)
         self.limiter = limiter or Limiter(data_dir / "limiter.sqlite")
         self.cache = cache or RawCache(data_dir / "raw.sqlite")
-        self.impersonate, self.timeout = impersonate, timeout
+        self.impersonate, self.timeout, self.offline = impersonate, timeout, offline
         self.counts: Counter[str] = Counter()
         self._session: AsyncSession | None = None
 
@@ -87,6 +92,10 @@ class Net:
         blocked_if: Callable[[Response], str | None] | None = None,
     ) -> Response:
         key = RawCache.key(method, url, params, json if json is not None else data)
+        if self.offline:
+            if hit := self.cache.get(key, float("inf")):
+                return Response(hit.status, hit.body, {}, hit.url)
+            raise Offline(f"the replay holds no answer for {method} {url}")
         if cache_ttl and (hit := self.cache.get(key, cache_ttl)):
             return Response(hit.status, hit.body, {}, hit.url)
         bucket = Limiter.bucket(source, self.exit)

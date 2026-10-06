@@ -78,7 +78,10 @@ async def test_search_runs_both_parts_and_reports_the_plan(app, located, monkeyp
     ]
     assert result["flights"]["filtered"] == {
         "hidden_cards": 0,
-        "by": [{"filter": "max_stops", "value": 1, "hidden": 0}],
+        "by": [
+            {"filter": "max_stops", "value": 1, "hidden": 0},
+            {"filter": "max_leg_hours", "value": 24, "hidden": 0},
+        ],
     }
     assert result["flights"]["shown"]["cards"] == 0 and result["stays"]["shown"]["cards"] == 0
     assert result["stays"]["filtered"]["by"] == [{"filter": "min_rating", "value": 8.0, "hidden": 0}]

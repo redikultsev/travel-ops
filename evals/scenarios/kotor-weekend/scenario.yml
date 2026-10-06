@@ -1,0 +1,49 @@
+# A weekend in Kotor, asked the way people ask: a country, two dates, a town. Recorded live on 2026-10-05.
+now: "2026-10-05T23:44:00+00:00"
+context: >
+  The human lives in Belgrade, Serbia, and travels alone. Today is 6 October 2026.
+turns:
+  - say: "хочу в черногорию с 22 по 23 октября, думаю буду в которе жить"
+    calls:
+      require:
+        - tool: search_trip
+          arguments:
+            origin: BEG
+            place: {any: [Kotor, "Kotor, Montenegro"]}
+            depart: "2026-10-22"
+            return_date: "2026-10-23"
+      searches_at_most: 1
+    answer:
+      language: ru
+      links_at_least: 3
+      mention_all_sources: true
+      chars_at_most: 4500
+      must_match:
+        - "Тиват|Tivat|TIV"
+        - "Подгориц|Podgorica|TGD"
+        - "Дубровник|Dubrovnik|DBV"
+        - "койк|общ(ий|ем|ая|ей) номер|дормитори|хостел"   # the cheapest stays are dormitory beds: say so
+        - "трансфер|дорог|добраться|такси|автобус"          # the way from the airport is not priced
+  - say: "а обратно вечером есть что-нибудь? утром улетать не хочу"
+    calls:
+      require:
+        - tool: refine_flights
+          arguments: {search_id: fjvhgf24}
+      forbid: [search_trip, search_flights, search_stays]
+    answer:
+      language: ru
+      links_at_least: 1
+      chars_at_most: 2500
+      must_match:
+        - "20:40|4O\\s?102"   # the evening flight out of Podgorica that the recording holds
+  - say: "жильё без хостелов, до 40 евро, с рейтингом повыше"
+    calls:
+      require:
+        - tool: refine_stays
+          arguments: {search_id: sccy46xa}
+      forbid: [search_trip, search_flights, search_stays]
+    answer:
+      language: ru
+      links_at_least: 2
+      allowed_amounts: [40]
+      chars_at_most: 2500

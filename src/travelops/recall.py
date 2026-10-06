@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .memory import Stored
+from .memory import REUSE_SECONDS, Stored
 from .search import search_flights, search_stays
 from .serialize import flight_search_json, stay_search_json
 
@@ -15,7 +15,9 @@ def _key(app, kind: str, query, sources: list, currency: str) -> str:
 
 
 def remembered(app, kind: str, query, sources: list, currency: str) -> Stored | None:
-    return app.results.recent(_key(app, kind, query, sources, currency))
+    key = _key(app, kind, query, sources, currency)
+    # A recording has no age: it is the only answer a replay can give.
+    return app.results.recent(key, None) if app.replay else app.results.recent(key)
 
 
 def _note(result: dict, selection) -> dict:
@@ -25,17 +27,29 @@ def _note(result: dict, selection) -> dict:
     return result
 
 
+async def _recall(app, kind, search, to_json, query, sources, rates, currency, refresh, selection) -> Stored:
+    stored = None if refresh and not app.replay else remembered(app, kind, query, sources, currency)
+    if stored is not None:
+        if app.replay:
+            # The recording stands for the search that was asked for. Asked again when the first is too old to
+            # reuse, or with `refresh`, it is a search made now.
+            stored.fresh = True
+            if refresh or app.results.clock() - stored.at > REUSE_SECONDS:
+                stored.at = app.results.clock()
+        return stored
+    if app.replay:
+        raise ValueError(f"the replay has no {kind} search for {asdict(query)}")
+    result = to_json(await search(query, sources, app.ctx, rates, currency), rates)
+    return app.results.put(kind, _key(app, kind, query, sources, currency), _note(result, selection))
+
+
 async def flights(app, query, sources: list, rates, currency: str, *, refresh=False, selection=None) -> Stored:
-    stored = None if refresh else remembered(app, "flights", query, sources, currency)
-    if stored is None:
-        result = flight_search_json(await search_flights(query, sources, app.ctx, rates, currency), rates)
-        stored = app.results.put("flights", _key(app, "flights", query, sources, currency), _note(result, selection))
-    return stored
+    return await _recall(
+        app, "flights", search_flights, flight_search_json, query, sources, rates, currency, refresh, selection
+    )
 
 
 async def stays(app, query, sources: list, rates, currency: str, *, refresh=False, selection=None) -> Stored:
-    stored = None if refresh else remembered(app, "stays", query, sources, currency)
-    if stored is None:
-        result = stay_search_json(await search_stays(query, sources, app.ctx, rates, currency), rates)
-        stored = app.results.put("stays", _key(app, "stays", query, sources, currency), _note(result, selection))
-    return stored
+    return await _recall(
+        app, "stays", search_stays, stay_search_json, query, sources, rates, currency, refresh, selection
+    )

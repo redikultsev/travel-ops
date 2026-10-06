@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -16,8 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 async def main(tool: str, arguments: dict) -> int:
+    # The whole environment goes through: TRAVELOPS_DATA, TRAVELOPS_REPLAY and TRAVELOPS_TRACE are read by the server.
     params = StdioServerParameters(
-        command=sys.executable, args=["-c", "from travelops.cli import main; main(['mcp'])"], cwd=str(ROOT)
+        command=sys.executable,
+        args=["-c", "from travelops.cli import main; main(['mcp'])"],
+        cwd=str(ROOT),
+        env=dict(os.environ),
     )
     async with Client(params, read_timeout_seconds=900) as client:
         if tool == "--list":

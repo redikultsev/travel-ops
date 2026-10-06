@@ -43,7 +43,9 @@ class Results:
     def __init__(self, path: Path | None, clock: Callable[[], float] = time.time) -> None:
         self.clock = clock
         self.db = sqlite3.connect(path or ":memory:")
-        self.db.execute("CREATE TABLE IF NOT EXISTS results (id TEXT PRIMARY KEY, key TEXT, kind TEXT, at REAL, body BLOB)")
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS results (id TEXT PRIMARY KEY, key TEXT, kind TEXT, at REAL, body BLOB)"
+        )
         self.db.execute("CREATE INDEX IF NOT EXISTS results_key ON results (key, at)")
 
     @staticmethod
@@ -63,6 +65,14 @@ class Results:
         )
         self.db.commit()
         return Stored(ident, kind, at, json.loads(json.dumps(result)), fresh=True)
+
+    def load(self, ident: str, key: str, kind: str, at: float, result: dict) -> None:
+        """Put back a search that was recorded elsewhere."""
+        self.db.execute(
+            "INSERT OR REPLACE INTO results VALUES (?, ?, ?, ?, ?)",
+            (ident, key, kind, at, zlib.compress(json.dumps(result).encode())),
+        )
+        self.db.commit()
 
     def _row(self, row) -> Stored | None:
         return Stored(row[0], row[1], row[2], json.loads(zlib.decompress(row[3]))) if row else None

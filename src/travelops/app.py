@@ -1,5 +1,6 @@
 """Application resources shared by CLI and MCP."""
 
+import os
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -91,6 +92,7 @@ class App:
     limiter: Limiter
     profile: Profile
     results: Results
+    replay: bool = False  # answers come from a recording; nothing goes to the network
     closed: bool = False
 
     async def close(self):
@@ -105,6 +107,10 @@ class App:
 
 
 def build(root: Path, proxy: str | None = None) -> App:
+    if os.environ.get("TRAVELOPS_REPLAY"):
+        from .replay import build_replay
+
+        return build_replay(Path(os.environ["TRAVELOPS_REPLAY"]))
     root = Path(root).resolve()
     profile = load_profile(root)
     data = data_dir(root)
