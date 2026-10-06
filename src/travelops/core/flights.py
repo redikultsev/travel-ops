@@ -189,3 +189,12 @@ class FlightQuery:
 
     def on(self, depart: date, return_: date | None) -> "FlightQuery":
         return replace(self, depart=depart, return_=return_, flex_days=0)
+
+    def one_ways(self) -> tuple["FlightQuery", "FlightQuery"]:
+        """The round trip as two one-way searches, out and back, to price it as two separate tickets."""
+        if self.return_ is None:
+            raise ValueError("separate tickets need a return date: a one-way trip is one ticket already")
+        if self.flex_days:
+            raise ValueError("separate tickets with flexible dates are too many searches at once: choose one")
+        back = replace(self, origins=self.destinations, destinations=self.origins, depart=self.return_, return_=None)
+        return replace(self, return_=None), back

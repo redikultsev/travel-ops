@@ -2,10 +2,10 @@ import json
 import sys
 import pytest
 from mcp import Client, StdioServerParameters
+from dataclasses import replace
 from travelops import mcp as api
 from travelops.app import build
-from travelops.core.money import Rates
-from travelops.search import FlightSearch, StaySearch
+from tests.fakes import fake_searches
 
 
 @pytest.fixture
@@ -18,38 +18,23 @@ async def app(tmp_path):
     await value.close()
 
 
-def stub_search(monkeypatch):
-    async def rates(net):
-        return Rates("EUR", {"USD": 1.2}, "offline-test")
-
-    async def flights(query, sources, ctx, rates, currency, **kwargs):
-        return FlightSearch(query, currency, [], [])
-
-    async def stays(query, sources, ctx, rates, currency, **kwargs):
-        return StaySearch(query, currency, [], [])
-
-    monkeypatch.setattr(api, "load_rates", rates)
-    monkeypatch.setattr(api.recall, "search_flights", flights)
-    monkeypatch.setattr(api.recall, "search_stays", stays)
-    monkeypatch.setattr(api, "estimate_flights", lambda *args: 0)
-    monkeypatch.setattr(api, "estimate_stays", lambda *args: 0)
+def fake_tools(app, **kwargs):
+    return api.Tools(app, fake_searches(app, **kwargs))
 
 
-async def test_confirmation_gate_makes_no_requests(app, monkeypatch):
-    monkeypatch.setattr(api, "estimate_flights", lambda *args: 400)
+async def unexpected(*args, **kwargs):
+    pytest.fail("this must not run")
 
-    async def unexpected(*args, **kwargs):
-        pytest.fail("unconfirmed search must not run")
 
-    monkeypatch.setattr(api, "load_rates", unexpected)
-    data = await api.Tools(app).search_flights("BEG", "MOW", "2026-11-14")
+async def test_confirmation_gate_makes_no_requests(app):
+    tools = fake_tools(app, estimate=lambda *args: 400, flights=unexpected, load=unexpected)
+    data = await tools.search_flights("BEG", "MOW", "2026-11-14")
     assert data["needs_confirmation"] is True and data["estimate_seconds"] == 400
     assert not app.net.counts
 
 
-async def test_direct_defaults_and_json(app, monkeypatch):
-    stub_search(monkeypatch)
-    tools = api.Tools(app)
+async def test_direct_defaults_and_json(app):
+    tools = fake_tools(app)
     flights = await tools.search_flights("BEG", "MOW", "2026-11-14", sources=["onetwotrip"])
     assert flights["query"]["adults"] == 2 and flights["query"]["cabin"] == "business" and flights["currency"] == "USD"
     stays = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")
@@ -58,11 +43,10 @@ async def test_direct_defaults_and_json(app, monkeypatch):
     json.dumps(stays)
 
 
-async def test_results_are_a_shortlist_and_limit_is_validated(app, monkeypatch):
-    stub_search(monkeypatch)
+async def test_results_are_a_shortlist_and_limit_is_validated(app):
     from mcp.server.mcpserver.exceptions import ToolError
 
-    tools = api.Tools(app)
+    tools = fake_tools(app)
     flights = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=3)
     assert flights["shown"] == {
         "cards": 0,
@@ -78,9 +62,8 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app, monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
-async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
-    stub_search(monkeypatch)
-    server = api.create_server(app.root, app=app)
+async def test_protocol_json_schemas_errors_and_cleanup(app, mode):
+    server = api.create_server(app.root, app=app, searches=fake_searches(app))
     async with Client(server, mode=mode) as client:
         tools = await client.list_tools()
         assert {t.name for t in tools.tools} == {
@@ -125,18 +108,15 @@ async def test_actual_stdio_entrypoint_sources_only(tmp_path, monkeypatch, mode)
         assert "tutu" in result.structured_content["flight_sources"]
 
 
-async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app, monkeypatch):
-    stub_search(monkeypatch)
+async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app):
     from mcp.server.mcpserver.exceptions import ToolError
 
-    tools = api.Tools(app)
+    tools = fake_tools(app)
     first = await tools.search_flights("BEG", "MOW", "2026-11-14")
     assert first["from_memory"] is False
 
-    async def unexpected(*args, **kwargs):
-        pytest.fail("a follow-up must not search")
-
-    monkeypatch.setattr(api.recall, "search_flights", unexpected)
+    kinds = tools.searches.kinds
+    kinds["flights"] = replace(kinds["flights"], search=unexpected)  # a follow-up must not search
     again = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=50)
     assert again["from_memory"] is True and again["search_id"] == first["search_id"]
     view = await tools.refine_flights(first["search_id"], depart_after="17:00", sort="duration")
@@ -157,9 +137,8 @@ async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app, monkey
         await tools.refine_flights(first["search_id"], depart_after="5pm")
 
 
-async def test_an_old_search_is_shown_with_its_age_and_not_reused(app, monkeypatch):
-    stub_search(monkeypatch)
-    tools = api.Tools(app)
+async def test_an_old_search_is_shown_with_its_age_and_not_reused(app):
+    tools = fake_tools(app)
     now = [1_000_000.0]
     app.results.clock = lambda: now[0]
     first = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")

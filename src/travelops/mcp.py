@@ -1,27 +1,25 @@
-"""Read-only MCP tools over one application lifetime."""
+"""Read-only MCP tools over one application lifetime. A tool reads its arguments, asks `Searches` and puts the
+answer in words an agent can act on; searching itself lives in `searches.py`."""
 
-import asyncio
 import functools
 import inspect
 import json
 import os
+import time
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
-from . import recall
-from .app import App, build, flight_query, ground_query, ground_sources, stay_query, flight_sources, stay_sources
+from .app import App, build
 from .combine import separate_tickets as pair_tickets
 from .details import read_details, read_photos
 from .geo import airports_near, locate, place_json, with_roads
-from .rates import load_rates
-from .search import estimate_flights, estimate_ground, estimate_stays
+from .kinds import flight_query, ground_query, stay_query
+from .searches import NeedsConfirmation, Searches
 from .trip import plan_trip, search_trip
-from .views import flights_view, ground_view, stays_view
 from .watch import checked_arguments, watch_json
 
 DESCRIPTION = (
@@ -46,21 +44,41 @@ READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempot
 LOCAL = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 
 
-def confirmation(estimate):
-    return {
-        "needs_confirmation": True,
-        "estimate_seconds": round(estimate, 1),
-        "message": f"This search needs about {estimate:.0f} seconds of request spacing, plus response time. Ask the human to approve before passing confirm=True.",
-    }
+def answers(what: str):
+    """A tool's failures in words an agent can act on. A search that needs a confirmation is an answer, not an
+    error; a bad argument is `Invalid <what>: <why>`."""
+
+    def decorate(method):
+        @functools.wraps(method)
+        async def tool(self, *args, **kwargs):
+            try:
+                return await method(self, *args, **kwargs)
+            except NeedsConfirmation as ask:
+                return ask.json()
+            except ValueError as exc:
+                raise ToolError(f"Invalid {what}: {exc}") from exc
+            except TimeoutError as exc:
+                raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+
+        return tool
+
+    return decorate
+
+
+def filters_of(arguments: dict) -> dict:
+    """The parameters of a refine tool that are filters of the view: all but the search and the number of cards."""
+    return {k: v for k, v in arguments.items() if k not in ("self", "search_id", "limit")}
 
 
 class Tools:
     """Every tool is a coroutine: the SDK runs a plain function in a worker thread, away from the thread that
     owns the app's SQLite connections."""
 
-    def __init__(self, app: App | None):
+    def __init__(self, app: App | None, searches: Searches | None = None):
         self.app = app
+        self.searches = searches or (Searches(app) if app is not None else None)
 
+    @answers("flight search")
     async def search_flights(
         self,
         origin: str,
@@ -79,68 +97,25 @@ class Tools:
         separate_tickets: bool = False,
         refresh: bool = False,
     ) -> dict[str, Any]:
-        app = self.app
-        try:
-            self._limit(limit)
-            query = flight_query(
-                app.profile, origin, destination, depart, return_date, flex_days, adults, cabin, children_ages
-            )
-            queries = [query]
-            if separate_tickets:
-                if query.return_ is None:
-                    raise ValueError("separate tickets need a return date: a one-way trip is one ticket already")
-                if query.flex_days:
-                    raise ValueError("separate tickets with flexible dates are too many searches at once: choose one")
-                queries += [
-                    replace(query, return_=None),
-                    replace(
-                        query,
-                        origins=query.destinations,
-                        destinations=query.origins,
-                        depart=query.return_,
-                        return_=None,
-                    ),
-                ]
-            selected = flight_sources(sources)
-            currency = self._currency(currency)
-            # Searches of one call wait in the same queues: their times add up.
-            estimate = sum(
-                estimate_flights(q, selected, app.limiter, app.net.exit)
-                for q in queries
-                if refresh or not recall.remembered(app, "flights", q, selected, currency)
-            )
-            if estimate > app.profile.confirm_over_seconds and not confirm:
-                return confirmation(estimate)
-            rates = await load_rates(app.net)
-            found = await asyncio.gather(
-                *(
-                    recall.flights(
-                        app, q, selected, rates, currency, refresh=refresh, selection=sources, sharing=len(queries)
-                    )
-                    for q in queries
-                )
-            )
-            now = app.results.clock()
+        self._limit(limit)
+        query = flight_query(
+            self.app.profile, origin, destination, depart, return_date, flex_days, adults, cabin, children_ages
+        )
+        queries = [query, *query.one_ways()] if separate_tickets else [query]
+        found = await self.searches.run(
+            "flights", queries, sources=sources, currency=currency, refresh=refresh, confirm=confirm
+        )
+        now = self.app.results.clock()
 
-            def view(stored, cards):
-                shown = flights_view(
-                    stored.result,
-                    limit=cards,
-                    max_stops=app.profile.max_stops if max_stops is None else max_stops,
-                    max_leg_hours=app.profile.max_leg_hours,
-                    avoid_airlines=app.profile.avoid_airlines,
-                )
-                return stored.stamp(shown, now)
+        def view(stored, cards):
+            return self.searches.view("flights", stored, cards, now=now, max_stops=max_stops)
 
-            result = view(found[0], limit)
-            if separate_tickets:
-                result["separate_tickets"] = pair_tickets(view(found[1], 12), view(found[2], 12), result, limit)
-            return result
-        except ValueError as exc:
-            raise ToolError(f"Invalid flight search: {exc}") from exc
-        except TimeoutError as exc:
-            raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+        result = view(found[0], limit)
+        if separate_tickets:
+            result["separate_tickets"] = pair_tickets(view(found[1], 12), view(found[2], 12), result, limit)
+        return result
 
+    @answers("stay search")
     async def search_stays(
         self,
         place: str,
@@ -156,39 +131,14 @@ class Tools:
         max_center_km: float | None = None,
         refresh: bool = False,
     ) -> dict[str, Any]:
-        app = self.app
-        try:
-            self._limit(limit)
-            query = stay_query(app.profile, place, checkin, checkout, adults, children_ages)
-            selected = stay_sources(sources)
-            currency = self._currency(currency)
-            if refresh or not recall.remembered(app, "stays", query, selected, currency):
-                estimate = estimate_stays(query, selected, app.limiter, app.net.exit)
-                if estimate > app.profile.confirm_over_seconds and not confirm:
-                    return confirmation(estimate)
-            stored = await recall.stays(
-                app,
-                query,
-                selected,
-                await load_rates(app.net),
-                currency,
-                refresh=refresh,
-                selection=sources,
-                center=await self._center(query.place),
-            )
-            view = stays_view(
-                stored.result,
-                limit=limit,
-                min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
-                max_center_km=app.profile.stays.max_center_km if max_center_km is None else max_center_km,
-                details=app.results.details,
-            )
-            return stored.stamp(view, app.results.clock())
-        except ValueError as exc:
-            raise ToolError(f"Invalid stay search: {exc}") from exc
-        except TimeoutError as exc:
-            raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+        self._limit(limit)
+        query = stay_query(self.app.profile, place, checkin, checkout, adults, children_ages)
+        (stored,) = await self.searches.run(
+            "stays", [query], sources=sources, currency=currency, refresh=refresh, confirm=confirm
+        )
+        return self.searches.view("stays", stored, limit, min_rating=min_rating, max_center_km=max_center_km)
 
+    @answers("ground search")
     async def search_ground(
         self,
         origin: str,
@@ -203,25 +153,14 @@ class Tools:
         limit: int = 10,
         refresh: bool = False,
     ) -> dict[str, Any]:
-        app = self.app
-        try:
-            self._limit(limit)
-            query = ground_query(app.profile, origin, destination, depart, adults, children_ages, modes)
-            selected = ground_sources(sources)
-            currency = self._currency(currency)
-            if refresh or not recall.remembered(app, "ground", query, selected, currency):
-                estimate = estimate_ground(query, selected, app.limiter, app.net.exit)
-                if estimate > app.profile.confirm_over_seconds and not confirm:
-                    return confirmation(estimate)
-            stored = await recall.ground(
-                app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
-            )
-            return stored.stamp(ground_view(stored.result, limit=limit), app.results.clock())
-        except ValueError as exc:
-            raise ToolError(f"Invalid ground search: {exc}") from exc
-        except TimeoutError as exc:
-            raise ToolError("Exchange-rate feed timed out before search; try later") from exc
+        self._limit(limit)
+        query = ground_query(self.app.profile, origin, destination, depart, adults, children_ages, modes)
+        (stored,) = await self.searches.run(
+            "ground", [query], sources=sources, currency=currency, refresh=refresh, confirm=confirm
+        )
+        return self.searches.view("ground", stored, limit)
 
+    @answers("ground view")
     async def refine_ground(
         self,
         search_id: str,
@@ -234,32 +173,10 @@ class Tools:
         sources: list[str] | None = None,
         sort: str = "price",
     ) -> dict[str, Any]:
-        try:
-            self._limit(limit)
-            stored = self._stored(search_id, "ground")
-            view = ground_view(
-                stored.result,
-                limit=limit,
-                modes=modes,
-                depart_after=depart_after,
-                depart_before=depart_before,
-                max_changes=max_changes,
-                max_price=max_price,
-                sources=sources,
-                sort=sort,
-            )
-            return stored.stamp(view, self.app.results.clock())
-        except ValueError as exc:
-            raise ToolError(f"Invalid ground view: {exc}") from exc
+        self._limit(limit)
+        return self.searches.refine("ground", search_id, limit, **filters_of(locals()))
 
-    def _stored(self, search_id: str, kind: str):
-        stored = self.app.results.get(search_id) if isinstance(search_id, str) else None
-        if stored is None:
-            raise ValueError(f"no search {search_id!r} in memory (results are kept for 7 days); search again")
-        if stored.kind != kind:
-            raise ValueError(f"{search_id!r} is a {stored.kind} search; use the other refine tool")
-        return stored
-
+    @answers("flight view")
     async def refine_flights(
         self,
         search_id: str,
@@ -278,31 +195,10 @@ class Tools:
         max_price: float | None = None,
         sort: str = "price",
     ) -> dict[str, Any]:
-        try:
-            self._limit(limit)
-            stored = self._stored(search_id, "flights")
-            view = flights_view(
-                stored.result,
-                limit=limit,
-                # A view starts from the same bars as the search, or it would quietly show what the search hid.
-                max_stops=self.app.profile.max_stops if max_stops is None else max_stops,
-                max_leg_hours=self.app.profile.max_leg_hours if max_leg_hours is None else max_leg_hours,
-                max_connection_hours=max_connection_hours,
-                depart_after=depart_after,
-                depart_before=depart_before,
-                return_after=return_after,
-                return_before=return_before,
-                airlines=airlines,
-                avoid_airlines=self.app.profile.avoid_airlines if avoid_airlines is None else avoid_airlines,
-                destination=destination,
-                checked_bag=checked_bag,
-                max_price=max_price,
-                sort=sort,
-            )
-            return stored.stamp(view, self.app.results.clock())
-        except ValueError as exc:
-            raise ToolError(f"Invalid flight view: {exc}") from exc
+        self._limit(limit)
+        return self.searches.refine("flights", search_id, limit, **filters_of(locals()))
 
+    @answers("stay view")
     async def refine_stays(
         self,
         search_id: str,
@@ -320,44 +216,13 @@ class Tools:
         must_have: list[str] | None = None,
         sort: str = "price",
     ) -> dict[str, Any]:
-        try:
-            self._limit(limit)
-            stored = self._stored(search_id, "stays")
-            view = stays_view(
-                stored.result,
-                limit=limit,
-                min_rating=self.app.profile.stays.min_rating if min_rating is None else min_rating,
-                max_center_km=self.app.profile.stays.max_center_km if max_center_km is None else max_center_km,
-                min_reviews=min_reviews,
-                max_total=max_total,
-                kinds=kinds,
-                exclude_kinds=exclude_kinds,
-                no_hostels=no_hostels,
-                min_bedrooms=min_bedrooms,
-                sources=sources,
-                free_cancellation=free_cancellation,
-                must_have=must_have,
-                details=self.app.results.details,
-                sort=sort,
-            )
-            return stored.stamp(view, self.app.results.clock())
-        except ValueError as exc:
-            raise ToolError(f"Invalid stay view: {exc}") from exc
+        self._limit(limit)
+        return self.searches.refine("stays", search_id, limit, **filters_of(locals()))
 
-    async def _center(self, place: str) -> dict | None:
-        """Where the place is, for distances. A geocoder that does not answer costs the distances, not the search."""
-        try:
-            found = await locate(self.app.net, place)
-        except Exception:
-            return None
-        return {"name": found[0].label(), "lat": found[0].lat, "lon": found[0].lon} if found else None
-
+    @answers("details request")
     async def stay_details(self, search_id: str, stays: list[str], refresh: bool = False) -> dict[str, Any]:
-        try:
-            stored = self._stored(search_id, "stays")
-            found = await read_details(self.app, stored, stays, refresh)
-        except ValueError as exc:
-            raise ToolError(f"Invalid details request: {exc}") from exc
+        stored = self.searches.stored("stays", search_id)
+        found = await read_details(self.app, stored, stays, refresh)
         return {
             "search_id": stored.id,
             "stays": found,
@@ -365,12 +230,9 @@ class Tools:
             "page marks as absent; anything in neither list is not stated. Prices are from the search.",
         }
 
+    @answers("photo request")
     async def stay_photos(self, search_id: str, stays: list[str], per_stay: int = 2) -> list[Any]:
-        try:
-            stored = self._stored(search_id, "stays")
-            found = await read_photos(self.app, stored, stays, per_stay)
-        except ValueError as exc:
-            raise ToolError(f"Invalid photo request: {exc}") from exc
+        found = await read_photos(self.app, self.searches.stored("stays", search_id), stays, per_stay)
         content: list[Any] = []
         for entry in found:
             if entry.get("status") == "not_found":
@@ -415,6 +277,7 @@ class Tools:
             "note": "Sorted by straight-line distance. Scheduled service is not known here; a flight search tells.",
         }
 
+    @answers("trip search")
     async def search_trip(
         self,
         origin: str,
@@ -439,57 +302,46 @@ class Tools:
         limit: int = 5,
         refresh: bool = False,
     ) -> dict[str, Any]:
-        app = self.app
-        try:
-            self._limit(limit)
-            plan = await plan_trip(
-                app,
-                origin,
-                place,
-                depart,
-                return_date,
-                checkout=checkout,
-                flex_days=flex_days,
-                separate=separate_tickets,
-                country=country,
-                airports=airports,
-                max_airports=max_airports,
-                adults=adults,
-                stay_adults=stay_adults,
-                children_ages=children_ages,
-                cabin=cabin,
-            )
-            currency = self._currency(currency)
-            estimate = plan.estimate(app, currency, refresh)
-            if estimate > app.profile.confirm_over_seconds and not confirm:
-                return dict(
-                    confirmation(estimate), place=place_json(plan.place), airports=list(plan.flights.destinations)
-                )
-            return await search_trip(
-                app,
-                plan,
-                await load_rates(app.net),
-                currency,
-                limit=limit,
-                max_stops=max_stops,
-                min_rating=min_rating,
-                max_center_km=max_center_km,
-                refresh=refresh,
-            )
-        except ValueError as exc:
-            raise ToolError(f"Invalid trip search: {exc}") from exc
-
-    def _currency(self, value):
-        value = self.app.profile.currency if value is None else value
-        if not isinstance(value, str) or len(value) != 3 or not value.isalpha():
-            raise ValueError("currency must be a three-letter code")
-        return value.upper()
+        self._limit(limit)
+        plan = await plan_trip(
+            self.app,
+            origin,
+            place,
+            depart,
+            return_date,
+            checkout=checkout,
+            flex_days=flex_days,
+            separate=separate_tickets,
+            country=country,
+            airports=airports,
+            max_airports=max_airports,
+            adults=adults,
+            stay_adults=stay_adults,
+            children_ages=children_ages,
+            cabin=cabin,
+        )
+        currency = self.searches.currency(currency)
+        seconds = plan.estimate(self.searches, currency, refresh)
+        if seconds > self.app.profile.confirm_over_seconds and not confirm:
+            ask = NeedsConfirmation(seconds).json()
+            return dict(ask, place=place_json(plan.place), airports=list(plan.flights.destinations))
+        return await search_trip(
+            self.searches,
+            plan,
+            currency,
+            limit=limit,
+            max_stops=max_stops,
+            min_rating=min_rating,
+            max_center_km=max_center_km,
+            refresh=refresh,
+        )
 
     def _watches(self):
         if self.app.watches is None:
             raise ValueError("this server keeps no watches (a replay has none)")
         return self.app.watches
 
+    @answers("watch")
     async def watch_price(
         self,
         kind: str,
@@ -500,88 +352,46 @@ class Tools:
         every_hours: float = 6.0,
         currency: str | None = None,
     ) -> dict[str, Any]:
+        watches = self._watches()
+        searching = self.searches.kind(kind)
+        arguments = checked_arguments(getattr(self, searching.tool), arguments, "arguments")
+        filters = checked_arguments(getattr(self, searching.refine_tool), filters or {}, "filters", partial=True)
+        if "search_id" in filters:
+            raise ValueError("filters cannot set search_id: each check is a new search")
         try:
-            watches = self._watches()
-            if kind not in ("flights", "stays", "ground"):
-                raise ValueError("kind must be flights, stays or ground")
-            search, refine = getattr(self, f"search_{kind}"), getattr(self, f"refine_{kind}")
-            arguments = checked_arguments(search, arguments, "arguments")
-            filters = checked_arguments(refine, filters or {}, "filters", partial=True)
-            if "search_id" in filters:
-                raise ValueError("filters cannot set search_id: each check is a new search")
-            # The query must make sense now, not at three in the morning.
-            if kind == "flights":
-                flight_query(
-                    self.app.profile,
-                    arguments["origin"],
-                    arguments["destination"],
-                    arguments["depart"],
-                    arguments.get("return_date"),
-                    arguments.get("flex_days", 0),
-                    arguments.get("adults"),
-                    arguments.get("cabin"),
-                    arguments.get("children_ages"),
-                )
-            elif kind == "ground":
-                ground_query(
-                    self.app.profile,
-                    arguments["origin"],
-                    arguments["destination"],
-                    arguments["depart"],
-                    arguments.get("adults"),
-                    arguments.get("children_ages"),
-                    arguments.get("modes"),
-                )
-            else:
-                stay_query(
-                    self.app.profile,
-                    arguments["place"],
-                    arguments["checkin"],
-                    arguments["checkout"],
-                    arguments.get("adults"),
-                    arguments.get("children_ages"),
-                )
-            watch = watches.add(kind, arguments, filters, self._currency(currency), below, drop_percent, every_hours)
-        except (ValueError, KeyError) as exc:
-            raise ToolError(f"Invalid watch: {exc}") from exc
+            searching.read(self.app.profile, arguments)  # the query must make sense now, not at three in the morning
+        except KeyError as exc:
+            raise ValueError(f"arguments miss {exc}") from exc
+        watch = watches.add(
+            kind, arguments, filters, self.searches.currency(currency), below, drop_percent, every_hours
+        )
         return dict(
             watch_json(watch, watches),
             note="Saved. It runs only where `travelops watch run` is scheduled; the first check sets the price "
             "the next alerts are measured against.",
         )
 
+    @answers("watch list")
     async def watches(self, include_stopped: bool = False) -> dict[str, Any]:
-        try:
-            watches = self._watches()
-        except ValueError as exc:
-            raise ToolError(str(exc)) from exc
+        watches = self._watches()
         return {"watches": [watch_json(w, watches) for w in watches.list(ended=include_stopped)]}
 
+    @answers("alert collection")
     async def watch_alerts(self, take: bool = True) -> dict[str, Any]:
-        try:
-            watches = self._watches()
-        except ValueError as exc:
-            raise ToolError(str(exc)) from exc
         return {
-            "alerts": watches.pending(take),
+            "alerts": self._watches().pending(take),
             "note": "Each alert is given out once with take=true: tell the human now. Its price is as old as "
             "`seen_at`; search again before recommending a booking.",
         }
 
+    @answers("watch")
     async def stop_watch(self, watch_id: str) -> dict[str, Any]:
-        try:
-            watches = self._watches()
-            return watch_json(watches.stop(watch_id), watches)
-        except ValueError as exc:
-            raise ToolError(f"Invalid watch: {exc}") from exc
+        watches = self._watches()
+        return watch_json(watches.stop(watch_id), watches)
 
     async def sources(self) -> dict[str, Any]:
-        import time
-
         return {
-            "flight_sources": [s.name for s in flight_sources()],
-            "stay_sources": [s.name for s in stay_sources()],
-            "ground_sources": [s.name for s in ground_sources()],
+            **{f"{kind.noun}_sources": [s.name for s in kind.sources()] for kind in self.searches.kinds.values()},
             "buckets": [
                 {
                     "bucket": bucket,
@@ -658,13 +468,16 @@ SEPARATE = (
 )
 
 
-def create_server(root: Path | None = None, proxy: str | None = None, *, app: App | None = None) -> MCPServer[App]:
+def create_server(
+    root: Path | None = None, proxy: str | None = None, *, app: App | None = None, searches: Searches | None = None
+) -> MCPServer[App]:
     root = Path.cwd() if root is None else Path(root)
-    tools = Tools(app)
+    tools = Tools(app, searches)
 
     @asynccontextmanager
     async def lifespan(server):
         tools.app = app if app is not None else build(root, proxy)
+        tools.searches = tools.searches or Searches(tools.app)
         try:
             yield tools.app
         finally:

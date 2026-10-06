@@ -19,8 +19,9 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from travelops import recall
-from travelops.app import build, flight_query, flight_sources, stay_query, stay_sources
+from travelops.app import build
+from travelops.kinds import KINDS, flight_query, stay_query
+from travelops.searches import Searches
 from travelops.rates import load_rates
 from travelops.replay import read_json, write_json
 from travelops.trip import plan_trip
@@ -64,6 +65,7 @@ async def main(args) -> int:
     app.net.request = recording
     try:
         currency = app.profile.currency
+        searches = Searches(app)
         await load_rates(app.net)
         wanted = []
         if args.kind == "trip":
@@ -78,24 +80,24 @@ async def main(args) -> int:
                 separate=args.separate,
                 children_ages=args.children_ages,
             )
-            wanted = [("flights", query, flight_sources()) for query in plan.flight_queries()]
-            wanted.append(("stays", plan.stays, stay_sources()))
+            wanted = [("flights", query, KINDS["flights"].sources()) for query in plan.flight_queries()]
+            wanted.append(("stays", plan.stays, KINDS["stays"].sources()))
         elif args.kind == "flights":
             query = flight_query(app.profile, args.a, args.b, args.c, args.d, 0, args.adults)
-            wanted = [("flights", query, flight_sources())]
+            wanted = [("flights", query, KINDS["flights"].sources())]
         else:
-            wanted = [("stays", stay_query(app.profile, args.a, args.b, args.c, args.adults), stay_sources())]
+            wanted = [("stays", stay_query(app.profile, args.a, args.b, args.c, args.adults), KINDS["stays"].sources())]
         out = Path(args.directory)
         (out / "memory").mkdir(parents=True, exist_ok=True)
         for kind, query, sources in wanted:
-            stored = recall.remembered(app, kind, query, sources, currency)
+            stored = searches.remembered(kind, query, sources, currency)
             if stored is None:
                 print(f"no {kind} search for this in memory from the last 30 minutes: search first")
                 return 1
             row = {
                 "id": stored.id,
                 "kind": kind,
-                "key": recall._key(app, kind, query, sources, currency),
+                "key": searches.key(kind, query, sources, currency),
                 "at": stored.at,
                 "result": trim(stored.result, args.cards, args.offers),
             }

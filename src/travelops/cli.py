@@ -9,12 +9,13 @@ import shutil
 import sys
 import time
 from rich.console import Console
-from .app import build, flight_query, ground_sources, stay_query, flight_sources, stay_sources
+from .app import build
 from .core.report import Status
+from .kinds import KINDS
 from .profile import data_dir
 from .rates import load_rates
-from .search import search_flights, search_stays, estimate_flights, estimate_stays, run_source
-from .serialize import flight_search_json, shortlist, stay_search_json
+from .search import run_source
+from .searches import Searches
 
 
 def parser():
@@ -33,7 +34,12 @@ def parser():
     s.add_argument("place")
     s.add_argument("checkin", type=date.fromisoformat)
     s.add_argument("checkout", type=date.fromisoformat)
-    for sub in (f, s):
+    g = commands.add_parser("ground", help="trains and buses, one way, between two places named in Latin script")
+    g.add_argument("origin")
+    g.add_argument("destination")
+    g.add_argument("depart", type=date.fromisoformat)
+    g.add_argument("--modes", type=lambda value: value.split(","), help="comma-separated: train, bus, ferry, van")
+    for sub in (f, s, g):
         sub.add_argument("--adults", type=int)
         sub.add_argument("--sources", type=lambda value: value.split(","))
         sub.add_argument("--currency")
@@ -58,15 +64,6 @@ def parser():
     t.add_argument("--proxy")
     t.add_argument("--limit", type=int, default=5)
     t.add_argument("--yes", action="store_true")
-    g = commands.add_parser("ground", help="trains and buses, one way, between two places named in Latin script")
-    g.add_argument("origin")
-    g.add_argument("destination")
-    g.add_argument("depart")
-    g.add_argument("--adults", type=int)
-    g.add_argument("--modes", help="comma-separated: train, bus, ferry, van")
-    g.add_argument("--sources")
-    g.add_argument("--currency")
-    g.add_argument("--limit", type=int, default=15)
     a = commands.add_parser("airports", help="airports near a place, nearest first")
     a.add_argument("place")
     a.add_argument("--country")
@@ -79,7 +76,7 @@ def parser():
     w = commands.add_parser("watch", help="price watches: saved searches repeated by `watch run`")
     actions = w.add_subparsers(dest="action", required=True)
     wa = actions.add_parser("add", help="save a watch; ARGUMENTS as the search tool takes them, in JSON")
-    wa.add_argument("kind", choices=("flights", "stays", "ground"))
+    wa.add_argument("kind", choices=tuple(KINDS))
     wa.add_argument("arguments", type=json.loads)
     wa.add_argument("--filters", type=json.loads, default=None, help="refine tool arguments, in JSON")
     wa.add_argument("--below", type=float)
@@ -155,6 +152,20 @@ def show(console, result, kind):
                     console.print(f"{link['kind']}: {link['url']}" if link else "Link unavailable", markup=False)
                 if len(group["fares"]) > 3:
                     console.print(f"Shown 3 of {len(group['fares'])} comparable seller fares; --json includes all.")
+        elif kind == "ground":
+            fare, rides = card["fares"][0], card["rides"]
+            stops = " → ".join(f"{r['from']} {r['departs'][11:16]}" for r in rides)
+            price = amount(fare["converted"] or fare["price"]) + (" from" if fare["price_from"] else "")
+            console.print(
+                f"\n{index}. {stops} → {rides[-1]['to']} {rides[-1]['arrives'][11:16]} | {'/'.join(card['modes'])}"
+                f" | {price} | {fare['source']}",
+                markup=False,
+            )
+            link = fare["link"]
+            console.print(
+                f"Seen: {fare['seen_at']}; " + (f"{link['kind']}: {link['url']}" if link else "Link unavailable"),
+                markup=False,
+            )
         else:
             stay = card["stay"]
             console.print(
@@ -174,6 +185,13 @@ def show(console, result, kind):
                 )
                 console.print(f"Seen: {rate['seen_at']}; {rate['link']['kind']}: {rate['link']['url']}", markup=False)
             console.print("Photo: " + (stay["photos"][0] if stay["photos"] else "unknown"), markup=False)
+    for entry in (result.get("filtered") or {}).get("by", []):
+        if entry["hidden"] or entry.get("hidden_unknown"):
+            console.print(
+                f"Hidden by {entry['filter']} {entry['value']}: {entry['hidden']}"
+                + (f", {entry['hidden_unknown']} more that do not say" if entry.get("hidden_unknown") else ""),
+                markup=False,
+            )
     shown = result.get("shown")
     if shown and shown["cards"] < shown["of"]:
         console.print(
@@ -243,12 +261,9 @@ async def doctor(app, live, console):
         # One search per source, through the same limiter as any search: a quarantined source reports that
         # and is not asked again until its rest is over.
         depart = date.today() + timedelta(days=40)
-        from .core.flights import FlightQuery
-        from .core.stays import StayQuery
         from .search import deadline
 
-        jobs = [(s, FlightQuery(("MOW",), ("LED",), depart)) for s in flight_sources()]
-        jobs += [(s, StayQuery("Istanbul", depart, depart + timedelta(days=2))) for s in stay_sources()]
+        jobs = [(s, kind.sample(depart)) for kind in KINDS.values() for s in kind.sources()]
         results = await asyncio.gather(*(run_source(s, q, app.ctx, deadline(s, q, app.ctx, 120)) for s, q in jobs))
         source_reports = [report for _, report in results]
         from dataclasses import asdict
@@ -289,6 +304,30 @@ async def watch(app, args):
     return 0
 
 
+async def search(app, args, console):
+    """flights, stays, ground: one search with new prices, kept in memory for an agent's follow-up questions."""
+    searches = Searches(app)
+    kind = args.command
+    query = searches.kind(kind).read(app.profile, vars(args))
+    if args.limit is not None and args.limit < 1:
+        raise ValueError("--limit must be at least 1")
+    estimate = searches.estimate(kind, [query], args.sources, args.currency, refresh=True)
+    Console(stderr=True).print(f"Estimated request spacing: {estimate:.0f}s; server response time is additional.")
+    if estimate > app.profile.confirm_over_seconds and sys.stdin.isatty() and not args.yes:
+        if input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
+            return 0
+    (stored,) = await searches.run(
+        kind, [query], sources=args.sources, currency=args.currency, refresh=True, confirm=True
+    )
+    # On screen the 15 cheapest; with --json everything, unless --limit says otherwise.
+    result = searches.view(kind, stored, args.limit or (None if args.json else 15))
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        show(console, result, kind)
+    return 0
+
+
 async def execute(args):
     app = build(Path.cwd(), getattr(args, "proxy", None))
     console = Console()
@@ -297,9 +336,8 @@ async def execute(args):
             if args.reset:
                 app.limiter.reset(args.reset)
                 console.print(f"Reset {args.reset}", markup=False)
-            console.print("Known flights: " + ", ".join(s.name for s in flight_sources()))
-            console.print("Known stays: " + ", ".join(s.name for s in stay_sources()))
-            console.print("Known trains and buses: " + ", ".join(s.name for s in ground_sources()))
+            for kind in KINDS.values():
+                console.print(f"Known {kind.name}: " + ", ".join(s.name for s in kind.sources()))
             for bucket, interval, until in app.limiter.overview():
                 console.print(
                     f"{bucket}: interval {interval:.1f}s; quarantine {max(0, until - time.time()):.0f}s remaining",
@@ -310,28 +348,6 @@ async def execute(args):
             return await doctor(app, args.live, console)
         if args.command == "watch":
             return await watch(app, args)
-        if args.command == "ground":
-            from .mcp import Tools
-
-            from mcp.server.mcpserver.exceptions import ToolError
-
-            try:
-                out = await Tools(app).search_ground(
-                    args.origin,
-                    args.destination,
-                    args.depart,
-                    adults=args.adults,
-                    modes=args.modes.split(",") if args.modes else None,
-                    sources=args.sources.split(",") if args.sources else None,
-                    currency=args.currency,
-                    confirm=True,
-                    limit=args.limit,
-                    refresh=True,  # a command typed by a human is a request for new prices
-                )
-            except ToolError as exc:
-                raise ValueError(str(exc)) from exc
-            print(json.dumps(out, ensure_ascii=False))
-            return 0
         if args.command == "airports":
             from .geo import airports_near, locate, place_json
 
@@ -364,7 +380,10 @@ async def execute(args):
                 max_airports=args.max_airports,
                 adults=args.adults,
             )
-            estimate = plan.estimate(app)
+            searches = Searches(app)
+            currency = searches.currency(args.currency)
+            # A command typed by a human is a request for new prices.
+            estimate = plan.estimate(searches, currency, refresh=True)
             Console(stderr=True).print(
                 f"{plan.place.label()}: airports {', '.join(plan.flights.destinations)}; "
                 f"estimated request spacing {estimate:.0f}s; server response time is additional.",
@@ -373,60 +392,12 @@ async def execute(args):
             if estimate > app.profile.confirm_over_seconds and sys.stdin.isatty() and not args.yes:
                 if input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
                     return 0
-            currency = (args.currency or app.profile.currency).upper()
             result = await search_trip(
-                app,
-                plan,
-                await load_rates(app.net),
-                currency,
-                limit=args.limit,
-                max_stops=args.max_stops,
-                refresh=True,  # a command typed by a human is a request for new prices
+                searches, plan, currency, limit=args.limit, max_stops=args.max_stops, refresh=True
             )
             print(json.dumps(result, ensure_ascii=False))
             return 0
-        currency = args.currency or app.profile.currency
-        if len(currency) != 3 or not currency.isalpha():
-            raise ValueError("currency must be a three-letter code")
-        currency = currency.upper()
-        if args.command == "flights":
-            query = flight_query(
-                app.profile,
-                args.origin,
-                args.destination,
-                args.depart,
-                args.return_date,
-                args.flex_days,
-                args.adults,
-                args.cabin,
-            )
-            sources = flight_sources(args.sources)
-            estimate = estimate_flights(query, sources, app.limiter, app.net.exit)
-        else:
-            query = stay_query(app.profile, args.place, args.checkin, args.checkout, args.adults)
-            sources = stay_sources(args.sources)
-            estimate = estimate_stays(query, sources, app.limiter, app.net.exit)
-        Console(stderr=True).print(f"Estimated request spacing: {estimate:.0f}s; server response time is additional.")
-        if estimate > app.profile.confirm_over_seconds and sys.stdin.isatty() and not args.yes:
-            if input("Continue? [y/N] ").strip().lower() not in ("y", "yes"):
-                return 0
-        rates = await load_rates(app.net)
-        if args.command == "flights":
-            result = flight_search_json(await search_flights(query, sources, app.ctx, rates, currency), rates)
-        else:
-            result = stay_search_json(await search_stays(query, sources, app.ctx, rates, currency), rates)
-        if args.sources:
-            for report in result["sources"]:
-                report["notes"].append("source selection: " + ", ".join(args.sources))
-        if args.limit is not None and args.limit < 1:
-            raise ValueError("--limit must be at least 1")
-        if args.limit or not args.json:
-            shortlist(result, args.limit or 15)
-        if args.json:
-            print(json.dumps(result, ensure_ascii=False))
-        else:
-            show(console, result, args.command)
-        return 0
+        return await search(app, args, console)
     finally:
         await app.close()
 

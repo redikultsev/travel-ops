@@ -4,10 +4,9 @@ import pytest
 
 from travelops import trip
 from travelops.app import build
-from travelops.core.money import Rates
 from travelops.geo import Place
 from travelops.search import FlightSearch, StaySearch
-from travelops import recall
+from tests.fakes import fake_searches
 
 KOTOR = Place("Kotor", "Montenegro", "ME", "Kotor", 42.421, 18.768)
 
@@ -73,10 +72,9 @@ async def test_search_runs_both_parts_and_reports_the_plan(app, located, monkeyp
         seen["stays"] = query
         return StaySearch(query, currency, [], [])
 
-    monkeypatch.setattr(recall, "search_flights", flights)
-    monkeypatch.setattr(recall, "search_stays", stays)
+    searches = fake_searches(app, flights=flights, stays=stays, estimate=lambda *args: 10.0)
     plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23")
-    result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR", limit=3)
+    result = await trip.search_trip(searches, plan, "EUR", limit=3)
     assert seen["flights"].destinations == ("TIV", "TGD") and seen["stays"].checkout == date(2026, 10, 23)
     assert result["place"]["country_code"] == "ME"
     assert [(a["iata"], a["searched"]) for a in result["airports_in_reach"]][:3] == [
@@ -113,17 +111,15 @@ async def test_the_same_trip_again_is_answered_from_memory(app, located, monkeyp
         calls.append("stays")
         return StaySearch(query, currency, [], [])
 
-    monkeypatch.setattr(recall, "search_flights", flights)
-    monkeypatch.setattr(recall, "search_stays", stays)
+    searches = fake_searches(app, flights=flights, stays=stays, estimate=lambda *args: 10.0)
     plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23")
-    rates = Rates("EUR", {}, "d")
-    assert plan.estimate(app, "EUR") > 0
-    first = await trip.search_trip(app, plan, rates, "EUR")
-    assert plan.estimate(app, "EUR") == 0, "nothing left to search"
-    again = await trip.search_trip(app, plan, rates, "EUR", limit=20)
+    assert plan.estimate(searches, "EUR") > 0
+    first = await trip.search_trip(searches, plan, "EUR")
+    assert plan.estimate(searches, "EUR") == 0, "nothing left to search"
+    again = await trip.search_trip(searches, plan, "EUR", limit=20)
     assert sorted(calls) == ["flights", "stays"]
     assert again["flights"]["from_memory"] is True and again["flights"]["search_id"] == first["flights"]["search_id"]
-    await trip.search_trip(app, plan, rates, "EUR", refresh=True)
+    await trip.search_trip(searches, plan, "EUR", refresh=True)
     assert len(calls) == 4, "refresh always searches"
 
 
@@ -202,11 +198,10 @@ async def test_separate_tickets_search_each_way_and_pair_them(app, located, monk
     async def stays(query, sources, ctx, rates, currency, **kwargs):
         return StaySearch(query, currency, [], [])
 
-    monkeypatch.setattr(recall, "search_flights", flights)
-    monkeypatch.setattr(recall, "search_stays", stays)
+    searches = fake_searches(app, flights=flights, stays=stays, estimate=lambda *args: 10.0)
     plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", separate=True)
-    assert plan.estimate(app, "EUR") > 0
-    result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR")
+    assert plan.estimate(searches, "EUR") > 0
+    result = await trip.search_trip(searches, plan, "EUR")
     assert {(a[0], a[1], str(a[2])) for a in asked} == {
         (("BEG",), ("TIV", "TGD"), "2026-10-23"),
         (("BEG",), ("TIV", "TGD"), "None"),
@@ -230,13 +225,10 @@ async def test_shifted_dates_do_not_move_the_stay(app, located, monkeypatch):
     async def stays(query, sources, ctx, rates, currency, **kwargs):
         return StaySearch(query, currency, [], [])
 
-    monkeypatch.setattr(recall, "search_flights", flights)
-    monkeypatch.setattr(recall, "search_stays", stays)
+    searches = fake_searches(app, flights=flights, stays=stays, estimate=lambda *args: 10.0)
     plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23", flex_days=1)
     assert len(plan.flights.date_pairs()) == 3 and plan.stays.checkin == date(2026, 10, 22)
-    result = await trip.search_trip(app, plan, Rates("EUR", {}, "d"), "EUR")
+    result = await trip.search_trip(searches, plan, "EUR")
     assert any("asked dates only" in line for line in result["not_included"])
-    bare = await trip.search_trip(
-        app, await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22"), Rates("EUR", {}, "d"), "EUR"
-    )
+    bare = await trip.search_trip(searches, await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22"), "EUR")
     assert bare["stays"] is None and any("pass `checkout`" in line for line in bare["not_included"])

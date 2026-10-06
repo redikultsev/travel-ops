@@ -13,9 +13,10 @@ from decimal import Decimal, InvalidOperation
 from itertools import combinations
 from pathlib import Path
 
+from .kinds import KINDS
 from .replay import load_scenario
 
-SEARCHES = ("search_trip", "search_flights", "search_stays")
+SEARCHES = ("search_trip", *(kind.tool for kind in KINDS.values()))
 CURRENCIES = {
     "EUR": "EUR",
     "€": "EUR",

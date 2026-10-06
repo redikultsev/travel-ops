@@ -22,11 +22,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from .kinds import KINDS
 from .views import _comparable
 
 MIN_EVERY_HOURS = 3.0  # a watch is a background errand: it must not spend a source's patience
 MAX_ACTIVE = 20
-KINDS = ("flights", "stays", "ground")
 # Set by the watch itself, not by whoever adds it.
 RESERVED = ("refresh", "confirm", "limit", "currency")
 
@@ -48,13 +48,7 @@ class Watch:
     active: bool = True
 
     def label(self) -> str:
-        a = self.arguments
-        if self.kind == "flights":
-            dates = a["depart"] + (f"/{a['return_date']}" if a.get("return_date") else "")
-            return f"{a['origin']}→{a['destination']} {dates}"
-        if self.kind == "ground":
-            return f"{a['origin']}→{a['destination']} {a['depart']} by {'/'.join(a.get('modes') or ['train', 'bus'])}"
-        return f"{a['place']} {a['checkin']}/{a['checkout']}"
+        return KINDS[self.kind].label(self.arguments)
 
 
 def judge(told: float | None, best: float | None, below: float | None, drop_percent: float) -> str | None:
@@ -113,7 +107,7 @@ class Watches:
             raise ValueError("below must be a positive price in the watch currency")
         if len(self.list()) >= MAX_ACTIVE:
             raise ValueError(f"at most {MAX_ACTIVE} watches run at once; stop one first")
-        until = arguments["checkin"] if kind == "stays" else arguments["depart"]
+        until = arguments[KINDS[kind].last_day]
         at = self.clock()
         ident = "w" + base64.b32encode(hashlib.sha256(f"{kind}{arguments}{at}".encode()).digest()).decode()
         watch = Watch(
@@ -223,8 +217,8 @@ def checked_arguments(tool, given: dict, what: str, partial: bool = False) -> di
 
 async def check(tools, watches: Watches, watch: Watch) -> tuple[dict | None, str]:
     """Search again for one watch. Returns the alert, if the price is worth telling, and a line for the log."""
-    search = getattr(tools, f"search_{watch.kind}")
-    refine = getattr(tools, f"refine_{watch.kind}")
+    kind = KINDS[watch.kind]
+    search, refine = getattr(tools, kind.tool), getattr(tools, kind.refine_tool)
     try:
         result = await search(**watch.arguments, currency=watch.currency, refresh=True, confirm=True, limit=1)
         if watch.filters:

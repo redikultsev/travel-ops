@@ -40,7 +40,9 @@ uv run travelops doctor
 ```
 
 Use `travelops --help` for all options. The screen shows the 15 cheapest cards and says how many exist; `--limit N`
-changes that and `--json` prints everything. Long searches may ask for confirmation before they start. Source limits,
+changes that and `--json` prints everything. A command line search always asks the sites for new prices, starts from
+the profile's bars as an agent's search does (it says what they hid), and is kept in memory: its `search_id` can be
+refined by an agent afterwards. Long searches may ask for confirmation before they start. Source limits,
 previous refusals, missing results, and truncated coverage are reported explicitly. A result from one seller says
 nothing about another seller that was not searched.
 
@@ -127,6 +129,8 @@ Offline tests are the default and do not send requests to travel sites:
 ```bash
 uv run pytest -q
 ```
+
+The words the code is written in (kind, search, view, card, offer, watch) are in [CONTEXT.md](CONTEXT.md).
 
 Live source checks consume persistent per-source request budgets and should be run only when explicitly intended.
 Never run them in a loop or concurrently. See [NOTICE](NOTICE) for project attributions and currency-rate

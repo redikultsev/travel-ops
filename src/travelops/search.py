@@ -156,27 +156,25 @@ async def search_flights(
 
 
 async def search_stays(
-    query: StayQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120
+    query: StayQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120, sharing: int = 1
 ) -> StaySearch:
-    results = await asyncio.gather(*(run_source(s, query, ctx, deadline(s, query, ctx, timeout)) for s in sources))
+    results = await asyncio.gather(
+        *(run_source(s, query, ctx, deadline(s, query, ctx, timeout, sharing)) for s in sources)
+    )
     offers = [o for found, _ in results for o in found]
     return StaySearch(query, currency, list_stays(offers, rates, currency), [rep for _, rep in results])
 
 
 async def search_ground(
-    query: GroundQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120
+    query: GroundQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120, sharing: int = 1
 ) -> GroundSearch:
     """Each source answers for every mode it carries. Offers are not merged across sources: two sources name one
     station in two languages, and a bus at the same minute may be another company's."""
-    results = await asyncio.gather(*(run_source(s, query, ctx, deadline(s, query, ctx, timeout)) for s in sources))
+    results = await asyncio.gather(
+        *(run_source(s, query, ctx, deadline(s, query, ctx, timeout, sharing)) for s in sources)
+    )
     offers = [o for found, _ in results for o in found]
     return GroundSearch(query, currency, offers, [rep for _, rep in results])
-
-
-def estimate_ground(query: GroundQuery, sources: list, limiter, exit_: str) -> float:
-    return max(
-        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query)) for s in sources), default=0.0
-    )
 
 
 def expected_requests(source, query) -> int:
@@ -185,17 +183,18 @@ def expected_requests(source, query) -> int:
     return getattr(source, "typical_requests", source.max_requests)(query)
 
 
-def estimate_flights(query: FlightQuery, sources: list, limiter, exit_: str) -> float:
+def estimate(query, sources: list, limiter, exit_: str) -> float:
     """Sources run in parallel, requests within a source wait for each other: the slowest source decides."""
+    return max(
+        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query)) for s in sources), default=0.0
+    )
+
+
+def estimate_flights(query: FlightQuery, sources: list, limiter, exit_: str) -> float:
+    """Every date and route of a flight search is a run of each source: one route's requests times the runs."""
     runs = len(query.date_pairs()) * len(query.origins) * len(query.destinations)
     one = replace(query, origins=query.origins[:1], destinations=query.destinations[:1])
     return max(
         (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, one) * runs) for s in sources),
         default=0.0,
-    )
-
-
-def estimate_stays(query: StayQuery, sources: list, limiter, exit_: str) -> float:
-    return max(
-        (limiter.estimate(Limiter.bucket(s.name, exit_), expected_requests(s, query)) for s in sources), default=0.0
     )
