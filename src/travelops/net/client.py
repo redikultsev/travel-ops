@@ -104,7 +104,7 @@ class Net:
         if cache_ttl and (hit := self.cache.get(key, cache_ttl)):
             return Response(hit.status, hit.body, {}, hit.url)
         main = Limiter.bucket(source, self.exit)
-        bucket = Limiter.bucket(f"{source}:{queue}", self.exit) if queue else main
+        bucket = Limiter.bucket(f"{source}/{queue}", self.exit) if queue else main
         if queue and (until := self.limiter.state(main).quarantined_until) > self.limiter.clock():
             raise Quarantined(main, until)
         await self.limiter.acquire(bucket)

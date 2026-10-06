@@ -14,7 +14,7 @@ RULES: dict[str, Rule] = {
     # Tutu publishes no limit. Searches go as often as to Aviasales; the two handshake messages of its MCP
     # session are not searches and wait in a line of their own.
     "tutu": Rule(interval=12, jitter=3.6, window=12, per=600, quarantine=1800),
-    "tutu:handshake": Rule(interval=1, jitter=0.5, window=12, per=600, quarantine=1800),
+    "tutu/handshake": Rule(interval=1, jitter=0.5, window=12, per=600, quarantine=1800),
     "aviasales": Rule(interval=12, jitter=3.6, window=40, per=600, quarantine=1800),
     # Public MCP servers made for agents.
     "kiwi": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),

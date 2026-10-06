@@ -81,7 +81,7 @@ async def test_a_second_line_of_a_source_has_its_own_spacing_and_shares_its_fate
     now = [1000.0]
     limiter = Limiter(
         None,
-        {"site": Rule(interval=30, jitter=0), "site:handshake": Rule(interval=1, jitter=0)},
+        {"site": Rule(interval=30, jitter=0), "site/handshake": Rule(interval=1, jitter=0)},
         clock=lambda: now[0],
         sleep=sleep,
     )
