@@ -28,6 +28,9 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
      has a better one before you answer.
    - A stay of kind `shared_room` is a bed in a dormitory. Say so, and when the cheapest stays are such beds
      also give the cheapest one that is not.
+   - Read a stay as `modes/stays.md` step 3 says: the price with its stated taxes (`all_in`), and `center_km`.
+     A stay far from the centre of a small town is not what "staying in Kotor" asks for: prefer stays within
+     about two kilometres, and say the distance of any stay you name.
    - A status other than `ok` or `empty` means that source's prices are unknown.
    - Lead with the cheapest offer and its link. When only a dearer seller has an exact `ticket` link, mention
      that offer too rather than swapping it in.
@@ -36,10 +39,11 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
    - flights: two or three choices that differ in a way that matters (cheapest, best timing, other airport),
      each with flight numbers and local times both ways, the price in its own currency with the converted
      amount, the seller, and the link with its kind;
-   - stays: two or three that pass the rating bar, each with total for the stay, rating and review count,
-     and the link;
-   - one total: the cheapest round trip plus the cheapest stay that passes the bar and is not a dormitory
-     bed, in the profile currency, from the returned converted amounts only, with the rates date;
+   - stays: two or three that pass the rating bar, each with the price for the stay, kind, distance from the
+     centre, rating and review count, and the link;
+   - one total: the cheapest round trip plus the cheapest stay that passes the bar, is not a dormitory bed
+     and is near the centre, in the profile currency, from the returned converted amounts only, with the
+     rates date;
    - what is not included: the transfer between the airport and the place (give the distance) and anything
      the sources do not price;
    - the report: how many offers exist, what the filters hid, and the source report as AGENTS.md describes it.

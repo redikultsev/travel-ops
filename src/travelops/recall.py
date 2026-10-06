@@ -27,7 +27,9 @@ def _note(result: dict, selection) -> dict:
     return result
 
 
-async def _recall(app, kind, search, to_json, query, sources, rates, currency, refresh, selection) -> Stored:
+async def _recall(
+    app, kind, search, to_json, query, sources, rates, currency, refresh, selection, extra=None
+) -> Stored:
     stored = None if refresh and not app.replay else remembered(app, kind, query, sources, currency)
     if stored is not None:
         if app.replay:
@@ -40,6 +42,7 @@ async def _recall(app, kind, search, to_json, query, sources, rates, currency, r
     if app.replay:
         raise ValueError(f"the replay has no {kind} search for {asdict(query)}")
     result = to_json(await search(query, sources, app.ctx, rates, currency), rates)
+    result.update(extra or {})
     return app.results.put(kind, _key(app, kind, query, sources, currency), _note(result, selection))
 
 
@@ -49,7 +52,20 @@ async def flights(app, query, sources: list, rates, currency: str, *, refresh=Fa
     )
 
 
-async def stays(app, query, sources: list, rates, currency: str, *, refresh=False, selection=None) -> Stored:
+async def stays(
+    app, query, sources: list, rates, currency: str, *, refresh=False, selection=None, center=None
+) -> Stored:
+    """`center` is where the place is: stays that give coordinates but no distance are measured from it."""
     return await _recall(
-        app, "stays", search_stays, stay_search_json, query, sources, rates, currency, refresh, selection
+        app,
+        "stays",
+        search_stays,
+        stay_search_json,
+        query,
+        sources,
+        rates,
+        currency,
+        refresh,
+        selection,
+        {"center": center} if center else None,
     )

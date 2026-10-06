@@ -72,6 +72,10 @@ def test_recorded_cards_total_rating_and_query_links():
         "?checkin=2026-11-14&checkout=2026-11-16&group_adults=2&group_children=0&no_rooms=1"
     )
     assert any("deduplicated: 6" in note for note in result.notes)
+    assert first.rate.charges == Money(5, "EUR") and first.rate.all_in() == Money(50, "EUR"), "taxes are on top"
+    assert first.rate.free_cancellation is True and first.rate.pay_at_property is True
+    assert first.stay.district == "Voždovac, Belgrade" and first.stay.center_km == 6.7
+    assert {o.rate.free_cancellation for o in result.offers} == {True, None}, "silence is not a refusal"
     assert result.offers[4].stay.reviews == 1521
 
 
@@ -121,3 +125,21 @@ async def test_a_server_fault_on_one_page_loses_a_band_not_the_search():
     assert "EUR 0-100 nightly: not a results page, this band is missing" in result.notes
     with pytest.raises(SourceFault, match="HTTP 502"):
         await Source().fetch(QUERY, Context(Net([502] * 4), Browser(), lambda: NOW))
+
+
+def test_a_property_page_gives_amenities_place_rules_and_scores():
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "fixtures/booking/property-kotor.html").read_bytes()
+    details = Source().parse_details(page)
+    assert details["amenities"][:2] == ["Free WiFi", "Air conditioning"] and "Kitchenette" in details["amenities"]
+    assert (round(details["lat"], 4), round(details["lon"], 4)) == (42.4253, 18.7703)
+    assert details["address"].startswith("436 Square of the Arms, Kotor Old Town")
+    assert (
+        details["check_in"] == "From 14:00 to 22:00"
+        and "Cash only: This property only accepts cash payments." in details["rules"]
+    )
+    assert details["scores"]["Location"] == 9.3 and len(details["photos"]) == 4
+    assert "description" not in details, "the property's own prose is not passed on"
+    with pytest.raises(ParseError):
+        Source().parse_details(b"<html>unrelated</html>")

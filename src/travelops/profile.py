@@ -18,7 +18,7 @@ class Travellers:
 class StaysProfile:
     adults: int = 2
     min_rating: float = 8.0
-    must_have: tuple[str, ...] = ("wifi",)
+    must_have: tuple[str, ...] = ()  # checked against a property page, so each one costs a `stay_details` read
 
 
 @dataclass(frozen=True)
@@ -107,7 +107,7 @@ def load_profile(root: Path) -> Profile:
         StaysProfile(
             _count(stays.get("adults", 2), "stays.adults", 1),
             float(score),
-            _strings(stays.get("must_have", ("wifi",)), "stays.must_have"),
+            _strings(stays.get("must_have", ()), "stays.must_have"),
         ),
         _count(values.get("confirm_over_seconds", defaults.confirm_over_seconds), "confirm_over_seconds"),
         _count(values.get("max_leg_hours", defaults.max_leg_hours), "max_leg_hours", 1),

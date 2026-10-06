@@ -57,6 +57,9 @@ def build_replay(directory: Path):
     for path in sorted((directory / "memory").glob("*.json*")):
         row = read_json(path)
         results.load(row["id"], row["key"], row["kind"], row["at"], row["result"])
+    if (directory / "details.json").exists():
+        for row in read_json(directory / "details.json"):
+            results.put_details(row["source"], row["source_id"], row["details"])
     browser = BrowserSessions(scratch, exit_=net.exit, proxy=net.proxy, limiter=limiter, counts=net.counts)
     context = Context(net, browser, lambda: moment.astimezone(timezone.utc))
     return App(directory, net, browser, context, limiter, load_profile(directory), results, replay=True)

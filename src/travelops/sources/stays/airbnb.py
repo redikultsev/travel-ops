@@ -52,7 +52,7 @@ class Source:
         import re
         from urllib.parse import urlencode
         from ...core.common import Link
-        from ...core.stays import Stay, Rate, StayOffer, rating_out_of_10
+        from ...core.stays import Stay, Rate, StayOffer, kind_of_listing, rating_out_of_10
         from ..base import Parsed, ParseError
         from ._html import Tree, money
 
@@ -144,12 +144,25 @@ class Source:
                                 "children": query.children,
                             }
                         )
+                        content = item.get("structuredContent") or {}
+                        beds = [
+                            line["body"]
+                            for line in content.get("mapPrimaryLine") or content.get("primaryLine") or []
+                            if isinstance(line, dict) and isinstance(line.get("body"), str)
+                        ]
+                        title = item.get("title") if isinstance(item.get("title"), str) else None
+                        room = ", ".join(filter(None, [title, *beds])) or None
+                        free = any(
+                            message.get("type") == "FREE_CANCELLATION_HIGHLIGHT"
+                            for message in item.get("paymentMessages") or []
+                            if isinstance(message, dict)
+                        )
                         offers[source_id] = StayOffer(
                             Stay(
                                 self.name,
                                 source_id,
                                 name,
-                                "other",
+                                kind_of_listing(title),
                                 coordinates.get("latitude"),
                                 coordinates.get("longitude"),
                                 rating_out_of_10(rating, 5),
@@ -162,6 +175,9 @@ class Source:
                                 self.name,
                                 Link(url, "property"),
                                 seen_at,
+                                room=room,
+                                # Only what the card says: silence is not "no free cancellation".
+                                free_cancellation=True if free else None,
                             ),
                         )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
@@ -175,7 +191,70 @@ class Source:
             list(offers.values()),
             [
                 coverage,
-                "unlisted amenities, meals and cancellation conditions unknown",
-                "missing coordinates, ratings, review counts and photos remain unknown",
+                "amenities are not in search cards; stay_details reads them from the listing page",
+                "taxes and fees inside or on top of the total are not stated",
             ],
         )
+
+    async def fetch_details(self, url, place, ctx):
+        response = await ctx.net.request(
+            self.name,
+            "GET",
+            url,
+            headers={"accept-language": "en-US,en;q=0.9"},
+            impersonate="chrome",
+            blocked_if=challenge,
+        )
+        if response.status != 200:
+            from ..base import SourceFault
+
+            raise SourceFault(f"Airbnb listing page returned HTTP {response.status}")
+        return response.body
+
+    def parse_details(self, raw):
+        """Facts from a listing page. The host's own prose is left out: free text from a site is not for an agent."""
+        import json
+        from ...core.stays import kind_of_listing
+        from ..base import ParseError
+        from ._html import Tree
+
+        script = Tree(raw).root.find(id="data-deferred-state-0")
+        if not script:
+            raise ParseError("Airbnb listing state missing")
+        try:
+            data = json.loads(script.text())["niobeClientData"][0][1]["data"]
+            node = data["node"]
+            page = node["pdpPresentation"]
+            groups = page["amenities"]["seeAllAmenitiesGroups"]
+            listed = [(a["title"], a.get("available") is not False) for g in groups for a in g["amenities"]]
+            location = page.get("location") or {}
+
+            def images(value):
+                # Photos of the place are the `mediaItems` of the page sections; icons elsewhere are not photos.
+                if isinstance(value, dict):
+                    for item in value.get("mediaItems") or []:
+                        if isinstance(item, dict) and isinstance(item.get("baseUrl"), str):
+                            yield item["baseUrl"]
+                    for item in value.values():
+                        yield from images(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        yield from images(item)
+
+            sharing = page.get("sharingConfig") or {}
+            return {
+                "kind": kind_of_listing(sharing.get("propertyType")),
+                "kind_as_listed": sharing.get("propertyType"),
+                "lat": float(location["latitude"]) if location.get("latitude") is not None else None,
+                "lon": float(location["longitude"]) if location.get("longitude") is not None else None,
+                "address": None,
+                "amenities": list(dict.fromkeys(title for title, there in listed if there)),
+                "not_available": list(dict.fromkeys(title for title, there in listed if not there)),
+                "photos": list(dict.fromkeys(images(data.get("presentation") or {})))[:30],
+                "check_in": None,
+                "check_out": None,
+                "rules": [],
+                "scores": {},
+            }
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ParseError(f"Airbnb listing fields: {exc}") from exc

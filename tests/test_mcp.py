@@ -89,6 +89,8 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, monkeypatch, mode):
             "search_trip",
             "refine_flights",
             "refine_stays",
+            "stay_details",
+            "stay_photos",
             "airports_near",
             "sources",
         }
@@ -159,3 +161,133 @@ async def test_an_old_search_is_shown_with_its_age_and_not_reused(app, monkeypat
     assert view["age_minutes"] == 45 and "search again" in view["stale"]
     later = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")
     assert later["from_memory"] is False and later["search_id"] != first["search_id"]
+
+
+def stay_result():
+    def card(name, source, source_id, total, **stay):
+        return {
+            "stay": dict(
+                {"source": source, "source_id": source_id, "name": name, "kind": "other", "lat": None, "lon": None},
+                rating=9.0,
+                reviews=50,
+                photos=["https://img.example/" + source_id + ".jpg"],
+                amenities=[],
+                district=None,
+                center_km=None,
+                **stay,
+            ),
+            "nights": 1,
+            "rates": [
+                {
+                    "total": {"amount": str(total), "currency": "EUR"},
+                    "converted": {"amount": str(total), "currency": "EUR"},
+                    "link": {"url": f"https://{source}.example/{source_id}", "kind": "property"},
+                    "seen_at": "2026-10-05T23:40:00+00:00",
+                    "room": None,
+                }
+            ],
+        }
+
+    return {
+        "query": {"place": "Kotor, Montenegro"},
+        "currency": "EUR",
+        "center": {"name": "Kotor, Montenegro", "lat": 42.4207, "lon": 18.7683},
+        "cards": [
+            card("Guest House One", "booking", "/hotel/me/one.html", 24),
+            card("Old Town Flat", "airbnb", "111", 30, **{}),
+            card("Hill View", "airbnb", "222", 35),
+        ],
+        "sources": [],
+    }
+
+
+async def test_details_are_read_once_kept_and_open_the_must_have_filter(app, monkeypatch):
+    from mcp.server.mcpserver.exceptions import ToolError
+    from travelops import details as service
+    from travelops.sources.base import ParseError
+
+    asked = []
+
+    class Page:
+        def __init__(self, source):
+            self.source = source
+
+        async def fetch_details(self, url, place, ctx):
+            asked.append((self.source, url, place))
+            return b"page"
+
+        def parse_details(self, raw):
+            if self.source == "airbnb" and len(asked) == 3:
+                raise ParseError("Airbnb listing state missing")
+            wifi = ["Free WiFi", "Kitchenette"] if self.source == "booking" else ["Wifi"]
+            return {
+                "kind": "shared_room" if self.source == "airbnb" else None,
+                "lat": 42.4253,
+                "lon": 18.7703,
+                "address": "Old Town",
+                "amenities": wifi,
+                "not_available": [],
+                "photos": ["https://img.example/more.jpg"],
+                "check_in": None,
+                "check_out": None,
+                "rules": [],
+                "scores": {},
+            }
+
+    monkeypatch.setattr(service, "STAY_SOURCES", {"booking": lambda: Page("booking"), "airbnb": lambda: Page("airbnb")})
+    tools = api.Tools(app)
+    stored = app.results.put("stays", "k", stay_result())
+    before = await tools.refine_stays(stored.id, must_have=["wifi"])
+    assert before["cards"] == [] and before["filtered"]["by"][-1] == {
+        "filter": "must_have",
+        "value": ["wifi"],
+        "hidden": 0,
+        "hidden_unknown": 3,
+    }, "a search card carries no amenities: unknown, not failing"
+
+    read = await tools.stay_details(stored.id, ["guest house", "111", "Hill View", "Nowhere Inn"])
+    assert [s["status"] for s in read["stays"]] == ["ok", "ok", "unparsed", "not_found"]
+    assert asked[0] == ("booking", "https://booking.example//hotel/me/one.html", "Kotor, Montenegro")
+    one = read["stays"][0]
+    assert one["amenities"] == ["Free WiFi", "Kitchenette"] and one["photos_total"] == 2 and one["from_memory"] is False
+    assert read["stays"][1]["kind"] == "shared_room", "the page says what the card did not"
+
+    again = await tools.stay_details(stored.id, ["Guest House One"])
+    assert again["stays"][0]["from_memory"] is True and len(asked) == 3, "a page already read is not read again"
+
+    after = await tools.refine_stays(stored.id, must_have=["wifi", "kitchen"])
+    assert [c["stay"]["name"] for c in after["cards"]] == ["Guest House One"]
+    assert after["filtered"]["by"][-1] == {
+        "filter": "must_have",
+        "value": ["kitchen", "wifi"],
+        "hidden": 1,
+        "hidden_unknown": 1,
+    }
+    seen = (await tools.refine_stays(stored.id, exclude_kinds=["shared_room"], sort="center"))["cards"]
+    assert [c["stay"]["name"] for c in seen] == ["Guest House One", "Hill View"], (
+        "the flat turned out to be a dormitory"
+    )
+    assert seen[0]["stay"]["center_km"] == 0.54 and "straight line" in seen[0]["stay"]["center_km_measured"]
+    with pytest.raises(ToolError, match="from 1 to 5"):
+        await tools.stay_details(stored.id, [])
+
+
+async def test_photos_come_back_as_images_with_their_links(app, monkeypatch):
+    from travelops.net.client import Response
+
+    async def request(source, method, url, **kw):
+        assert source == "images" and "avif" not in kw["headers"]["accept"]
+        return Response(200, b"\xff\xd8\xff\xe0" + b"0" * 64) if "one" in url else Response(404, b"gone")
+
+    monkeypatch.setattr(app.net, "request", request)
+    stored = app.results.put("stays", "k", stay_result())
+    server = api.create_server(app.root, app=app)
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "stay_photos", {"search_id": stored.id, "stays": ["Guest House One", "Hill View"]}
+        )
+        kinds = [c.type for c in result.content]
+        assert kinds == ["text", "text", "image", "text", "text"]
+        assert result.content[1].text == "photo 1: https://img.example//hotel/me/one.html.jpg"
+        assert result.content[2].mime_type == "image/jpeg"
+        assert "could not be loaded (HTTP 404)" in result.content[4].text

@@ -18,10 +18,12 @@ def list_stays(offers: list[StayOffer], rates: Rates, currency: str) -> list[Sta
     one_currency = len({o.rate.total.currency for o in offers}) == 1
 
     def value(rate: Rate) -> Decimal:
+        # With the stated taxes and charges when a source states them: that is what the human pays.
+        price = rate.all_in() or rate.total
         try:
-            return rates.convert(rate.total, currency).amount
+            return rates.convert(price, currency).amount
         except UnknownCurrency:
-            return rate.total.amount if one_currency else Decimal("Infinity")
+            return price.amount if one_currency else Decimal("Infinity")
 
     stays: dict[tuple[str, str], tuple[Stay, list[Rate]]] = {}
     for o in offers:

@@ -8,10 +8,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from . import recall
 from .app import App, build, flight_query, stay_query, flight_sources, stay_sources
+from .details import read_details, read_photos
 from .geo import airports_near, locate, place_json
 from .rates import load_rates
 from .search import estimate_flights, estimate_stays
@@ -121,12 +123,20 @@ class Tools:
                 if estimate > app.profile.confirm_over_seconds and not confirm:
                     return confirmation(estimate)
             stored = await recall.stays(
-                app, query, selected, await load_rates(app.net), currency, refresh=refresh, selection=sources
+                app,
+                query,
+                selected,
+                await load_rates(app.net),
+                currency,
+                refresh=refresh,
+                selection=sources,
+                center=await self._center(query.place),
             )
             view = stays_view(
                 stored.result,
                 limit=limit,
                 min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+                details=app.results.details,
             )
             return stored.stamp(view, app.results.clock())
         except ValueError as exc:
@@ -193,6 +203,9 @@ class Tools:
         kinds: list[str] | None = None,
         exclude_kinds: list[str] | None = None,
         sources: list[str] | None = None,
+        max_center_km: float | None = None,
+        free_cancellation: bool | None = None,
+        must_have: list[str] | None = None,
         sort: str = "price",
     ) -> dict[str, Any]:
         try:
@@ -207,11 +220,56 @@ class Tools:
                 kinds=kinds,
                 exclude_kinds=exclude_kinds,
                 sources=sources,
+                max_center_km=max_center_km,
+                free_cancellation=free_cancellation,
+                must_have=must_have,
+                details=self.app.results.details,
                 sort=sort,
             )
             return stored.stamp(view, self.app.results.clock())
         except ValueError as exc:
             raise ToolError(f"Invalid stay view: {exc}") from exc
+
+    async def _center(self, place: str) -> dict | None:
+        """Where the place is, for distances. A geocoder that does not answer costs the distances, not the search."""
+        try:
+            found = await locate(self.app.net, place)
+        except Exception:
+            return None
+        return {"name": found[0].label(), "lat": found[0].lat, "lon": found[0].lon} if found else None
+
+    async def stay_details(self, search_id: str, stays: list[str], refresh: bool = False) -> dict[str, Any]:
+        try:
+            stored = self._stored(search_id, "stays")
+            found = await read_details(self.app, stored, stays, refresh)
+        except ValueError as exc:
+            raise ToolError(f"Invalid details request: {exc}") from exc
+        return {
+            "search_id": stored.id,
+            "stays": found,
+            "note": "Amenities, rules and scores are the property page's own lists. `not_available` is what the "
+            "page marks as absent; anything in neither list is not stated. Prices are from the search.",
+        }
+
+    async def stay_photos(self, search_id: str, stays: list[str], per_stay: int = 2) -> list[Any]:
+        try:
+            stored = self._stored(search_id, "stays")
+            found = await read_photos(self.app, stored, stays, per_stay)
+        except ValueError as exc:
+            raise ToolError(f"Invalid photo request: {exc}") from exc
+        content: list[Any] = []
+        for entry in found:
+            if entry.get("status") == "not_found":
+                content.append(f"{entry['asked']}: no single stay of this search has this name")
+                continue
+            content.append(f"{entry['name']} ({entry['source']}): {entry['photos_total']} photos known")
+            for number, photo in enumerate(entry["photos"], 1):
+                if photo["status"] == "ok":
+                    content.append(f"photo {number}: {photo['url']}")
+                    content.append(Image(data=photo["data"], format=photo["format"]))
+                else:
+                    content.append(f"photo {number} could not be loaded ({photo['reason']}): {photo['url']}")
+        return content
 
     @staticmethod
     def _limit(value):
@@ -325,8 +383,11 @@ def traced(tool, path: str | None):
     async def wrapper(*args, **kwargs):
         entry = {"tool": tool.__name__, "arguments": inspect.signature(tool).bind(*args, **kwargs).arguments}
         try:
-            entry["result"] = await tool(*args, **kwargs)
-            return entry["result"]
+            result = await tool(*args, **kwargs)
+            entry["result"] = (
+                [x if isinstance(x, str) else "<image>" for x in result] if isinstance(result, list) else result
+            )
+            return result
         except Exception as exc:
             entry["error"] = str(exc)
             raise
@@ -372,10 +433,33 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
     )
     server.add_tool(
         traced(tools.refine_stays, trace),
-        description=REFINE + "`max_total` is for the whole stay in the currency of the result. `min_reviews` "
-        "drops ratings that rest on a handful of reviews. Kinds: hotel, apartment, room, house, shared_room (a bed "
-        "in a dormitory), other (the source does not say). `sort`: price, rating or reviews.",
+        description=REFINE + "`max_total` is for the whole stay in the currency of the result, with the stated "
+        "taxes and charges. `min_reviews` drops ratings that rest on a handful of reviews. Kinds: hotel, apartment, "
+        "room, house, shared_room (a bed in a dormitory), other (the source does not say). `max_center_km` is the "
+        "distance from the centre. `free_cancellation=true` keeps stays that state it. `must_have` names amenities "
+        "(wifi, kitchen, parking, ac, washer, breakfast, pool, balcony, workspace, elevator, pets, or any word of a "
+        "page's list); only a stay whose page `stay_details` has read can pass, the rest are `hidden_unknown`. "
+        "`sort`: price, rating, reviews or center.",
         annotations=LOCAL,
+    )
+    server.add_tool(
+        traced(tools.stay_details, trace),
+        description="What the search cards do not say about up to five stays of a search: every amenity, exact "
+        "address and coordinates, check-in times, house rules, review subscores, more photo links. `stays` are "
+        "names or source ids from that search. One request to a property page per stay, about ten seconds apart, "
+        "so ask only for the stays you are about to recommend; a page already read is answered from memory. Each "
+        "stay has its own `status`. No booking, no login. After it, `refine_stays` can filter by `must_have`.",
+        annotations=READ_ONLY,
+    )
+    server.add_tool(
+        traced(tools.stay_photos, trace),
+        description="Look at the photos of up to five stays of a search: returns the images themselves, each after "
+        "a line with its link, so that you can judge what the human asked about (light, view, state of the "
+        "bathroom, what the bed is). `per_stay` from 1 to 4. A search card carries one to a few photos; a stay "
+        "whose page `stay_details` has read has its whole gallery. Describe only what a photo shows, and give the "
+        "human the links: they cannot see the images you were sent.",
+        annotations=READ_ONLY,
+        structured_output=False,
     )
     server.add_tool(
         traced(tools.airports_near, trace),

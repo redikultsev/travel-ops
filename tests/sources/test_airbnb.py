@@ -1,4 +1,6 @@
 from datetime import date, datetime, timezone
+from pathlib import Path
+
 import pytest
 from travelops.core.stays import StayQuery
 from travelops.net.client import Response
@@ -90,3 +92,54 @@ async def test_live_search():
 
     offers = await check_source(Source(), QUERY)
     assert offers[0].rate.link.kind == "property"
+
+
+def test_a_card_says_what_kind_of_place_it_is_and_whether_it_cancels_free():
+    import json
+    import re
+
+    page = recorded().decode()
+    state = re.search(r'(<script[^>]*id="data-deferred-state-0"[^>]*>)(.*?)(</script>)', page, re.S)
+    data = json.loads(state[2])
+
+    def items(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("staysSearch"), dict):
+                yield from node["staysSearch"]["results"]["searchResults"]
+            for value in node.values():
+                yield from items(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from items(value)
+
+    found = list(items(data))
+    # As a live card carries them; the recorded page was cut down to the fields the first parser read.
+    found[0].update(
+        title="Shared room in Belgrade",
+        structuredContent={"mapPrimaryLine": [{"body": "1 bed", "type": "BEDINFO"}, {"body": "1 shared bath"}]},
+        paymentMessages=[{"type": "FREE_CANCELLATION_HIGHLIGHT", "text": "Free cancellation"}],
+    )
+    found[1].update(title="Apartment in Belgrade")
+    offers = (
+        Source().parse([(page[: state.start(2)] + json.dumps(data) + page[state.end(2) :]).encode()], QUERY, NOW).offers
+    )
+    assert (
+        offers[0].stay.kind == "shared_room" and offers[0].rate.room == "Shared room in Belgrade, 1 bed, 1 shared bath"
+    )
+    assert offers[0].rate.free_cancellation is True
+    assert offers[1].stay.kind == "apartment" and offers[1].rate.free_cancellation is None
+    assert offers[2].stay.kind == "other" and offers[2].rate.room is None
+
+
+def test_a_listing_page_gives_amenities_place_and_what_the_place_really_is():
+    from travelops.sources.base import ParseError
+
+    page = (Path(__file__).parents[1] / "fixtures/airbnb/room-kotor.html").read_bytes()
+    details = Source().parse_details(page)
+    assert details["kind"] == "shared_room" and details["kind_as_listed"] == "Shared room in rental unit"
+    assert "Wifi" in details["amenities"] and "Smoke alarm" in details["not_available"]
+    assert "Smoke alarm" not in details["amenities"], "what the page marks as absent is not an amenity"
+    assert (details["lat"], details["lon"]) == (42.4253, 18.7702)
+    assert len(details["photos"]) == 4 and all("icon" not in url for url in details["photos"])
+    with pytest.raises(ParseError):
+        Source().parse_details(b"<html>unrelated</html>")

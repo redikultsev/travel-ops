@@ -13,6 +13,8 @@ RULES: dict[str, Rule] = {
     "onetwotrip": Rule(interval=10, jitter=3, window=15, per=600, quarantine=1800),
     "tutu": Rule(interval=30, jitter=10.5, window=12, per=600, quarantine=1800),
     "aviasales": Rule(interval=12, jitter=3.6, window=40, per=600, quarantine=1800),
+    # Photo CDNs, not the travel sites themselves.
+    "images": Rule(interval=0.3, jitter=0.2, window=120, per=60, quarantine=600),
 }
 
 from .flights.aviasales import Source as Aviasales

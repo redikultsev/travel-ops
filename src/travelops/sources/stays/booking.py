@@ -86,6 +86,7 @@ class Source:
         import re
         from urllib.parse import urljoin, urlsplit
         from ...core.common import Link
+        from ...core.money import Money
         from ...core.stays import Stay, Rate, StayOffer, kind_of_room
         from ..base import Parsed, ParseError
         from ._html import Tree, money
@@ -157,7 +158,32 @@ class Source:
                     room_node = card.find(data_testid="recommended-units")
                     heading = next((n for n in room_node.walk() if n.tag in ("h3", "h4")), None) if room_node else None
                     room = heading.text() if heading else None
-                    meals = "breakfast included" if "breakfast included" in card.text().lower() else None
+                    words = card.text().lower()
+                    meals = "breakfast included" if "breakfast included" in words else None
+                    # Taxes: "+€ 5 taxes and charges" is on top of the price; "Includes taxes and charges" is not.
+                    taxes = card.find(data_testid="taxes-and-charges")
+                    taxes_text = taxes.text() if taxes else ""
+                    if "+" in taxes_text:
+                        charges = money(taxes_text)
+                    elif "includes taxes" in taxes_text.lower():
+                        charges = Money(0, total.currency)
+                    else:
+                        charges = None
+                    distance = card.find(data_testid="distance")
+                    reach = (
+                        re.match(
+                            r"\s*([\d.,]+)\s*(km|m)\s+from\s+(?:the\s+)?(?:city\s+)?(?:centre|center|downtown)",
+                            distance.text(),
+                            re.I,
+                        )
+                        if distance
+                        else None
+                    )
+                    center_km = None
+                    if reach:
+                        center_km = float(reach[1].replace(",", "")) / (1000 if reach[2].lower() == "m" else 1)
+                    address = card.find(data_testid="address-link") or card.find(data_testid="address")
+                    district = re.sub(r"\s*Show on map.*", "", address.text(), flags=re.S).strip() if address else None
                     offer = StayOffer(
                         Stay(
                             self.name,
@@ -169,8 +195,22 @@ class Source:
                             rating,
                             int(count[1].replace(",", "")) if count else None,
                             (image,) if image else (),
+                            district=district or None,
+                            center_km=round(center_km, 2) if center_km is not None else None,
                         ),
-                        Rate(total, self.name, self.name, Link(link, "property"), seen_at, meals=meals, room=room),
+                        Rate(
+                            total,
+                            self.name,
+                            self.name,
+                            Link(link, "property"),
+                            seen_at,
+                            meals=meals,
+                            room=room,
+                            charges=charges,
+                            # Only what a card says: silence is not "no free cancellation".
+                            free_cancellation=True if "free cancellation" in words else None,
+                            pay_at_property=True if "no prepayment needed" in words else None,
+                        ),
                     )
                     if source_id not in unique or total.amount < unique[source_id].rate.total.amount:
                         unique[source_id] = offer
@@ -183,8 +223,93 @@ class Source:
         notes += [
             f"deduplicated: {len(unique)} properties",
             "bounded price-range coverage; inventory is not complete",
-            "coordinates unavailable in search cards",
-            "cancellation cutoff and unlisted amenities unknown",
+            "coordinates and amenities are not in search cards; stay_details reads them from the property page",
+            "free cancellation is stated per card; its cutoff date is not",
             "missing ratings, review counts and photos remain unknown",
         ]
         return Parsed(list(unique.values()), notes)
+
+    async def fetch_details(self, url, place, ctx):
+        # The same short-lived token as a search: the browser earns it on a results page.
+        session = await ctx.browser.get(
+            self.name,
+            URL + "?" + urlencode({"ss": place}),
+            engine="chromium",
+            ready_cookie="aws-waf-token",
+            max_age=240,
+        )
+        try:
+            response = await ctx.net.request(
+                self.name,
+                "GET",
+                url,
+                cookies=session.cookies,
+                impersonate=session.impersonate,
+                headers={"accept-language": "en-GB,en;q=0.9"},
+                blocked_if=challenge,
+            )
+        except Blocked:
+            ctx.browser.drop(self.name)
+            raise
+        if response.status != 200:
+            from ..base import SourceFault
+
+            raise SourceFault(f"Booking property page returned HTTP {response.status}")
+        return response.body
+
+    def parse_details(self, raw):
+        """Facts from a property page. The property's own prose is left out: free text from a site is not for an
+        agent."""
+        import re
+        from ..base import ParseError
+        from ._html import Tree
+
+        html = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+        root = Tree(html).root
+
+        def strings(node):
+            for child in node.children:
+                if isinstance(child, str):
+                    if child.strip():
+                        yield " ".join(child.split())
+                else:
+                    yield from strings(child)
+
+        popular = root.find(data_testid="property-most-popular-facilities-wrapper")
+        if popular is None and "hp_hotel_name" not in html:
+            raise ParseError("not a Booking property page")
+        amenities = [n.text() for n in popular.walk() if n.tag == "li"] if popular else []
+        # Every facility of the property sits in the page data as Instance:{"id":16,"title":"Kitchenette"}.
+        amenities += re.findall(r'Instance:\{\\"id\\":\d+,\\"title\\":\\"(.*?)\\"\}', html)
+        spot = next((n.attrs["data-atlas-latlng"] for n in root.walk() if "data-atlas-latlng" in n.attrs), "")
+        match = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s*", spot)
+        header = root.find(data_testid="PropertyHeaderAddressDesktop-wrapper")
+        rules, check_in, check_out = [], None, None
+        house = root.find(data_testid="HouseRules-wrapper")
+        lines = list(strings(house)) if house else []
+        topics = ("Child policies", "Age restriction", "Pets", "Cash only", "Parties", "Smoking", "Quiet hours")
+        for index, line in enumerate(lines[:-1]):
+            if line == "Check-in":
+                check_in = lines[index + 1]
+            elif line == "Check-out":
+                check_out = lines[index + 1]
+            elif line in topics:
+                rules.append(f"{line}: {lines[index + 1]}")
+        # Each subscore carries a label for screen readers: "Cleanliness, 7.8, Average rating out of 10".
+        marks = re.findall(r">([A-Za-z][A-Za-z ]+), (\d+(?:\.\d+)?), Average rating out of 10<", html)
+        scores = {name: float(value) for name, value in marks}
+        photos = re.findall(r"https://cf\.bstatic\.com/xdata/images/hotel/max1024x768/\d+\.jpg\?k=[0-9a-f]+", html)
+        return {
+            "kind": None,
+            "kind_as_listed": None,
+            "lat": float(match[1]) if match else None,
+            "lon": float(match[2]) if match else None,
+            "address": next(strings(header), None) if header else None,
+            "amenities": list(dict.fromkeys(amenities)),
+            "not_available": [],
+            "photos": list(dict.fromkeys(photos))[:30],
+            "check_in": check_in,
+            "check_out": check_out,
+            "rules": rules,
+            "scores": scores,
+        }

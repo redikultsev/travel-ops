@@ -90,6 +90,18 @@ async def main(args) -> int:
             }
             write_json(out / "memory" / f"{stored.id}.json.gz", row)
             print(f"{kind}: {stored.id}, {len(row['result']['cards'])} cards")
+            if kind == "stays":
+                # Property pages that were read for these stays go along, so that a replay can show them.
+                pages = []
+                for card in row["result"]["cards"]:
+                    stay = card["stay"]
+                    known = app.results.details(stay["source"], stay["source_id"])
+                    if known:
+                        known.pop("seen_at", None)
+                        pages.append({"source": stay["source"], "source_id": stay["source_id"], "details": known})
+                if pages:
+                    write_json(out / "details.json", pages)
+                    print(f"details: {len(pages)} property pages")
         rows = []
         for key in dict.fromkeys(touched):
             source, url, status, body = app.net.cache.db.execute(

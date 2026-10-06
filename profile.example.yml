@@ -11,4 +11,4 @@ avoid_airlines: []
 stays:
   adults: 2
   min_rating: 8.0
-  must_have: [wifi]
+  must_have: []

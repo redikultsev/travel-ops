@@ -6,10 +6,12 @@ from __future__ import annotations
 import re
 
 from .core.report import brief
+from .core.stays import has_amenity
+from .geo import distance_km
 from .serialize import _amount, leg_options, shortlist
 
 FLIGHT_SORTS = ("price", "duration", "departure")
-STAY_SORTS = ("price", "rating", "reviews")
+STAY_SORTS = ("price", "rating", "reviews", "center")
 STAY_KINDS = ("hotel", "apartment", "room", "house", "shared_room", "other")
 
 
@@ -57,9 +59,10 @@ def _codes(value, name: str) -> set[str]:
 
 def _comparable(offer: dict, currency: str) -> float | None:
     """An amount in the currency of the result, or None when the offer cannot be compared in it."""
-    if offer.get("converted"):
-        return float(offer["converted"]["amount"])
-    money = offer.get("price") or offer.get("total")
+    # A stay is compared by what it costs with the stated taxes and charges, when the source states them.
+    if offer.get("all_in_converted") or offer.get("converted"):
+        return float((offer.get("all_in_converted") or offer["converted"])["amount"])
+    money = offer.get("all_in") or offer.get("price") or offer.get("total")
     return float(money["amount"]) if money["currency"] == currency else None
 
 
@@ -189,11 +192,35 @@ def stays_view(
     kinds=None,
     exclude_kinds=None,
     sources=None,
+    max_center_km: float | None = None,
+    must_have=None,
+    free_cancellation: bool | None = None,
+    details=None,
     sort: str = "price",
 ) -> dict:
+    """`details(source, source_id)` returns what a property page said, if it was read: a card is shown with it."""
     if sort not in STAY_SORTS:
         raise ValueError(f"sort must be one of: {', '.join(STAY_SORTS)}")
     cards, hidden = result["cards"], Hidden()
+    center = result.get("center")
+    for card in cards:
+        stay = card["stay"]
+        known = details(stay["source"], stay["source_id"]) if details else None
+        stay["details_read"] = bool(known)
+        if known:
+            stay["amenities"] = known["amenities"]
+            for name in ("address", "not_available", "check_in", "check_out", "rules", "scores"):
+                if known.get(name):
+                    stay[name] = known[name]
+            if stay.get("lat") is None and known.get("lat") is not None:
+                stay["lat"], stay["lon"] = known["lat"], known["lon"]
+            if known.get("kind") and known["kind"] != "other":
+                stay["kind"] = known["kind"]
+            stay["photos"] = list(dict.fromkeys(stay["photos"] + known.get("photos", [])))
+        # Where the source gives no distance but gives coordinates, measure from the centre of the place.
+        if stay.get("center_km") is None and center and stay.get("lat") is not None:
+            stay["center_km"] = round(distance_km(center["lat"], center["lon"], stay["lat"], stay["lon"]), 2)
+            stay["center_km_measured"] = "straight line from the centre of the place"
 
     if min_rating is not None:
         if not isinstance(min_rating, (int, float)) or isinstance(min_rating, bool) or not 0 <= min_rating <= 10:
@@ -239,10 +266,47 @@ def stays_view(
 
         cards = hidden.apply(cards, "max_total", max_total, affordable)
 
+    if max_center_km is not None:
+        if not isinstance(max_center_km, (int, float)) or isinstance(max_center_km, bool) or max_center_km <= 0:
+            raise ValueError("max_center_km must be a positive number")
+
+        def near(card):
+            km = card["stay"].get("center_km")
+            return None if km is None else km <= max_center_km
+
+        cards = hidden.apply(cards, "max_center_km", max_center_km, near)
+    if free_cancellation is not None:
+        if free_cancellation is not True:
+            raise ValueError("free_cancellation can only be true: stays that state free cancellation")
+
+        def cancellable(card):
+            rates = [rate for rate in card["rates"] if rate.get("free_cancellation") is True]
+            if rates:
+                card["rates"] = rates
+                return True
+            return None  # a card that does not say so may still allow it
+
+        cards = hidden.apply(cards, "free_cancellation", True, cancellable)
+    if must_have:
+        wanted = sorted(
+            {str(item).strip().lower() for item in ([must_have] if isinstance(must_have, str) else must_have)}
+        )
+        if not all(wanted):
+            raise ValueError("must_have cannot hold an empty name")
+
+        def equipped(card):
+            stay = card["stay"]
+            if not stay.get("details_read"):
+                return None  # search cards carry no amenities: unknown until stay_details reads the page
+            return all(has_amenity(stay["amenities"], item) for item in wanted)
+
+        cards = hidden.apply(cards, "must_have", wanted, equipped)
     if sort == "rating":
         cards.sort(key=lambda c: (c["stay"]["rating"] is None, -(c["stay"]["rating"] or 0)))
     elif sort == "reviews":
         cards.sort(key=lambda c: -(c["stay"]["reviews"] or 0))
+    elif sort == "center":
+        cards.sort(key=lambda c: (c["stay"].get("center_km") is None, c["stay"].get("center_km") or 0))
     result["cards"] = cards
     if hidden.by:
         result["filtered"] = hidden.report()

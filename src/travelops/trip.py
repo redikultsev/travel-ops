@@ -92,7 +92,15 @@ async def search_trip(
 ) -> dict:
     flights, stays = await asyncio.gather(
         recall.flights(app, plan.flights, flight_sources(), rates, currency, refresh=refresh),
-        recall.stays(app, plan.stays, stay_sources(), rates, currency, refresh=refresh),
+        recall.stays(
+            app,
+            plan.stays,
+            stay_sources(),
+            rates,
+            currency,
+            refresh=refresh,
+            center={"name": plan.place.label(), "lat": plan.place.lat, "lon": plan.place.lon},
+        ),
     )
     now = app.results.clock()
     searched = set(plan.flights.destinations)
@@ -115,6 +123,7 @@ async def search_trip(
                 stays.result,
                 limit=limit,
                 min_rating=app.profile.stays.min_rating if min_rating is None else min_rating,
+                details=app.results.details,
             ),
             now,
         ),

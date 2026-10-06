@@ -111,9 +111,15 @@ def flight_search_json(search: FlightSearch, rates: Rates) -> dict:
 
 def rate_json(rate: Rate, nights: int, rates: Rates, currency: str) -> dict:
     per_night = rate.per_night(nights)
+    all_in = rate.all_in()
     return {
         "total": money_json(rate.total),
         "converted": converted_json(rate.total, rates, currency),
+        # `total` is the price the source shows first. `extra_charges` are the taxes and fees it lists on top
+        # (zero when included, null when it does not say), and `all_in` is their sum when both are known.
+        "extra_charges": money_json(rate.charges) if rate.charges else None,
+        "all_in": money_json(all_in) if all_in else None,
+        "all_in_converted": converted_json(all_in, rates, currency) if all_in else None,
         "per_night": money_json(per_night),
         "per_night_converted": converted_json(per_night, rates, currency),
         "seller": rate.seller,
@@ -121,6 +127,8 @@ def rate_json(rate: Rate, nights: int, rates: Rates, currency: str) -> dict:
         "link": link_json(rate.link),
         "seen_at": rate.seen_at.isoformat(),
         "free_cancel_until": rate.free_cancel_until.isoformat() if rate.free_cancel_until else None,
+        "free_cancellation": rate.free_cancellation,
+        "pay_at_property": rate.pay_at_property,
         "meals": rate.meals,
         "room": rate.room,
     }
@@ -150,6 +158,8 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
                     "lon": card.stay.lon,
                     "rating": card.stay.rating,
                     "reviews": card.stay.reviews,
+                    "district": card.stay.district,
+                    "center_km": card.stay.center_km,
                     "photos": list(card.stay.photos),
                     "amenities": list(card.stay.amenities),
                 },
@@ -167,7 +177,13 @@ def _leg_key(segments: list[dict]) -> tuple:
 
 
 def _amount(offer: dict) -> float:
-    money = offer.get("converted") or offer.get("price") or offer.get("total")
+    money = (
+        offer.get("all_in_converted")
+        or offer.get("all_in")
+        or offer.get("converted")
+        or offer.get("price")
+        or offer.get("total")
+    )
     return float(money["amount"])
 
 

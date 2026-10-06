@@ -17,6 +17,7 @@ from typing import Callable
 
 REUSE_SECONDS = 30 * 60  # the same question within this time is answered from memory
 KEEP_SECONDS = 7 * 86400
+DETAILS_SECONDS = 30 * 86400
 
 
 @dataclass
@@ -47,6 +48,10 @@ class Results:
             "CREATE TABLE IF NOT EXISTS results (id TEXT PRIMARY KEY, key TEXT, kind TEXT, at REAL, body BLOB)"
         )
         self.db.execute("CREATE INDEX IF NOT EXISTS results_key ON results (key, at)")
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS details (source TEXT, source_id TEXT, at REAL, body BLOB,"
+            " PRIMARY KEY (source, source_id))"
+        )
 
     @staticmethod
     def key(kind: str, query: dict, sources: list[str], currency: str) -> str:
@@ -73,6 +78,26 @@ class Results:
             (ident, key, kind, at, zlib.compress(json.dumps(result).encode())),
         )
         self.db.commit()
+
+    def put_details(self, source: str, source_id: str, details: dict) -> dict:
+        details = dict(
+            details, seen_at=datetime.fromtimestamp(self.clock(), timezone.utc).isoformat(timespec="seconds")
+        )
+        self.db.execute(
+            "INSERT OR REPLACE INTO details VALUES (?, ?, ?, ?)",
+            (source, source_id, self.clock(), zlib.compress(json.dumps(details).encode())),
+        )
+        self.db.commit()
+        return details
+
+    def details(self, source: str, source_id: str, max_age: float | None = DETAILS_SECONDS) -> dict | None:
+        """What a property page said. It changes slowly, unlike a price, so it is kept for a month."""
+        row = self.db.execute(
+            "SELECT at, body FROM details WHERE source = ? AND source_id = ?", (source, source_id)
+        ).fetchone()
+        if row is None or (max_age is not None and self.clock() - row[0] > max_age):
+            return None
+        return json.loads(zlib.decompress(row[1]))
 
     def _row(self, row) -> Stored | None:
         return Stored(row[0], row[1], row[2], json.loads(zlib.decompress(row[3]))) if row else None
