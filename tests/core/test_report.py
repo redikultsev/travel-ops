@@ -57,3 +57,13 @@ def test_a_limit_repeated_for_every_date_is_said_once():
     assert out["limits"] == [
         "tutu: 2026-10-21 BEG-TIV: results truncated: 30 of 64 itineraries (and 2 more dates or routes like it)"
     ]
+
+
+def test_a_refusal_repeated_for_every_route_is_said_once():
+    from travelops.core.report import brief
+
+    notes = [f"failed for BEG-{code}: party pricing is verified only for one adult" for code in ("LIS", "CAT")]
+    out = brief([{"source": "kupibilet", "status": "not_configured", "reason": "x", "notes": notes}])
+    assert out["limits"] == [
+        "kupibilet: failed for BEG-LIS: party pricing is verified only for one adult (and 1 more dates or routes like it)"
+    ]

@@ -90,8 +90,8 @@ def brief(reports: list[dict]) -> dict:
         for note in report["notes"]:
             if narrows(note):
                 # Same words, other numbers, dates or routes: one kind of limit.
-                body = re.sub(r"^(\d{4}-\d{2}-\d{2}:? )?([A-Z]{3}-[A-Z]{3}: )?", "", note)
-                alike.setdefault(re.sub(r"\d+", "#", body), []).append(note)
+                kind = re.sub(r"\b[A-Z]{3}-[A-Z]{3}\b", "R", note)
+                alike.setdefault(re.sub(r"\d+", "#", kind), []).append(note)
         for notes in alike.values():
             more = f" (and {len(notes) - 1} more dates or routes like it)" if len(notes) > 1 else ""
             out["limits"].append(f"{report['source']}: {notes[0]}{more}")
