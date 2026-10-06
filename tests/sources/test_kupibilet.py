@@ -18,19 +18,20 @@ async def test_requested_cabin_and_return_are_sent_once():
             return Response(200, b'{"variants":[],"flights":{}}')
 
     net = Net()
-    q = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, date(2026, 11, 16), cabin="business")
+    q = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, date(2026, 11, 16), adults=2, cabin="business")
     await Source().fetch(q, Context(net, None, lambda: NOW))
     assert len(net.calls) == Source().max_requests(q) == 1
     body = net.calls[0][1]["json"]
     assert body["cabin"] == "business"
+    assert body["travelers"]["adult"] == 2
     assert body["trips"] == [
         {"departure": "BEG", "arrival": "MOW", "date": "2026-11-14"},
         {"departure": "MOW", "arrival": "BEG", "date": "2026-11-16"},
     ]
 
 
-async def test_unverified_party_is_rejected_before_network():
-    q = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, adults=2)
+async def test_children_without_ages_are_rejected_before_network():
+    q = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, adults=2, children=1)
     with pytest.raises(NotConfigured):
         await Source().fetch(q, Context(None, None, lambda: NOW))
 

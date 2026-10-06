@@ -29,9 +29,10 @@ aircraft and can still say economy in a business fare search. Baggage absent is
 unknown; explicit zero weight means no checked allowance, positive weight proves
 included baggage but does not establish the actual piece count. Do not invent
 carry-on weight from a hand-luggage count. Refundability is not established.
-RUB is the requested currency. Party-price behavior beyond one adult has not been
-verified; do not invent a multiplication rule. Until verified, support one adult
-and report other passenger compositions as not configured.
+RUB is the requested currency. `price.amount` is for the whole party: one search on
+2026-10-07 (MOW-IST, 2026-11-14) priced 2S86 at 8462 RUB for one adult and 16996 RUB
+for two. Kupibilet prices a child by age and the flight query carries no ages, so
+children and infants are not configured.
 
 No exact-ticket URL or fully validated results URL was established. Return
 `link: null` with an explicit note; never construct a guessed purchase URL.

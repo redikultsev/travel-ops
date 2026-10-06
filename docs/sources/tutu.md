@@ -30,8 +30,8 @@ labels such as `City (SVO)`, `departure_at`, `arrival_at`, `duration_min`, and
 `segments[*].voyage_no` (for example JU-130). Fare variants have `service_class`
 and `conditions`: `baggage.kg`, `cabin_baggage.kg`, `fare_family`, `refundable`.
 Do not infer included baggage from absence. Numeric zero is explicit no baggage.
-The party-price convention is unverified for more than one adult; reject such
-queries until the live schema establishes it.
+The answer states its price basis in `meta.pricing.basis`; only `party_total` is
+accepted, so every price is for the whole party.
 
 The known candidate shape only provides leg endpoints and times, and flight
 numbers for connecting segments. It cannot establish each connecting airport

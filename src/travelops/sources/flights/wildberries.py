@@ -24,8 +24,8 @@ class Source:
         return 1 + len(query.origins) * len(query.destinations)
 
     async def fetch(self, query, ctx):
-        if query.adults != 1 or query.children or query.infants:
-            raise NotConfigured("Wildberries party pricing is verified only for one adult")
+        if query.children or query.infants:
+            raise NotConfigured("Wildberries child and infant fares are not verified")
         if query.cabin not in CLASSES:
             raise ValueError(f"unsupported cabin: {query.cabin}")
         session = await ctx.browser.get(self.name, "https://www.wildberries.ru/", engine="camoufox")

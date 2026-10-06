@@ -27,8 +27,10 @@ than counting each occurrence as another offer. Empty flights is a valid empty
 search; unknown line shapes must raise a parse error.
 
 A flight has `fullPrice` in minor RUB units (divide by 100), `legs`, `baggage`,
-and `luggageMeta`. The party-price convention is unverified beyond one adult;
-report larger parties as not configured pending verification. A leg has
+and `luggageMeta`. `fullPrice` is for the whole party:
+one search on 2026-10-07 (MOW-IST, 2026-11-14) priced DP995 at 10210 RUB for one
+adult and 20420 RUB for two. Child and infant fares are not verified and stay
+not configured. A leg has
 `startAirportCode`, `endAirportCode`, `dateBeginAt`, `dateEndAt`, and `segments`.
 Each segment has `airlineCode` or `operationAirlineCode`, `flightNumber`,
 `serviceClass`, `airportBeginCode`, `airportEndCode`, `dateBeginAt`, `dateEndAt`.
@@ -53,7 +55,7 @@ First block: quarantine 30 minutes and do not retry during implementation.
 no extra tariff requests, no booking, no credentials.
 
 The passenger object keys are exactly `passenger` and `number`; send the ADT
-count and zero CHD/INF entries for the supported one-adult query.
+count and zero CHD/INF entries.
 
 ## Recorded response check
 

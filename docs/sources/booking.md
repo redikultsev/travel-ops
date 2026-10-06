@@ -16,7 +16,8 @@ The browser and HTTP calls share the persistent source budget. The search page
 is `https://www.booking.com/searchresults.html`; parameters are `ss` (place),
 `checkin`, `checkout` (ISO), `group_adults`, `no_rooms`, `group_children`,
 `selected_currency: EUR`, and `order: price`. Send English Accept-Language.
-The v1 model lacks child ages; reject nonzero children rather than invent ages.
+Children go as `group_children` plus one `age` parameter per child. Booking prices a
+child by age, so a query with children but without every age is not configured.
 
 Booking ignores offset in the observed recipe. Bounded depth uses nightly price
 bands via `nflt=price=EUR-<low>-<high>-1`; all bands use the same stay query and

@@ -22,8 +22,8 @@ class Source:
         return len(query.origins) * len(query.destinations)
 
     async def fetch(self, query, ctx):
-        if query.adults != 1 or query.children or query.infants:
-            raise NotConfigured("Kupibilet party pricing is verified only for one adult")
+        if query.children or query.infants:
+            raise NotConfigured("Kupibilet prices a child by age, and the query has no ages")
         if query.cabin not in CABINS:
             raise ValueError(f"unsupported cabin: {query.cabin}")
         raws = []

@@ -25,19 +25,22 @@ async def test_fetch_session_and_one_summary_request():
             return Response(200, b'{"result":{"data":{"flights":[]}}}')
 
     net = Net()
-    await Source().fetch(QUERY, Context(net, Browser(), lambda: NOW))
-    assert len(net.calls) == 1 and Source().max_requests(QUERY) == 2
+    query = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, adults=2)
+    await Source().fetch(query, Context(net, Browser(), lambda: NOW))
+    assert len(net.calls) == 1 and Source().max_requests(query) == 2
     kw = net.calls[0][1]
     body = json.loads(kw["data"])
+    assert body["seats"][0] == {"passenger": "ADT", "number": 2}
     assert body["serviceClass"] == "ECONOMY" and body["beginDate_at"] == "2026-11-14T00:00:00.000Z"
     assert body["beginLocationCode"] == "MOW" and body["endLocationCode"] == "LED"
     assert kw["cookies"] == {"test": "value"} and kw["impersonate"] == "firefox"
 
 
-async def test_unverified_party_is_not_requested():
+async def test_unverified_child_fare_is_not_requested():
     with pytest.raises(NotConfigured):
         await Source().fetch(
-            FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, adults=2), Context(None, None, lambda: NOW)
+            FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, adults=2, children=1),
+            Context(None, None, lambda: NOW),
         )
 
 
