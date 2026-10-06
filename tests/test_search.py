@@ -226,7 +226,7 @@ async def test_a_route_note_of_a_shifted_date_gains_the_date():
 
 async def test_offers_to_another_city_than_asked_are_left_out_and_said():
     from travelops.core.flights import FlightQuery as Query
-    from travelops.search import run_source
+    from travelops.search import on_the_route, run_source
     from travelops.sources.base import Parsed
 
     def offer(*legs):
@@ -258,6 +258,7 @@ async def test_offers_to_another_city_than_asked_are_left_out_and_said():
         def now(self):
             return None
 
-    found, report = await run_source(Source(), Query(("BEG",), ("LIS", "IST"), date(2026, 11, 12)), Ctx(), 5)
+    query = Query(("BEG",), ("LIS", "IST"), date(2026, 11, 12))
+    found, report = await run_source(Source(), query, Ctx(), 5, screen=on_the_route)
     assert found == [good, same_city], "Sabiha Gokcen serves Istanbul; Pulkovo does not serve Lisbon"
     assert report.offers == 2 and "1 offers fly elsewhere than asked (LED)" in report.notes[0]

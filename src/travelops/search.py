@@ -49,9 +49,12 @@ class GroundSearch:
     reports: list[SourceReport]
 
 
-async def run_source(source, query, ctx: Context, timeout: float, label: str = "") -> tuple[list, SourceReport]:
+async def run_source(
+    source, query, ctx: Context, timeout: float, label: str = "", screen=None
+) -> tuple[list, SourceReport]:
     """One source, one date, one route. Runs as a task of its own: `gather` gives each run a context of
-    its own, so the tally it sets here is not seen by its neighbours."""
+    its own, so the tally it sets here is not seen by its neighbours. `screen(offers, query)` keeps the offers
+    that answer the query and says in notes what it left out."""
     started = time.monotonic()
     # This run's own requests: runs of one source overlap, so the source's total would count the neighbours too.
     mine: Counter = Counter()
@@ -90,17 +93,9 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         log.exception("%s failed", source.name)
         return [], report(Status.FAILED, f"{type(exc).__name__}: {exc}")
     offers, notes = parsed.offers, list(parsed.notes)
-    if isinstance(query, FlightQuery):
-        kept = [
-            o for o in offers if not hasattr(o, "itinerary") or on_route(o.itinerary, query.origins, query.destinations)
-        ]
-        if len(kept) < len(offers):
-            strays = {o.itinerary.outbound[-1].destination for o in offers if o not in kept}
-            notes.append(
-                f"{len(offers) - len(kept)} offers fly elsewhere than asked ({', '.join(sorted(strays))}) "
-                "and were left out: the source took the place for another"
-            )
-        offers = kept
+    if screen is not None:
+        offers, left_out = screen(offers, query)
+        notes += left_out
     status = Status.OK if offers else Status.EMPTY
 
     # A note that narrows the answer says which date and route it is about; the others read the same for all.
@@ -112,6 +107,18 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
 
     notes = [labelled(note) for note in notes]
     return offers, report(status, notes=notes, offers=len(offers))
+
+
+def on_the_route(offers: list, query: FlightQuery) -> tuple[list, list[str]]:
+    """Flights that land where they were asked to. A source that took a place for another is not an answer."""
+    kept = [o for o in offers if on_route(o.itinerary, query.origins, query.destinations)]
+    if len(kept) == len(offers):
+        return offers, []
+    strays = {o.itinerary.outbound[-1].destination for o in offers if o not in kept}
+    return kept, [
+        f"{len(offers) - len(kept)} offers fly elsewhere than asked ({', '.join(sorted(strays))}) "
+        "and were left out: the source took the place for another"
+    ]
 
 
 def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> float:
@@ -148,7 +155,7 @@ async def search_flights(
                 )
     runs = len(dates) * len(routes) * sharing
     results = await asyncio.gather(
-        *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, runs), label) for s, q, label in jobs)
+        *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, runs), label, on_the_route) for s, q, label in jobs)
     )
     offers = [o for found, _ in results for o in found]
     reports = [combine([rep for (s, _, _), (_, rep) in zip(jobs, results) if s is src]) for src in sources]

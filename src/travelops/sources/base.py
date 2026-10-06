@@ -5,10 +5,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Protocol
+from typing import Callable, Generic, Protocol, TypeVar
 
-from ..core.flights import FlightQuery
-from ..core.stays import StayQuery
 from ..net.browser import BrowserSessions
 from ..net.client import Net
 
@@ -38,17 +36,19 @@ class Parsed:
     notes: list[str] = field(default_factory=list)  # e.g. "results truncated: 120 of 300"
 
 
-class FlightSource(Protocol):
+Query = TypeVar("Query", contravariant=True)
+
+
+class Source(Protocol, Generic[Query]):
+    """A site or server that answers the queries of one kind: a FlightQuery, a StayQuery or a GroundQuery. A new
+    instance serves one search, and every date and route of that search is a run of it.
+
+    `max_requests` is the most one run can send: deadlines are made from it. A source whose runs usually send
+    fewer, because a handshake is shared or a second page is rare, also says `typical_requests(query)`, and the
+    wait told before a search is made from that. Without it the ceiling is what is told."""
+
     name: str
 
-    def max_requests(self, query: FlightQuery) -> int: ...
-    async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]: ...
-    def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed: ...
-
-
-class StaySource(Protocol):
-    name: str
-
-    def max_requests(self, query: StayQuery) -> int: ...
-    async def fetch(self, query: StayQuery, ctx: Context) -> list[bytes]: ...
-    def parse(self, raws: list[bytes], query: StayQuery, seen_at: datetime) -> Parsed: ...
+    def max_requests(self, query: Query) -> int: ...
+    async def fetch(self, query: Query, ctx: Context) -> list[bytes]: ...
+    def parse(self, raws: list[bytes], query: Query, seen_at: datetime) -> Parsed: ...
