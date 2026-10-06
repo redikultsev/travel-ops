@@ -12,9 +12,11 @@ session=$(uuidgen | tr '[:upper:]' '[:lower:]')
 cd "$root"
 for ((i = 1; i <= turns; i++)); do
   say=$(yq -r ".turns[$((i - 1))].say" "$scenario/scenario.yml")
+  later=$(yq -r ".turns[$((i - 1))].minutes_later // 0" "$scenario/scenario.yml")
   cat >"$run/mcp.json" <<JSON
 {"mcpServers": {"travel-ops": {"command": "uv", "args": ["run", "travelops", "mcp"],
-  "env": {"TRAVELOPS_REPLAY": "$scenario", "TRAVELOPS_TRACE": "$run/turn-$i.trace.jsonl"}}}}
+  "env": {"TRAVELOPS_REPLAY": "$scenario", "TRAVELOPS_TRACE": "$run/turn-$i.trace.jsonl",
+          "TRAVELOPS_REPLAY_MINUTES": "$later"}}}}
 JSON
   if ((i == 1)); then conversation=(--session-id "$session"); else conversation=(--resume "$session"); fi
   claude -p "$say" "${conversation[@]}" --append-system-prompt "$context" \

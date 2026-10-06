@@ -88,8 +88,10 @@ search, every source must be reported. See `evals/README.md`.
 | OneTwoTrip | Flights | HTTP requests |
 | Kupibilet | Flights | HTTP requests |
 | Wildberries Travel | Flights | Browser session and HTTP requests |
+| Kiwi.com | Flights | Kiwi's public MCP server; prices in EUR, sold outside Russia |
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
+| trivago | Stays | trivago's public MCP server; one advertiser's price per stay |
 
 Sites may limit automated requests or block them. Respect each site's terms and use the tool for personal-volume
 searches. Do not bypass blocks with proxies or use booking, checkout, or passenger-data flows.

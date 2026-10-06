@@ -67,8 +67,11 @@ async def main(args) -> int:
         await load_rates(app.net)
         wanted = []
         if args.kind == "trip":
-            plan = await plan_trip(app, args.a, args.b, args.c, args.d, country=args.country, adults=args.adults)
-            wanted = [("flights", plan.flights, flight_sources()), ("stays", plan.stays, stay_sources())]
+            plan = await plan_trip(
+                app, args.a, args.b, args.c, args.d, country=args.country, adults=args.adults, separate=args.separate
+            )
+            wanted = [("flights", query, flight_sources()) for query in plan.flight_queries()]
+            wanted.append(("stays", plan.stays, stay_sources()))
         elif args.kind == "flights":
             query = flight_query(app.profile, args.a, args.b, args.c, args.d, 0, args.adults)
             wanted = [("flights", query, flight_sources())]
@@ -130,6 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("d", nargs="?", help="return date")
     parser.add_argument("--country")
     parser.add_argument("--adults", type=int)
+    parser.add_argument("--separate", action="store_true", help="the trip was searched with separate_tickets")
     parser.add_argument("--cards", type=int, default=120)
     parser.add_argument("--offers", type=int, default=5)
     raise SystemExit(asyncio.run(main(parser.parse_args())))

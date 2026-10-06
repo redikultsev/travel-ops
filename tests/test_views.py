@@ -187,6 +187,8 @@ def test_memory_keeps_the_whole_result_and_forgets_after_a_week():
     assert stored.id.startswith("f") and len(stored.id) == 8 and stored.fresh
     stored.result["cards"].clear()
     assert memory.get(stored.id.upper()).result == {"cards": [1, 2, 3]}, "a view cannot damage what is kept"
+    other = memory.key("flights", {"origins": ["BEG"]}, ["tutu", "aviasales", "kiwi"], "EUR")
+    assert memory.recent(other) is None and memory.recent(other, any_sources=True).id == stored.id
     now[0] += 31 * 60
     assert memory.recent(key) is None and memory.recent(key, None).id == stored.id
     now[0] += 8 * 86400

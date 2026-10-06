@@ -89,11 +89,20 @@ async def test_a_recorded_scenario_replays_without_the_network(tmp_path, monkeyp
     try:
         tools = api.Tools(app)
         trip = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME")
-        assert trip["flights"]["search_id"] == "fjvhgf24" and trip["flights"]["from_memory"] is False
-        assert trip["flights"]["age_minutes"] == 0 and len(trip["flights"]["cards"]) == 5
-        assert {r["source"] for r in trip["stays"]["sources"]} == {"booking", "airbnb"}
-        evening = await tools.refine_flights("fjvhgf24", return_after="17:00")
+        assert trip["flights"]["search_id"] == "fwgug2dt" and trip["flights"]["from_memory"] is False
+        assert trip["flights"]["age_minutes"] <= 3 and len(trip["flights"]["cards"]) == 5
+        assert {r["source"] for r in trip["stays"]["sources"]} == {"booking", "airbnb", "trivago"}
+        assert "kiwi" in trip["flights"]["report"]["ok"]
+        evening = await tools.refine_flights("fwgug2dt", return_after="17:00")
         assert evening["cards"] and all(c["inbound"][0]["departs"][11:16] >= "17:00" for c in evening["cards"])
+        two = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME", separate_tickets=True)
+        assert two["separate_tickets"]["pairs"][0]["total"] == {"amount": "105.64", "currency": "EUR"}
+        pages = await tools.stay_details("sj4bt6gc", ["Ivi 5", "Midpoint"])
+        assert [s["status"] for s in pages["stays"]] == ["ok", "not_configured"] and "Kitchen" in pages["stays"][0][
+            "amenities"
+        ]
+        equipped = await tools.refine_stays("sj4bt6gc", must_have=["wifi", "kitchen"], exclude_kinds=["shared_room"])
+        assert {c["stay"]["name"] for c in equipped["cards"]} == {"Ivi 5", "Majka 2 Studio 2"}
         from mcp.server.mcpserver.exceptions import ToolError
 
         with pytest.raises(ToolError, match="replay has no flights search"):
@@ -105,12 +114,25 @@ async def test_a_recorded_scenario_replays_without_the_network(tmp_path, monkeyp
         await app.close()
 
 
+async def test_a_later_turn_meets_old_prices(monkeypatch):
+    monkeypatch.setenv("TRAVELOPS_REPLAY_MINUTES", "50")
+    app = build_replay(SCENARIO)
+    try:
+        tools = api.Tools(app)
+        view = await tools.refine_flights("fwgug2dt")
+        assert view["age_minutes"] >= 50 and "search again" in view["stale"]
+        again = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME")
+        assert again["flights"]["age_minutes"] == 0 and "stale" not in again["flights"], "asked again, searched again"
+    finally:
+        await app.close()
+
+
 def test_a_run_is_checked_turn_by_turn(tmp_path):
     (tmp_path / "turn-1.md").write_text("Ничего не нашёл.")
     (tmp_path / "turn-1.trace.jsonl").write_text(
         json.dumps({"tool": "search_trip", "arguments": {"origin": "BEG", "place": "Budva"}, "result": {}}) + "\n"
     )
     report = check_run(SCENARIO, tmp_path)
-    assert [t["turn"] for t in report] == [1, 2, 3]
+    assert [t["turn"] for t in report] == [1, 2, 3, 4, 5, 6]
     assert any("no call like" in f for f in report[0]["failures"])
     assert report[1]["failures"] == ["no answer: turn-2.md is missing"]

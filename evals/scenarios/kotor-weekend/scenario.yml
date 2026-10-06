@@ -1,5 +1,7 @@
-# A weekend in Kotor, asked the way people ask: a country, two dates, a town. Recorded live on 2026-10-05.
-now: "2026-10-05T23:44:00+00:00"
+# A weekend in Kotor, asked the way people ask: a country, two dates, a town; then the questions that follow.
+# Recorded live on 2026-10-06 from nine sources, with the one-way searches of a separate-tickets comparison and
+# four property pages.
+now: "2026-10-06T00:26:00+00:00"
 context: >
   The human lives in Belgrade, Serbia, and travels alone. Today is 6 October 2026.
 turns:
@@ -24,26 +26,68 @@ turns:
         - "Дубровник|Dubrovnik|DBV"
         - "койк|общ(ий|ем|ая|ей) номер|дормитори|хостел"   # the cheapest stays are dormitory beds: say so
         - "трансфер|дорог|добраться|такси|автобус"          # the way from the airport is not priced
+        - "\\d[.,]?\\d*\\s?км"                              # distances: airports, and stays from the centre
+
   - say: "а обратно вечером есть что-нибудь? утром улетать не хочу"
     calls:
       require:
         - tool: refine_flights
-          arguments: {search_id: fjvhgf24}
+          arguments: {search_id: fwgug2dt}
       forbid: [search_trip, search_flights, search_stays]
     answer:
       language: ru
       links_at_least: 1
       chars_at_most: 2500
       must_match:
-        - "20:40|4O\\s?102"   # the evening flight out of Podgorica that the recording holds
-  - say: "жильё без хостелов, до 40 евро, с рейтингом повыше"
+        - "22:05|20:40"   # the evening flights out of Podgorica that the recording holds
+
+  - say: "жильё без хостелов, в самом центре, до 60 евро"
     calls:
       require:
         - tool: refine_stays
-          arguments: {search_id: sccy46xa}
+          arguments: {search_id: sj4bt6gc}
       forbid: [search_trip, search_flights, search_stays]
     answer:
       language: ru
       links_at_least: 2
-      allowed_amounts: [40]
+      allowed_amounts: [60]
       chars_at_most: 2500
+
+  - say: "мне нужен вайфай и кухня, проверь"
+    calls:
+      require:
+        - tool: stay_details
+          arguments: {search_id: sj4bt6gc}
+      forbid: [search_trip, search_flights, search_stays]
+    answer:
+      language: ru
+      links_at_least: 1
+      chars_at_most: 2500
+      must_match:
+        - "кухн"
+        - "вай-?фай|wi-?fi"
+
+  - say: "а если туда и обратно взять отдельными билетами, выйдет дешевле?"
+    calls:
+      require:
+        - tool: search_trip
+          arguments: {origin: BEG, depart: "2026-10-22", return_date: "2026-10-23", separate_tickets: true}
+      searches_at_most: 1
+    answer:
+      language: ru
+      links_at_least: 1
+      chars_at_most: 3000
+      must_match:
+        - "105[.,]64"                                   # the cheapest pair of two tickets
+        - "отдельн|раздельн|два билета|двух билет"
+        - "не защищ|не отвеча|риск|на свой|не обязан|не связан|сам(и|остоятельно)? "   # two contracts
+
+  - say: "ок, почти решил. цены ещё актуальны?"
+    minutes_later: 50
+    calls:
+      searches_at_most: 1
+    answer:
+      language: ru
+      chars_at_most: 2500
+      must_match:
+        - "минут|час|устарел|обнов|свеж"

@@ -1,0 +1,206 @@
+{
+ "query": "BEG → TIV on 22/10/2026, 1 adult",
+ "currency": "EUR",
+ "passengers": {
+  "adults": 1,
+  "children": 0,
+  "infants": 0
+ },
+ "resultsCount": 3,
+ "itineraries": [
+  {
+   "id": "003c170f510c00000ebc7665_0|170f2309510c0000aad53fbd_0",
+   "price": 236.0,
+   "priceFormatted": "236 EUR",
+   "totalDurationSeconds": 52800,
+   "bookingUrl": "https://kiwi.com/u/2szncu4",
+   "imageId": "tivat_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TIV",
+    "departureTime": "2026-10-22T00:55:00",
+    "arrivalTime": "2026-10-22T15:35:00",
+    "durationSeconds": 52800,
+    "stops": 1,
+    "route": [
+     "BEG",
+     "IST",
+     "TIV"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "IST",
+      "fromCity": "Belgrade",
+      "toCity": "Istanbul",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Istanbul Airport",
+      "fromCountry": "Serbia",
+      "toCountry": "Turkey",
+      "departureTime": "2026-10-22T00:55:00",
+      "arrivalTime": "2026-10-22T03:40:00",
+      "durationSeconds": 6300,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU426",
+      "cabinClass": "Economy"
+     },
+     {
+      "from": "IST",
+      "to": "TIV",
+      "fromCity": "Istanbul",
+      "toCity": "Tivat",
+      "fromName": "Istanbul Airport",
+      "toName": "Tivat",
+      "fromCountry": "Turkey",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T14:45:00",
+      "arrivalTime": "2026-10-22T15:35:00",
+      "durationSeconds": 6600,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O401",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": null
+  },
+  {
+   "id": "003c170f510c00000ebc7665_0|170f2309510c0000aad53fbd_0",
+   "price": 236.0,
+   "priceFormatted": "236 EUR",
+   "totalDurationSeconds": 52800,
+   "bookingUrl": "https://kiwi.com/u/2szncu4",
+   "imageId": "tivat_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TIV",
+    "departureTime": "2026-10-22T00:55:00",
+    "arrivalTime": "2026-10-22T15:35:00",
+    "durationSeconds": 52800,
+    "stops": 1,
+    "route": [
+     "BEG",
+     "IST",
+     "TIV"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "IST",
+      "fromCity": "Belgrade",
+      "toCity": "Istanbul",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Istanbul Airport",
+      "fromCountry": "Serbia",
+      "toCountry": "Turkey",
+      "departureTime": "2026-10-22T00:55:00",
+      "arrivalTime": "2026-10-22T03:40:00",
+      "durationSeconds": 6300,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU426",
+      "cabinClass": "Economy"
+     },
+     {
+      "from": "IST",
+      "to": "TIV",
+      "fromCity": "Istanbul",
+      "toCity": "Tivat",
+      "fromName": "Istanbul Airport",
+      "toName": "Tivat",
+      "fromCountry": "Turkey",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T14:45:00",
+      "arrivalTime": "2026-10-22T15:35:00",
+      "durationSeconds": 6600,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O401",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": null
+  },
+  {
+   "id": "003c170f510c00006eac10ed_0|170f2309510d00000c9f42af_0",
+   "price": 274.0,
+   "priceFormatted": "274 EUR",
+   "totalDurationSeconds": 68100,
+   "bookingUrl": "https://kiwi.com/u/8fggy4",
+   "imageId": "tivat_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TIV",
+    "departureTime": "2026-10-22T20:30:00",
+    "arrivalTime": "2026-10-23T15:25:00",
+    "durationSeconds": 68100,
+    "stops": 1,
+    "route": [
+     "BEG",
+     "IST",
+     "TIV"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "IST",
+      "fromCity": "Belgrade",
+      "toCity": "Istanbul",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Istanbul Airport",
+      "fromCountry": "Serbia",
+      "toCountry": "Turkey",
+      "departureTime": "2026-10-22T20:30:00",
+      "arrivalTime": "2026-10-22T23:15:00",
+      "durationSeconds": 6300,
+      "carrier": "TK",
+      "carrierName": "Turkish Airlines",
+      "flightNumber": "TK1084",
+      "cabinClass": "Economy"
+     },
+     {
+      "from": "IST",
+      "to": "TIV",
+      "fromCity": "Istanbul",
+      "toCity": "Tivat",
+      "fromName": "Istanbul Airport",
+      "toName": "Tivat",
+      "fromCountry": "Turkey",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-23T14:35:00",
+      "arrivalTime": "2026-10-23T15:25:00",
+      "durationSeconds": 6600,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O401",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": null
+  }
+ ],
+ "searchTimeMs": 3973,
+ "error": null
+}

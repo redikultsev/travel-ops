@@ -1,0 +1,322 @@
+{
+ "query": "BEG → TGD on 22/10/2026, returning 23/10/2026, 1 adult",
+ "currency": "EUR",
+ "passengers": {
+  "adults": 1,
+  "children": 0,
+  "infants": 0
+ },
+ "resultsCount": 4,
+ "itineraries": [
+  {
+   "id": "003c1759510c00001e1ab5f6_0|1759003c510d000079af6ca6_0",
+   "price": 110.0,
+   "priceFormatted": "110 EUR",
+   "totalDurationSeconds": 6600,
+   "bookingUrl": "https://kiwi.com/u/g9n8tn",
+   "imageId": "podgorica_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TGD",
+    "departureTime": "2026-10-22T19:55:00",
+    "arrivalTime": "2026-10-22T20:40:00",
+    "durationSeconds": 2700,
+    "stops": 0,
+    "route": [
+     "BEG",
+     "TGD"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "TGD",
+      "fromCity": "Belgrade",
+      "toCity": "Podgorica",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Podgorica",
+      "fromCountry": "Serbia",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T19:55:00",
+      "arrivalTime": "2026-10-22T20:40:00",
+      "durationSeconds": 2700,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O103",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": {
+    "from": "TGD",
+    "to": "BEG",
+    "departureTime": "2026-10-23T22:05:00",
+    "arrivalTime": "2026-10-23T23:10:00",
+    "durationSeconds": 3900,
+    "stops": 0,
+    "route": [
+     "TGD",
+     "BEG"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "TGD",
+      "to": "BEG",
+      "fromCity": "Podgorica",
+      "toCity": "Belgrade",
+      "fromName": "Podgorica",
+      "toName": "Belgrade Nikola Tesla",
+      "fromCountry": "Montenegro",
+      "toCountry": "Serbia",
+      "departureTime": "2026-10-23T22:05:00",
+      "arrivalTime": "2026-10-23T23:10:00",
+      "durationSeconds": 3900,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU665",
+      "cabinClass": "Economy"
+     }
+    ]
+   }
+  },
+  {
+   "id": "003c1759510c0000f77910c3_0|1759003c510d000079af6ca6_0",
+   "price": 110.0,
+   "priceFormatted": "110 EUR",
+   "totalDurationSeconds": 6600,
+   "bookingUrl": "https://kiwi.com/u/bby4pp",
+   "imageId": "podgorica_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TGD",
+    "departureTime": "2026-10-22T18:25:00",
+    "arrivalTime": "2026-10-22T19:10:00",
+    "durationSeconds": 2700,
+    "stops": 0,
+    "route": [
+     "BEG",
+     "TGD"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "TGD",
+      "fromCity": "Belgrade",
+      "toCity": "Podgorica",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Podgorica",
+      "fromCountry": "Serbia",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T18:25:00",
+      "arrivalTime": "2026-10-22T19:10:00",
+      "durationSeconds": 2700,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O105",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": {
+    "from": "TGD",
+    "to": "BEG",
+    "departureTime": "2026-10-23T22:05:00",
+    "arrivalTime": "2026-10-23T23:10:00",
+    "durationSeconds": 3900,
+    "stops": 0,
+    "route": [
+     "TGD",
+     "BEG"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "TGD",
+      "to": "BEG",
+      "fromCity": "Podgorica",
+      "toCity": "Belgrade",
+      "fromName": "Podgorica",
+      "toName": "Belgrade Nikola Tesla",
+      "fromCountry": "Montenegro",
+      "toCountry": "Serbia",
+      "departureTime": "2026-10-23T22:05:00",
+      "arrivalTime": "2026-10-23T23:10:00",
+      "durationSeconds": 3900,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU665",
+      "cabinClass": "Economy"
+     }
+    ]
+   }
+  },
+  {
+   "id": "003c1759510c0000f014d4da_0|1759003c510d000079af6ca6_0",
+   "price": 110.0,
+   "priceFormatted": "110 EUR",
+   "totalDurationSeconds": 6600,
+   "bookingUrl": "https://kiwi.com/u/qzhwsb",
+   "imageId": "podgorica_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TGD",
+    "departureTime": "2026-10-22T08:55:00",
+    "arrivalTime": "2026-10-22T09:40:00",
+    "durationSeconds": 2700,
+    "stops": 0,
+    "route": [
+     "BEG",
+     "TGD"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "TGD",
+      "fromCity": "Belgrade",
+      "toCity": "Podgorica",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Podgorica",
+      "fromCountry": "Serbia",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T08:55:00",
+      "arrivalTime": "2026-10-22T09:40:00",
+      "durationSeconds": 2700,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O101",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": {
+    "from": "TGD",
+    "to": "BEG",
+    "departureTime": "2026-10-23T22:05:00",
+    "arrivalTime": "2026-10-23T23:10:00",
+    "durationSeconds": 3900,
+    "stops": 0,
+    "route": [
+     "TGD",
+     "BEG"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "TGD",
+      "to": "BEG",
+      "fromCity": "Podgorica",
+      "toCity": "Belgrade",
+      "fromName": "Podgorica",
+      "toName": "Belgrade Nikola Tesla",
+      "fromCountry": "Montenegro",
+      "toCountry": "Serbia",
+      "departureTime": "2026-10-23T22:05:00",
+      "arrivalTime": "2026-10-23T23:10:00",
+      "durationSeconds": 3900,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU665",
+      "cabinClass": "Economy"
+     }
+    ]
+   }
+  },
+  {
+   "id": "003c1759510c0000f77910c3_0|1759003c510d00007ec2a8bf_0",
+   "price": 115.0,
+   "priceFormatted": "115 EUR",
+   "totalDurationSeconds": 5700,
+   "bookingUrl": "https://kiwi.com/u/6y42d8",
+   "imageId": "podgorica_me",
+   "baggage": {
+    "personalItem": 0,
+    "cabinBag": 1,
+    "checkedBag": 0
+   },
+   "outbound": {
+    "from": "BEG",
+    "to": "TGD",
+    "departureTime": "2026-10-22T18:25:00",
+    "arrivalTime": "2026-10-22T19:10:00",
+    "durationSeconds": 2700,
+    "stops": 0,
+    "route": [
+     "BEG",
+     "TGD"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "BEG",
+      "to": "TGD",
+      "fromCity": "Belgrade",
+      "toCity": "Podgorica",
+      "fromName": "Belgrade Nikola Tesla",
+      "toName": "Podgorica",
+      "fromCountry": "Serbia",
+      "toCountry": "Montenegro",
+      "departureTime": "2026-10-22T18:25:00",
+      "arrivalTime": "2026-10-22T19:10:00",
+      "durationSeconds": 2700,
+      "carrier": "4O",
+      "carrierName": "Air Montenegro",
+      "flightNumber": "4O105",
+      "cabinClass": "Economy"
+     }
+    ]
+   },
+   "inbound": {
+    "from": "TGD",
+    "to": "BEG",
+    "departureTime": "2026-10-23T08:10:00",
+    "arrivalTime": "2026-10-23T09:00:00",
+    "durationSeconds": 3000,
+    "stops": 0,
+    "route": [
+     "TGD",
+     "BEG"
+    ],
+    "cabinClass": "Economy",
+    "segments": [
+     {
+      "from": "TGD",
+      "to": "BEG",
+      "fromCity": "Podgorica",
+      "toCity": "Belgrade",
+      "fromName": "Podgorica",
+      "toName": "Belgrade Nikola Tesla",
+      "fromCountry": "Montenegro",
+      "toCountry": "Serbia",
+      "departureTime": "2026-10-23T08:10:00",
+      "arrivalTime": "2026-10-23T09:00:00",
+      "durationSeconds": 3000,
+      "carrier": "JU",
+      "carrierName": "Air Serbia",
+      "flightNumber": "JU661",
+      "cabinClass": "Economy"
+     }
+    ]
+   }
+  }
+ ],
+ "searchTimeMs": 7611,
+ "error": null
+}

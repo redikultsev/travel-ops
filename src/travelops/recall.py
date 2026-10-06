@@ -19,7 +19,17 @@ def _key(app, kind: str, query, sources: list, currency: str) -> str:
 def remembered(app, kind: str, query, sources: list, currency: str) -> Stored | None:
     key = _key(app, kind, query, sources, currency)
     # A recording has no age: it is the only answer a replay can give.
-    return app.results.recent(key, None) if app.replay else app.results.recent(key)
+    if app.replay:
+        return app.results.recent(key, None, any_sources=True)
+    stored = app.results.recent(key)
+    # A search that brought nothing because its sources failed is not an answer worth repeating: ask again.
+    if (
+        stored
+        and not stored.result["cards"]
+        and any(r["status"] not in ("ok", "empty") for r in stored.result["sources"])
+    ):
+        return None
+    return stored
 
 
 def _note(result: dict, selection) -> dict:

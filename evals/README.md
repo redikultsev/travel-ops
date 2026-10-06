@@ -26,6 +26,9 @@ Start the agent with the MCP server in replay mode. Two environment variables do
   stands at the moment of the recording;
 - `TRAVELOPS_TRACE=<run>/turn-N.trace.jsonl`: the server writes every call and its answer there.
 
+A turn with `minutes_later: N` in the scenario happens that long after the recording: set
+`TRAVELOPS_REPLAY_MINUTES=N` for that turn, and the prices the agent sees are N minutes old.
+
 Give the agent the scenario's `context` and say turn N; save its reply as `<run>/turn-N.md`; then:
 
 ```bash

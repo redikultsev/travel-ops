@@ -55,8 +55,11 @@ class Results:
 
     @staticmethod
     def key(kind: str, query: dict, sources: list[str], currency: str) -> str:
-        blob = json.dumps([kind, query, sorted(sources), currency], sort_keys=True, default=str)
-        return hashlib.sha256(blob.encode()).hexdigest()
+        """Two parts: what was asked, and of whom. A recording is found by the first part alone, so it does not
+        go stale when a source is added."""
+        asked = hashlib.sha256(json.dumps([kind, query, currency], sort_keys=True, default=str).encode()).hexdigest()
+        whom = hashlib.sha256(json.dumps(sorted(sources)).encode()).hexdigest()[:16]
+        return f"{asked}:{whom}"
 
     def put(self, kind: str, key: str, result: dict) -> Stored:
         at = self.clock()
@@ -102,10 +105,12 @@ class Results:
     def _row(self, row) -> Stored | None:
         return Stored(row[0], row[1], row[2], json.loads(zlib.decompress(row[3]))) if row else None
 
-    def recent(self, key: str, max_age: float | None = REUSE_SECONDS) -> Stored | None:
-        """The latest answer to the same question, if it is young enough. `None` as the age takes any."""
+    def recent(self, key: str, max_age: float | None = REUSE_SECONDS, any_sources: bool = False) -> Stored | None:
+        """The latest answer to the same question, if it is young enough. `None` as the age takes any;
+        `any_sources` takes an answer whichever sources gave it."""
         row = self.db.execute(
-            "SELECT id, kind, at, body FROM results WHERE key = ? ORDER BY at DESC LIMIT 1", (key,)
+            "SELECT id, kind, at, body FROM results WHERE key LIKE ? ORDER BY at DESC LIMIT 1",
+            (key.split(":")[0] + ":%" if any_sources else key,),
         ).fetchone()
         if row is None or (max_age is not None and self.clock() - row[2] > max_age):
             return None

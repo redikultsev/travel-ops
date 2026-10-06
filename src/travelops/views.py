@@ -296,9 +296,10 @@ def stays_view(
 
         def equipped(card):
             stay = card["stay"]
-            if not stay.get("details_read"):
-                return None  # search cards carry no amenities: unknown until stay_details reads the page
-            return all(has_amenity(stay["amenities"], item) for item in wanted)
+            found = all(has_amenity(stay["amenities"], item) for item in wanted)
+            # What a card lists is there. What it does not list is unknown until `stay_details` reads the page:
+            # a search card carries a few amenities at most.
+            return True if found else (False if stay.get("details_read") else None)
 
         cards = hidden.apply(cards, "must_have", wanted, equipped)
     if sort == "rating":
