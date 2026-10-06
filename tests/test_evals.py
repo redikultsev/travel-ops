@@ -136,3 +136,18 @@ def test_a_run_is_checked_turn_by_turn(tmp_path):
     assert [t["turn"] for t in report] == [1, 2, 3, 4, 5, 6]
     assert any("no call like" in f for f in report[0]["failures"])
     assert report[1]["failures"] == ["no answer: turn-2.md is missing"]
+
+
+async def test_the_family_scenario_replays_with_its_party_and_its_refusals():
+    app = build_replay(Path(__file__).parents[1] / "evals/scenarios/lisbon-family")
+    try:
+        tools = api.Tools(app)
+        trip = await tools.search_trip("BEG", "Lisbon", "2026-11-12", "2026-11-16", country="Portugal", adults=2, children_ages=[7])
+        assert trip["flights"]["search_id"] == "fzvo46bk" and trip["stays"]["search_id"] == "smnz3xsu"
+        refused = {p["source"] for p in trip["flights"]["report"]["problems"]}
+        assert refused == {"onetwotrip", "kupibilet", "wildberries"}
+        assert {a["iata"]: a.get("minutes_road") for a in trip["airports_in_reach"]}["LIS"] == 14, "the drive is recorded"
+        bags = await tools.refine_flights("fzvo46bk", checked_bag=True, max_connection_hours=3)
+        assert bags["cards"][0]["groups"][0]["fares"][0]["converted"]["amount"] == "1163.33"
+    finally:
+        await app.close()

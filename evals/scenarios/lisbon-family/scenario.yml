@@ -1,0 +1,64 @@
+# A family of three to Lisbon: a route with connections, a child, and sellers that cannot price a child.
+# Recorded live on 2026-10-06 from nine sources.
+now: "2026-10-06T10:22:28+00:00"
+context: >
+  The human lives in Belgrade, Serbia. Today is 6 October 2026.
+turns:
+  - say: "летим втроём — я, жена и сын, ему 7 — в Лиссабон с 12 по 16 ноября. что есть?"
+    calls:
+      require:
+        - tool: search_trip
+          arguments:
+            origin: BEG
+            place: {any: [Lisbon, "Lisbon, Portugal", Lisboa]}
+            depart: "2026-11-12"
+            return_date: "2026-11-16"
+            adults: 2
+            children_ages: [7]
+      searches_at_most: 1
+    answer:
+      language: ru
+      links_at_least: 3
+      mention_all_sources: true
+      chars_at_most: 4500
+      must_match:
+        - "пересадк"
+        - "ребён|ребен|дет|сын"
+        - "не (умеют|могут|считают|посчитал|поддерж|оцен|дают)|только (для|на) одного|не настроен|недоступ"   # sellers that cannot price a child
+
+  - say: "пересадка не дольше 3 часов, и нам нужен багаж"
+    calls:
+      require:
+        - tool: refine_flights
+          arguments: {search_id: fzvo46bk, checked_bag: true, max_connection_hours: {any: [3, 3.0, 2, 2.5]}}
+      forbid: [search_trip, search_flights, search_stays]
+    answer:
+      language: ru
+      links_at_least: 1
+      chars_at_most: 2500
+      must_match:
+        - "LH\\s?1737|1\\s?163"   # the cheapest that passes: Lufthansa with a bag, 1163.33 EUR
+
+  - say: "квартиру с двумя спальнями, не дальше 3 км от центра"
+    calls:
+      require:
+        - tool: refine_stays
+          arguments: {search_id: smnz3xsu}
+      forbid: [search_trip, search_flights, search_stays]
+    answer:
+      language: ru
+      links_at_least: 1
+      chars_at_most: 2500
+      must_match:
+        - "WHome|Two-Bedroom|двумя спальн|2 спальн|две спальн"
+
+  - say: "сколько всего выйдет на всю семью?"
+    minutes_later: 45
+    calls:
+      searches_at_most: 1
+    answer:
+      language: ru
+      chars_at_most: 2000
+      must_match:
+        - "итог|всего|вместе|сумм"
+        - "минут|час|устарел|обнов|свеж"
