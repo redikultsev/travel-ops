@@ -4,6 +4,7 @@ says how many cards it hid, and separately how many it hid only because the valu
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 from .core.report import brief
 from .core.stays import has_amenity
@@ -72,6 +73,7 @@ def flights_view(
     limit: int = 10,
     max_stops: int | None = None,
     max_leg_hours: float | None = None,
+    max_connection_hours: float | None = None,
     depart_after: str | None = None,
     depart_before: str | None = None,
     return_after: str | None = None,
@@ -103,6 +105,23 @@ def flights_view(
             max_leg_hours,
             lambda c: max(c["duration_min"], c["return_duration_min"] or 0) <= max_leg_hours * 60,
         )
+    if max_connection_hours is not None:
+        if (
+            not isinstance(max_connection_hours, (int, float))
+            or isinstance(max_connection_hours, bool)
+            or max_connection_hours <= 0
+        ):
+            raise ValueError("max_connection_hours must be a positive number")
+
+        def short_waits(card):
+            for leg in (card["outbound"], card["inbound"]):
+                for before, after in zip(leg, leg[1:]):
+                    wait = datetime.fromisoformat(after["departs"]) - datetime.fromisoformat(before["arrives"])
+                    if wait.total_seconds() > max_connection_hours * 3600:
+                        return False
+            return True
+
+        cards = hidden.apply(cards, "max_connection_hours", max_connection_hours, short_waits)
     # Times are local to the airport of departure, as printed on a ticket.
     for name, value, leg, keep in (
         ("depart_after", depart_after, "outbound", lambda at, bar: at >= bar),

@@ -202,6 +202,7 @@ class Tools:
         limit: int = 10,
         max_stops: int | None = None,
         max_leg_hours: float | None = None,
+        max_connection_hours: float | None = None,
         depart_after: str | None = None,
         depart_before: str | None = None,
         return_after: str | None = None,
@@ -222,6 +223,7 @@ class Tools:
                 # A view starts from the same bars as the search, or it would quietly show what the search hid.
                 max_stops=self.app.profile.max_stops if max_stops is None else max_stops,
                 max_leg_hours=self.app.profile.max_leg_hours if max_leg_hours is None else max_leg_hours,
+                max_connection_hours=max_connection_hours,
                 depart_after=depart_after,
                 depart_before=depart_before,
                 return_after=return_after,
@@ -503,7 +505,8 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         traced(tools.refine_flights, trace),
         description=REFINE + "Times are local to the departure airport, HH:MM. `airlines` keeps only these carrier "
         "codes, `destination` only flights landing at these airports, `checked_bag=true` only fares that include "
-        "one, `max_price` is in the currency of the result. `sort`: price, duration or departure. On a one-way "
+        "one, `max_price` is in the currency of the result, `max_connection_hours` drops itineraries with a longer "
+        "wait between two flights of one leg. `sort`: price, duration or departure. On a one-way "
         "search the `depart_*` filters are its times, whichever direction it flies.",
         annotations=LOCAL,
     )

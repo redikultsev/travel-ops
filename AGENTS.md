@@ -74,7 +74,8 @@ request to any site and answers at once.
 - Words to parameters: morning is before 12:00, afternoon 12:00 to 17:00, evening
   from 17:00, night from 22:00; "in the very centre" is within one kilometre,
   "central" or "in town" within two; "no hostels" is `no_hostels=true` together
-  with `exclude_kinds=["shared_room"]`. Say which bar you took. For a comparative ("better
+  with `exclude_kinds=["shared_room"]`; "a short connection" is
+  `max_connection_hours=3` unless a number is given. Say which bar you took. For a comparative ("better
   rated", "cheaper") keep the current bar, order by that quality with `sort`, and
   say what would remain at a stricter bar; do not invent a threshold silently.
 - A view starts from the profile's bars, as the search did: `max_stops`, and

@@ -229,3 +229,9 @@ def test_the_next_town_is_hidden_and_a_stay_of_unknown_place_is_kept():
     view = stays_view(data, max_center_km=15)
     assert [c["stay"]["name"] for c in view["cards"]] == ["room", "flat", "hotel"]
     assert view["filtered"]["by"] == [{"filter": "max_center_km", "value": 15, "hidden": 1, "kept_without_distance": 2}]
+
+
+def test_a_long_wait_between_flights_is_hidden_with_a_count():
+    view = flights_view(flights(), max_connection_hours=4)
+    assert "TK1" not in [c["outbound"][0]["flight"] for c in view["cards"]], "06:00 to 12:00 in Istanbul is six hours"
+    assert view["filtered"]["by"] == [{"filter": "max_connection_hours", "value": 4, "hidden": 1}]
