@@ -13,6 +13,7 @@ from typing import Awaitable, Callable, Literal
 
 from .client import Blocked
 from .limiter import Limiter
+from .tally import count
 
 Engine = Literal["chromium", "camoufox"]
 READY_TIMEOUT_S = 45
@@ -115,8 +116,7 @@ class BrowserSessions:
             bucket = Limiter.bucket(source, self.exit)
             if self.limiter is not None:
                 await self.limiter.acquire(bucket)
-            if self.counts is not None:
-                self.counts[source] += 1
+            count(self.counts, source)
             try:
                 session = await self.launcher(engine, url, ready_cookie, self.proxy, headless)
             except Blocked:

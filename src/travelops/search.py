@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import Counter
 from dataclasses import dataclass, replace
 
 from .core.flights import FlightQuery
@@ -17,6 +18,7 @@ from .merge.stays import StayCard, list_stays
 from .net.browser import BrowserUnavailable
 from .net.client import Blocked
 from .net.limiter import Limiter, Quarantined
+from .net.tally import RUN
 from .sources.base import Context, NotConfigured, ParseError, SourceFault
 
 log = logging.getLogger("travelops.search")
@@ -39,18 +41,21 @@ class StaySearch:
 
 
 async def run_source(source, query, ctx: Context, timeout: float, label: str = "") -> tuple[list, SourceReport]:
+    """One source, one date, one route. Runs as a task of its own: `gather` gives each run a context of
+    its own, so the tally it sets here is not seen by its neighbours."""
     started = time.monotonic()
-    before = ctx.net.counts[source.name] if ctx.net else 0
+    # This run's own requests: runs of one source overlap, so the source's total would count the neighbours too.
+    mine: Counter = Counter()
+    RUN.set(mine)
 
     def report(status: Status, reason: str = "", notes: list[str] | None = None, offers: int = 0) -> SourceReport:
-        used = (ctx.net.counts[source.name] - before) if ctx.net else 0
         return SourceReport(
             source.name,
             status,
             reason,
             notes or ([label] if label else []),
             offers,
-            used,
+            mine[source.name],
             round(time.monotonic() - started, 1),
         )
 

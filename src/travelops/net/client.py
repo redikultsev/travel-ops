@@ -15,6 +15,7 @@ from curl_cffi.requests.exceptions import Timeout as TransportTimeout
 
 from .cache import RawCache
 from .limiter import Limiter, Quarantined
+from .tally import count
 
 
 class Blocked(Exception):
@@ -107,7 +108,7 @@ class Net:
         if queue and (until := self.limiter.state(main).quarantined_until) > self.limiter.clock():
             raise Quarantined(main, until)
         await self.limiter.acquire(bucket)
-        self.counts[source] += 1
+        count(self.counts, source)
         resp = await self._send(
             method,
             url,

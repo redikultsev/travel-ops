@@ -161,3 +161,35 @@ async def test_a_note_that_narrows_the_answer_names_its_route():
         "BEG-TIV: 26 one-way halves were left out",
         "BEG-TIV: results truncated: 30 of 62",
     ]
+
+
+async def test_runs_of_one_source_count_their_own_requests(tmp_path):
+    from travelops.net.client import Net, Response
+    from travelops.net.limiter import Limiter, Rule
+    from travelops.sources.base import Parsed
+
+    net = Net(tmp_path, limiter=Limiter(None, default=Rule(interval=0, jitter=0)))
+
+    async def send(method, url, **kw):
+        await asyncio.sleep(0.01)
+        return Response(200, b"{}")
+
+    net._send = send
+
+    class Source:
+        name = "any"
+
+        def max_requests(self, query):
+            return 3
+
+        async def fetch(self, query, ctx):
+            for _ in range(3 if query.destinations == ("TIV",) else 1):
+                await ctx.net.request(self.name, "GET", "https://any.example/" + query.destinations[0])
+            return [b""]
+
+        def parse(self, raws, query, seen_at):
+            return Parsed([], [])
+
+    query = FlightQuery(("BEG",), ("TIV", "TGD"), date(2026, 10, 22))
+    result = await search_flights(query, [Source()], Context(net, None, lambda: NOW), Rates("EUR", {}, "d"), "EUR")
+    assert result.reports[0].requests == 4 == net.counts["any"], "three and one, not each run counting both"
