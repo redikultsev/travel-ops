@@ -99,7 +99,10 @@ def test_stay_shortlist_counts_cards_by_source_after_filters():
     from travelops.views import stays_view
 
     cards = [
-        {"stay": {"source": src, "rating": r, "photos": []}, "rates": [1]}
+        {
+            "stay": {"source": src, "source_id": "x", "name": "x", "rating": r, "photos": []},
+            "rates": [{"link": None}],
+        }
         for src, r in (("booking", 9), ("booking", 5), ("airbnb", 8.5), ("airbnb", None))
     ]
     cut = stays_view({"cards": cards}, limit=1, min_rating=8.0)

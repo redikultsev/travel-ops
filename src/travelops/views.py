@@ -191,6 +191,7 @@ def stays_view(
     max_total: float | None = None,
     kinds=None,
     exclude_kinds=None,
+    no_hostels: bool = False,
     sources=None,
     max_center_km: float | None = None,
     must_have=None,
@@ -207,6 +208,11 @@ def stays_view(
         stay = card["stay"]
         known = details(stay["source"], stay["source_id"]) if details else None
         stay["details_read"] = bool(known)
+        # A hostel also lets private rooms, so this is apart from `kind`: it is the house, not the bed.
+        link = card["rates"][0]["link"]["url"].split("?")[0] if card["rates"] and card["rates"][0].get("link") else ""
+        stay["hostel"] = any(
+            word in text.lower() for text in (stay["name"], stay["source_id"], link) for word in ("hostel", "homestel")
+        )
         if known:
             stay["amenities"] = known["amenities"]
             for name in ("address", "not_available", "check_in", "check_out", "rules", "scores"):
@@ -248,6 +254,8 @@ def stays_view(
             cards = hidden.apply(
                 cards, name, sorted(chosen), lambda c, chosen=chosen, keep=keep: (c["stay"]["kind"] in chosen) is keep
             )
+    if no_hostels:
+        cards = hidden.apply(cards, "no_hostels", True, lambda c: not c["stay"].get("hostel"))
     if sources is not None:
         chosen = {s.lower() for s in _codes(sources, "sources")}
         cards = hidden.apply(cards, "sources", sorted(chosen), lambda c: c["stay"]["source"] in chosen)
@@ -265,6 +273,10 @@ def stays_view(
             return None if any(amount is None for _, amount in amounts) else False
 
         cards = hidden.apply(cards, "max_total", max_total, affordable)
+        # A price whose taxes the source does not state may end above the ceiling.
+        untaxed = sum(1 for card in cards if not card["rates"][0].get("all_in"))
+        if untaxed:
+            hidden.by[-1]["kept_without_stated_taxes"] = untaxed
 
     if max_center_km is not None:
         if not isinstance(max_center_km, (int, float)) or isinstance(max_center_km, bool) or max_center_km <= 0:

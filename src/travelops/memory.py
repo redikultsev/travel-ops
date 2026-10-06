@@ -82,6 +82,10 @@ class Results:
         )
         self.db.commit()
 
+    def touch(self, ident: str, at: float) -> None:
+        self.db.execute("UPDATE results SET at = ? WHERE id = ?", (at, ident))
+        self.db.commit()
+
     def put_details(self, source: str, source_id: str, details: dict) -> dict:
         details = dict(
             details, seen_at=datetime.fromtimestamp(self.clock(), timezone.utc).isoformat(timespec="seconds")

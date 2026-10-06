@@ -68,6 +68,10 @@ LIMITS = (
 )
 
 
+def narrows(note: str) -> bool:
+    return any(word in note.lower() for word in LIMITS)
+
+
 def brief(reports: list[dict]) -> dict:
     """What must reach the human about the sources, short enough to say in a chat: who answered, who did not and
     why, and where the answer is narrower than the question. The full reports stay in `sources`."""
@@ -80,6 +84,6 @@ def brief(reports: list[dict]) -> dict:
         else:
             out["problems"].append({k: report[k] for k in ("source", "status", "reason")})
         for note in report["notes"]:
-            if any(word in note.lower() for word in LIMITS):
+            if narrows(note):
                 out["limits"].append(f"{report['source']}: {note}")
     return out

@@ -68,7 +68,7 @@ def test_recorded_stays_name_the_advertiser_the_distance_and_the_top_amenities()
         "https://imgcy.trivago.com/"
     )
     midpoint = next(o for o in parsed.offers if o.stay.name == "Midpoint")
-    assert midpoint.stay.kind == "other", "no stars: trivago does not say what the place is"
+    assert midpoint.stay.kind == "apartment", "no stars, but its page is named entire-house-apartment"
     assert any("one advertiser" in note for note in parsed.notes)
 
 

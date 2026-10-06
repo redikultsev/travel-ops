@@ -13,7 +13,8 @@
    replace the party with one adult or multiply a one-person price.
 3. When the human asks whether two one-way tickets are cheaper, or wants to
    leave from another airport than the one of arrival, search with
-   `separate_tickets=true`. The engine searches each direction one way, pairs
+   `separate_tickets=true` (inside a trip it is the same parameter of
+   `search_trip`). The engine searches each direction one way, pairs
    them and returns `separate_tickets`: the pairs, their sums in one currency,
    and what the best pair saves against the cheapest round trip. Always pass on
    its `risk`. It takes about three times as long as a plain search. For a party

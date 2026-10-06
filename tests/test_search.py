@@ -130,3 +130,34 @@ async def test_a_route_that_fails_costs_only_that_route():
     report = result.reports[0]
     assert report.status is Status.OK and report.offers == 1
     assert "failed for BEG-TGD: a request got no answer in 30 s" in report.notes
+
+
+async def test_a_note_that_narrows_the_answer_names_its_route():
+    from travelops.core.flights import FlightQuery as Query
+    from travelops.search import run_source
+    from travelops.sources.base import Parsed
+
+    class Source:
+        name = "any"
+
+        async def fetch(self, query, ctx):
+            return [b""]
+
+        def parse(self, raws, query, seen_at):
+            return Parsed(
+                [object()],
+                ["requested cabin: economy", "26 one-way halves were left out", "BEG-TIV: results truncated: 30 of 62"],
+            )
+
+    class Ctx:
+        net = None
+
+        def now(self):
+            return None
+
+    _, report = await run_source(Source(), Query(("BEG",), ("TIV",), date(2026, 10, 22)), Ctx(), 5, "BEG-TIV")
+    assert report.notes == [
+        "requested cabin: economy",
+        "BEG-TIV: 26 one-way halves were left out",
+        "BEG-TIV: results truncated: 30 of 62",
+    ]

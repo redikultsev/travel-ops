@@ -50,6 +50,7 @@ async def _recall(
             stored.fresh = True
             if refresh or app.results.clock() - stored.at > REUSE_SECONDS:
                 stored.at = app.results.clock()
+                app.results.touch(stored.id, stored.at)
         return stored
     if app.replay:
         raise ValueError(f"the replay has no {kind} search for {asdict(query)}")

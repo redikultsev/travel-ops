@@ -19,11 +19,14 @@
      `sort="center"` when the human wants to be in town.
    - Kind: `shared_room` is a bed in a dormitory; `room` a private room;
      `apartment` and `house` the whole place; `other` means the source does not
-     say, so do not call it private.
+     say, so do not call it private. `hostel` true is about the house, whatever
+     the bed: a hostel also lets private rooms.
    - `free_cancellation` true means the card states it; null means the card is
      silent, not that it is refused.
 4. Narrow with `refine_stays`, not by eye: `min_rating`, `min_reviews`, `max_total`,
-   `max_center_km`, `exclude_kinds`, `free_cancellation`, `sources`, `sort`. If
+   `max_center_km`, `exclude_kinds`, `no_hostels`, `free_cancellation`, `sources`,
+   `sort`. When `max_total` reports `kept_without_stated_taxes`, say that those
+   prices may end above the ceiling once taxes are added. If
    nothing satisfies the requirements, say so and ask whether the human wants to
    see what a looser bar or the unrated ones hold.
 5. Amenities, exact address, house rules and check-in times are on the property
@@ -31,7 +34,9 @@
    pets, a late check-in) or the profile lists `must_have`, call `stay_details`
    for the two to five stays you would recommend, then `refine_stays` with
    `must_have`. A stay whose page was not read counts as unknown, never as
-   lacking. Do not claim an amenity absent unless the page lists it under
+   lacking. trivago stays have no page to read (`not_configured`): only the top
+   amenities on their card are known, so for a must-have prefer a Booking or
+   Airbnb stay, or say that the human must check the advertiser's page. Do not claim an amenity absent unless the page lists it under
    `not_available`.
 6. When the human asks how a place looks, or wants one "bright", "with a view",
    "not shabby", call `stay_photos` and look. Say only what the photos show, name

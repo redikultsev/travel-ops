@@ -129,7 +129,10 @@ class Source:
                                 self.name,
                                 str(item["accommodation_id"]),
                                 str(item["accommodation_name"]),
-                                "hotel" if stars else "other",
+                                # The page name in the link tells an entire flat from a hotel when stars do not.
+                                "apartment"
+                                if "entire-house-apartment" in link or "apartment" in link.split("?")[0]
+                                else ("hotel" if stars else "other"),
                                 item.get("latitude"),
                                 item.get("longitude"),
                                 rating,

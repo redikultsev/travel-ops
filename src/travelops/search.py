@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 
 from .core.flights import FlightQuery
 from .core.money import Rates
-from .core.report import SourceReport, Status, combine
+from .core.report import SourceReport, Status, combine, narrows
 from .core.stays import StayQuery
 from .merge.flights import FlightCard, merge_flights
 from .merge.stays import StayCard, list_stays
@@ -76,7 +76,12 @@ async def run_source(source, query, ctx: Context, timeout: float, label: str = "
         log.exception("%s failed", source.name)
         return [], report(Status.FAILED, f"{type(exc).__name__}: {exc}")
     status = Status.OK if parsed.offers else Status.EMPTY
-    return parsed.offers, report(status, notes=parsed.notes, offers=len(parsed.offers))
+    # A note that narrows the answer says which date or route it is about; the others read the same for all.
+    notes = [
+        f"{label}: {note}" if label and narrows(note) and not note.startswith(label.split(" ")[-1]) else note
+        for note in parsed.notes
+    ]
+    return parsed.offers, report(status, notes=notes, offers=len(parsed.offers))
 
 
 def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> float:

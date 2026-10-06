@@ -244,6 +244,7 @@ class Tools:
         max_total: float | None = None,
         kinds: list[str] | None = None,
         exclude_kinds: list[str] | None = None,
+        no_hostels: bool = False,
         sources: list[str] | None = None,
         max_center_km: float | None = None,
         free_cancellation: bool | None = None,
@@ -261,6 +262,7 @@ class Tools:
                 max_total=max_total,
                 kinds=kinds,
                 exclude_kinds=exclude_kinds,
+                no_hostels=no_hostels,
                 sources=sources,
                 max_center_km=max_center_km,
                 free_cancellation=free_cancellation,
@@ -493,14 +495,16 @@ def create_server(root: Path | None = None, proxy: str | None = None, *, app: Ap
         traced(tools.refine_flights, trace),
         description=REFINE + "Times are local to the departure airport, HH:MM. `airlines` keeps only these carrier "
         "codes, `destination` only flights landing at these airports, `checked_bag=true` only fares that include "
-        "one, `max_price` is in the currency of the result. `sort`: price, duration or departure.",
+        "one, `max_price` is in the currency of the result. `sort`: price, duration or departure. On a one-way "
+        "search the `depart_*` filters are its times, whichever direction it flies.",
         annotations=LOCAL,
     )
     server.add_tool(
         traced(tools.refine_stays, trace),
         description=REFINE + "`max_total` is for the whole stay in the currency of the result, with the stated "
         "taxes and charges. `min_reviews` drops ratings that rest on a handful of reviews. Kinds: hotel, apartment, "
-        "room, house, shared_room (a bed in a dormitory), other (the source does not say). `max_center_km` is the "
+        "room, house, shared_room (a bed in a dormitory), other (the source does not say). `no_hostels=true` drops "
+        "every stay whose name or link says hostel, private rooms included. `max_center_km` is the "
         "distance from the centre. `free_cancellation=true` keeps stays that state it. `must_have` names amenities "
         "(wifi, kitchen, parking, ac, washer, breakfast, pool, balcony, workspace, elevator, pets, or any word of a "
         "page's list); only a stay whose page `stay_details` has read can pass, the rest are `hidden_unknown`. "

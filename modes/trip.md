@@ -59,8 +59,10 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
    - "is it cheaper as two tickets?", "into Tivat, out of Podgorica": `separate_tickets=true`. The result adds
      `separate_tickets.pairs`: one way out plus one way back, each with its own seller and link, the sum, and
      `open_jaw` when the airports differ. Always pass on `risk`: two tickets are two contracts. Say what the
-     best pair saves against the cheapest round trip, or that it saves nothing. It takes about three times as
-     long, so use it when asked or when you offered it and the human agreed;
+     best pair saves against the cheapest round trip, or that it saves nothing. The pairs are the cheapest
+     ones: when the human has already asked for something (an evening return, one airport), look at each
+     one-way search with `refine_flights` by its id and build the pair from what passes. It takes about three
+     times as long, so use it when asked or when you offered it and the human agreed;
    - children: `children_ages` with the age of each child on the travel dates; `adults` counts the grown-ups
      only. Some sellers cannot price a party with children and say so in their status: name them.
 7. When the human then asks about what you already found (later flights, a bag, cheaper stays, no dormitories,

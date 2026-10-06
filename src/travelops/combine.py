@@ -83,6 +83,9 @@ def separate_tickets(out: dict, back: dict, round_trip: dict | None, limit: int 
         "risk": RISK,
         "outbound_search_id": out.get("search_id"),
         "return_search_id": back.get("search_id"),
+        # Who answered each one-way search: a seller missing here is missing from the pairs.
+        "outbound_report": out.get("report"),
+        "return_report": back.get("report"),
         "note": "`total` adds the two prices in the currency of the result. `open_jaw` is true when the trip "
         "lands at one airport and leaves from another. For other times or airports, refine each one-way search "
         "by its id.",

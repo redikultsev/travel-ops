@@ -142,7 +142,16 @@ def test_bad_filters_are_refused():
 def stays():
     def stay(name, kind, rating, total, source="booking", reviews=10):
         return {
-            "stay": {"source": source, "name": name, "kind": kind, "rating": rating, "reviews": reviews, "photos": []},
+            "stay": {
+                "source": source,
+                "source_id": name,
+                "name": name,
+                "kind": kind,
+                "rating": rating,
+                "reviews": reviews,
+                "photos": [],
+                "amenities": [],
+            },
             "rates": [{"total": {"amount": str(total), "currency": "EUR"}, "converted": None}],
         }
 
@@ -165,7 +174,7 @@ def test_stay_filters_and_orders():
         "by": [
             {"filter": "min_rating", "value": 8.0, "hidden": 0, "hidden_unknown": 1},
             {"filter": "exclude_kinds", "value": ["shared_room"], "hidden": 1},
-            {"filter": "max_total", "value": 50, "hidden": 1},
+            {"filter": "max_total", "value": 50, "hidden": 1, "kept_without_stated_taxes": 1},
         ],
     }
     assert [c["stay"]["name"] for c in stays_view(stays(), sort="rating")["cards"]] == ["hotel", "dorm", "room", "flat"]
@@ -176,6 +185,11 @@ def test_stay_filters_and_orders():
     assert [c["stay"]["name"] for c in stays_view(stays(), sources=["airbnb"])["cards"]] == ["flat"]
     with pytest.raises(ValueError, match="kinds"):
         stays_view(stays(), kinds=["castle"])
+    data = stays()
+    data["cards"][1]["stay"]["name"] = "Old Town Hostel"  # a private room, in a hostel
+    homes = stays_view(data, no_hostels=True, exclude_kinds=["shared_room"])
+    assert [c["stay"]["name"] for c in homes["cards"]] == ["flat", "hotel"]
+    assert {"filter": "no_hostels", "value": True, "hidden": 1} in homes["filtered"]["by"]
 
 
 def test_memory_keeps_the_whole_result_and_forgets_after_a_week():
