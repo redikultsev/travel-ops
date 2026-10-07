@@ -144,3 +144,21 @@ async def test_an_alert_gives_the_seller_and_link_of_the_price_it_tells():
     watch = watches.add("flights", ARGS, {}, "EUR", below=150)
     alert, _ = await check(Mixed([]), watches, watch)
     assert (alert["price"], alert["seller"], alert["link"]) == (120, "kiwi", "https://k.test")
+
+
+async def test_a_collector_looks_keeps_and_then_marks_exactly_what_it_kept():
+    """A router must not lose an alert when it dies between taking one and keeping it: it looks first, keeps what
+    it saw, and only then marks it. An alert that comes in between is not marked with the others."""
+    watches = Watches(None, Clock())
+    watches.alert({"watch_id": "wone", "price": 90})
+    watches.alert({"watch_id": "wtwo", "price": 80})
+    seen = watches.pending(take=False)
+    assert [(a["alert_id"], a["watch_id"]) for a in seen] == [(1, "wone"), (2, "wtwo")], "each alert has a number"
+    watches.alert({"watch_id": "wthree", "price": 70})  # found by the next check while the router was writing
+    assert [a["alert_id"] for a in watches.pending(upto=2)] == [1, 2], "marks what was kept and says which"
+    assert [a["alert_id"] for a in watches.pending(take=False)] == [3], "the one that came in between waits"
+    assert watches.pending(upto=2) == [], "marking twice is harmless"
+    tools = Tools(SimpleNamespace(watches=watches))
+    assert [a["alert_id"] for a in (await tools.watch_alerts(take=False))["alerts"]] == [3]
+    assert [a["alert_id"] for a in (await tools.watch_alerts(upto=3))["alerts"]] == [3]
+    assert (await tools.watch_alerts())["alerts"] == []

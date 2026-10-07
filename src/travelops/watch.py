@@ -144,13 +144,17 @@ class Watches:
         self.db.execute("INSERT INTO alerts (at, body) VALUES (?, ?)", (self.clock(), json.dumps(alert)))
         self.db.commit()
 
-    def pending(self, take: bool = True) -> list[dict]:
-        """Alerts nobody has collected yet, oldest first. `take` marks them collected: whoever asked now tells."""
+    def pending(self, take: bool = True, upto: int | None = None) -> list[dict]:
+        """Alerts nobody has collected yet, oldest first, each with its `alert_id`. `take` marks them collected:
+        whoever asked now tells. A collector that must not lose one looks first (take=False), keeps what it saw,
+        then marks exactly that with `upto`, the last `alert_id` it kept: an alert that came in between waits."""
         rows = self.db.execute("SELECT id, body FROM alerts WHERE delivered = 0 ORDER BY id").fetchall()
-        if take and rows:
-            self.db.execute(f"UPDATE alerts SET delivered = 1 WHERE id <= {rows[-1][0]} AND delivered = 0")
+        if upto is not None:
+            rows = [row for row in rows if row[0] <= upto]
+        if (take or upto is not None) and rows:
+            self.db.execute("UPDATE alerts SET delivered = 1 WHERE id <= ? AND delivered = 0", (rows[-1][0],))
             self.db.commit()
-        return [json.loads(body) for _, body in rows]
+        return [dict(json.loads(body), alert_id=ident) for ident, body in rows]
 
     def history(self, ident: str, last: int = 10) -> list[dict]:
         rows = self.db.execute(

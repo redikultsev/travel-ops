@@ -4,6 +4,7 @@ import argparse
 import asyncio
 from datetime import date, datetime, timedelta
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -72,7 +73,10 @@ def parser():
     src.add_argument("--reset", metavar="BUCKET")
     d = commands.add_parser("doctor")
     d.add_argument("--live", action="store_true")
-    commands.add_parser("mcp")
+    m = commands.add_parser("mcp", help="serve the tools to an agent: standard input and output, or --http")
+    m.add_argument("--http", action="store_true", help="streamable HTTP at /mcp instead; no authentication")
+    m.add_argument("--host", default="127.0.0.1", help="with --http: the address to listen on")
+    m.add_argument("--port", type=int, default=8765, help="with --http: the port")
     w = commands.add_parser("watch", help="price watches: saved searches repeated by `watch run`")
     actions = w.add_subparsers(dest="action", required=True)
     wa = actions.add_parser("add", help="save a watch; ARGUMENTS as the search tool takes them, in JSON")
@@ -214,7 +218,8 @@ async def doctor(app, live, console):
     check("uv", bool(shutil.which("uv")), shutil.which("uv") or "not found", "install uv: https://docs.astral.sh/uv/")
     async with async_playwright() as p:
         try:
-            browser = await p.chromium.launch(channel="chrome", headless=True)
+            sandbox = os.environ.get("TRAVELOPS_CHROME_SANDBOX") == "1"  # as the search starts it
+            browser = await p.chromium.launch(channel="chrome", headless=True, chromium_sandbox=sandbox)
             version = browser.version
             await browser.close()
             check("Google Chrome", True, version, "")
@@ -406,9 +411,13 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         if args.command == "mcp":
-            from .mcp import create_server
+            from .mcp import create_server, serve_http
 
-            create_server(Path.cwd()).run(transport="stdio")
+            server = create_server(Path.cwd())
+            if args.http:
+                serve_http(server, args.host, args.port)
+            else:
+                server.run(transport="stdio")
             return 0
         if args.command == "eval":
             from .evals import check_run

@@ -67,3 +67,9 @@ async def test_declining_long_search_does_not_load_rates_or_search(tmp_path, mon
     )
     args = cli.parser().parse_args(["flights", "BEG", "MOW", "2026-11-14"])
     assert await cli.execute(args) == 0 and app.closed
+
+
+def test_mcp_over_http_is_asked_for():
+    assert cli.parser().parse_args(["mcp"]).http is False, "standard input and output stay the default"
+    args = cli.parser().parse_args(["mcp", "--http", "--host", "0.0.0.0"])
+    assert (args.http, args.host, args.port) == (True, "0.0.0.0", 8765)

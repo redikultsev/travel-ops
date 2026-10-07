@@ -277,3 +277,28 @@ async def test_photos_come_back_as_images_with_their_links(app, monkeypatch):
         assert result.content[1].text == "photo 1: https://img.example//hotel/me/one.html.jpg"
         assert result.content[2].mime_type == "image/jpeg"
         assert "could not be loaded (HTTP 404)" in result.content[4].text
+
+
+async def test_over_http_one_post_is_one_call(app):
+    """What a router in the next container sends: a JSON-RPC `tools/call` in one POST, no session, JSON back."""
+    import httpx
+
+    web = api.http_app(api.create_server(app.root, app=app, searches=fake_searches(app)), "0.0.0.0")
+    headers = {"Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-11-25"}
+
+    def call(ident, name, arguments):
+        return {"jsonrpc": "2.0", "id": ident, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
+
+    flights = {"origin": "BEG", "destination": "MOW", "depart": "2026-11-14"}
+    async with web.router.lifespan_context(web):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(web), base_url="http://travel-ops:8765") as http:
+            found = (await http.post(api.HTTP_PATH, json=call(7, "search_flights", flights), headers=headers)).json()
+            refused = (
+                await http.post(api.HTTP_PATH, json=call(8, "search_flights", dict(flights, limit=0)), headers=headers)
+            ).json()
+            alerts = (await http.post(api.HTTP_PATH, json=call(9, "watch_alerts", {}), headers=headers)).json()
+    assert found["id"] == 7 and found["result"]["isError"] is False
+    assert found["result"]["structuredContent"]["query"]["origins"] == ["BEG"], "the result as data, not only text"
+    assert refused["result"]["isError"] is True and "limit must be" in refused["result"]["content"][0]["text"]
+    assert alerts["result"]["structuredContent"]["alerts"] == [], "the app built once serves every call"
+    assert app.closed, "and is closed with the server"

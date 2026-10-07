@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from collections import Counter
@@ -48,7 +49,12 @@ async def launch(engine: str, url: str, ready_cookie: str | None, proxy: str | N
         async with async_playwright() as p:
             try:
                 browser = await p.chromium.launch(
-                    channel="chrome", headless=headless, proxy={"server": proxy} if proxy else None
+                    channel="chrome",
+                    headless=headless,
+                    proxy={"server": proxy} if proxy else None,
+                    # Off by default, as Playwright has it: Chrome's sandbox needs user namespaces, which a
+                    # container may not grant. Where it works, TRAVELOPS_CHROME_SANDBOX=1 turns it on.
+                    chromium_sandbox=os.environ.get("TRAVELOPS_CHROME_SANDBOX") == "1",
                 )
             except Error as exc:
                 raise BrowserUnavailable("Google Chrome is not installed; install it to use this source") from exc

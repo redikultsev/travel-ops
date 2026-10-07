@@ -123,3 +123,39 @@ async def test_user_agent_is_read_before_redirect_can_replace_context():
 
     result = await _harvest(Browser(), "chromium", "https://example.test", "ready")
     assert result.user_agent == "stable-agent" and result.cookies == {"ready": "test"}
+
+
+async def test_chrome_sandbox_is_asked_for_by_the_environment(monkeypatch):
+    """Playwright starts Chrome with --no-sandbox unless told otherwise. In a container that allows it, the
+    sandbox is turned on by TRAVELOPS_CHROME_SANDBOX=1; the default stays as it was."""
+    import playwright.async_api as api
+
+    from travelops.net import browser
+
+    seen = []
+
+    class Stop(Exception):
+        pass
+
+    class Chromium:
+        async def launch(self, **kwargs):
+            seen.append(kwargs)
+            raise Stop
+
+    class Playwright:
+        chromium = Chromium()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(api, "async_playwright", lambda: Playwright())
+    for value in (None, "1"):
+        if value:
+            monkeypatch.setenv("TRAVELOPS_CHROME_SANDBOX", value)
+        with pytest.raises(Stop):
+            await browser.launch("chromium", "https://example.test", None, None, True)
+    assert [kw["chromium_sandbox"] for kw in seen] == [False, True]
+    assert all(kw["channel"] == "chrome" for kw in seen)

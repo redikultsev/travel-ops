@@ -26,6 +26,29 @@ uv run playwright install --with-deps chrome
 The installer creates `profile.yml` from `profile.example.yml` if one is not present. The personal profile and
 the `data/` directory are excluded from Git.
 
+## Run in a container
+
+The `Dockerfile` builds both browsers into one image (about 5 GB, most of it Camoufox) and runs the MCP server
+over HTTP as a user without root. The profile is mounted, the data lives on a volume:
+
+```bash
+docker build -t travel-ops .
+docker run -d --name travel-ops -v travel-data:/data -v "$PWD/profile.yml:/app/profile.yml:ro" --shm-size 1g travel-ops
+docker run -d --name travel-watch -v travel-data:/data -v "$PWD/profile.yml:/app/profile.yml:ro" --shm-size 1g \
+  travel-ops travelops watch run --every-minutes 30
+```
+
+Both browsers are pinned in the `Dockerfile`: Google Chrome by version and the SHA256 its repository index lists
+(`CHROME_VERSION`, `CHROME_SHA256`), Camoufox by release (`CAMOUFOX_VERSION`). Rebuild monthly: take the current
+stable from `https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages` (its `Version` and
+`SHA256`) and the current Camoufox release (`python -m camoufox list`), move the pins, and build with
+`--no-cache`. Google keeps only recent Chrome packages, so an old pin stops building: that is the reminder.
+Set `TRAVELOPS_CHROME_SANDBOX=1` where the container allows Chrome's sandbox (`travelops doctor` says if it starts).
+
+`travelops mcp --http` answers MCP at `/mcp` on port 8765: one POST per tool call, JSON in and out, no session.
+It has no authentication: publish the port nowhere, and put the container on a network where the only other
+member is the client that may call it.
+
 ## Use from the CLI
 
 ```bash
@@ -93,7 +116,9 @@ timer, or keep it running with `--every-minutes 30`. Checks are at least three h
 watches run at once, and a watch ends on its departure or check-in day. A watch alerts when the price is
 `--drop` percent below the price it last told (the first check, then each alert), or first reaches `--below`.
 Alerts are kept until collected: an assistant calls `watch_alerts` (or `travelops watch alerts`) and tells the
-human; each alert is given out once. To push them as well, set `TRAVELOPS_NOTIFY_URL` to POST each as plain text
+human; each alert is given out once. A collector that keeps alerts before telling (a router that must not lose
+one across a restart) looks with `take=false`, keeps them, and then marks exactly those with `upto`, the last
+`alert_id` it kept. To push them as well, set `TRAVELOPS_NOTIFY_URL` to POST each as plain text
 (an [ntfy](https://ntfy.sh) topic URL works as is), or `TRAVELOPS_NOTIFY_COMMAND` to pipe each, as JSON, into a
 command. Watches cover flights, stays, and trains and buses.
 

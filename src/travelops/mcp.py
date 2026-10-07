@@ -42,6 +42,7 @@ REFINE = (
 )
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 LOCAL = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
+HTTP_PATH = "/mcp"
 
 
 def answers(what: str):
@@ -377,9 +378,9 @@ class Tools:
         return {"watches": [watch_json(w, watches) for w in watches.list(ended=include_stopped)]}
 
     @answers("alert collection")
-    async def watch_alerts(self, take: bool = True) -> dict[str, Any]:
+    async def watch_alerts(self, take: bool = True, upto: int | None = None) -> dict[str, Any]:
         return {
-            "alerts": self._watches().pending(take),
+            "alerts": self._watches().pending(take, upto),
             "note": "Each alert is given out once with take=true: tell the human now. Its price is as old as "
             "`seen_at`; search again before recommending a booking.",
         }
@@ -568,7 +569,9 @@ def create_server(
         description="Price drops found by the watches since the last collection, oldest first: what, the price "
         "and the one last told, why it is worth telling, seller, link, `search_id`, when it was seen. With "
         "take=true (default) each alert is given out once, so the assistant that collects them is the one that "
-        "tells the human; take=false only looks. No network requests.",
+        "tells the human; take=false only looks. A collector that keeps alerts before telling looks with "
+        "take=false, keeps them, then passes `upto`, the last `alert_id` it kept: exactly those are marked "
+        "given out and returned. No network requests.",
         annotations=ToolAnnotations(
             read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
         ),
@@ -586,3 +589,18 @@ def create_server(
         annotations=LOCAL,
     )
     return server
+
+
+def http_app(server: MCPServer, host: str):
+    """The same tools over HTTP: one POST per call, JSON in and JSON out, no session to keep, so a restart on
+    either side loses nothing but the call in flight. There is no authentication: listen only where the one
+    client that may call is the only one that can reach."""
+    return server.streamable_http_app(
+        streamable_http_path=HTTP_PATH, stateless_http=True, json_response=True, host=host
+    )
+
+
+def serve_http(server: MCPServer, host: str, port: int) -> None:
+    import uvicorn
+
+    uvicorn.run(http_app(server, host), host=host, port=port, log_level="warning")
