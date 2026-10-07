@@ -88,14 +88,14 @@ async def test_a_recorded_scenario_replays_without_the_network(tmp_path, monkeyp
     app = build_replay(SCENARIO)
     try:
         tools = api.Tools(app)
-        trip = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME")
+        trip = await tools.search_trip(origin="BEG", place="Kotor", depart="2026-10-22", return_date="2026-10-23", country="ME")
         assert trip["flights"]["search_id"] == "fwgug2dt" and trip["flights"]["from_memory"] is False
         assert trip["flights"]["age_minutes"] <= 3 and len(trip["flights"]["cards"]) == 5
         assert {r["source"] for r in trip["stays"]["sources"]} == {"booking", "airbnb", "trivago"}
         assert "kiwi" in trip["flights"]["report"]["ok"]
         evening = await tools.refine_flights("fwgug2dt", return_after="17:00")
         assert evening["cards"] and all(c["inbound"][0]["departs"][11:16] >= "17:00" for c in evening["cards"])
-        two = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME", separate_tickets=True)
+        two = await tools.search_trip(origin="BEG", place="Kotor", depart="2026-10-22", return_date="2026-10-23", country="ME", separate_tickets=True)
         assert two["separate_tickets"]["pairs"][0]["total"] == {"amount": "105.64", "currency": "EUR"}
         pages = await tools.stay_details("sj4bt6gc", ["Ivi 5", "Midpoint"])
         assert [s["status"] for s in pages["stays"]] == ["ok", "not_configured"] and "Kitchen" in pages["stays"][0][
@@ -106,7 +106,7 @@ async def test_a_recorded_scenario_replays_without_the_network(tmp_path, monkeyp
         from mcp.server.mcpserver.exceptions import ToolError
 
         with pytest.raises(ToolError, match="replay has no flights search"):
-            await tools.search_flights("BEG", "IST", "2026-10-22")
+            await tools.search_flights(origin="BEG", destination="IST", depart="2026-10-22")
         with pytest.raises(ToolError, match="replay holds no answer"):
             await tools.airports_near("Budva")
         assert not app.net.counts, "a replay sends nothing"
@@ -121,7 +121,7 @@ async def test_a_later_turn_meets_old_prices(monkeypatch):
         tools = api.Tools(app)
         view = await tools.refine_flights("fwgug2dt")
         assert view["age_minutes"] >= 50 and "search again" in view["stale"]
-        again = await tools.search_trip("BEG", "Kotor", "2026-10-22", "2026-10-23", country="ME")
+        again = await tools.search_trip(origin="BEG", place="Kotor", depart="2026-10-22", return_date="2026-10-23", country="ME")
         assert again["flights"]["age_minutes"] == 0 and "stale" not in again["flights"], "asked again, searched again"
     finally:
         await app.close()
@@ -143,7 +143,8 @@ async def test_the_family_scenario_replays_with_its_party_and_its_refusals():
     try:
         tools = api.Tools(app)
         trip = await tools.search_trip(
-            "BEG", "Lisbon", "2026-11-12", "2026-11-16", country="Portugal", adults=2, children_ages=[7]
+            origin="BEG", place="Lisbon", depart="2026-11-12", return_date="2026-11-16", country="Portugal", adults=2,
+            children_ages=[7],
         )
         assert trip["flights"]["search_id"] == "fzvo46bk" and trip["stays"]["search_id"] == "smnz3xsu"
         refused = {p["source"] for p in trip["flights"]["report"]["problems"]}

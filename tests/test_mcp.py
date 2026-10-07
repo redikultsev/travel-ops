@@ -28,14 +28,14 @@ async def unexpected(*args, **kwargs):
 
 async def test_confirmation_gate_makes_no_requests(app):
     tools = fake_tools(app, estimate=lambda *args: 400, flights=unexpected, load=unexpected)
-    data = await tools.search_flights("BEG", "MOW", "2026-11-14")
+    data = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14")
     assert data["needs_confirmation"] is True and data["estimate_seconds"] == 400
     assert not app.net.counts
 
 
 async def test_direct_defaults_and_json(app):
     tools = fake_tools(app)
-    flights = await tools.search_flights("BEG", "MOW", "2026-11-14", sources=["onetwotrip"])
+    flights = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14", sources=["onetwotrip"])
     assert flights["query"]["adults"] == 2 and flights["query"]["cabin"] == "business" and flights["currency"] == "USD"
     stays = await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16")
     assert stays["query"]["adults"] == 3 and stays["cards"] == []
@@ -47,7 +47,7 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app):
     from mcp.server.mcpserver.exceptions import ToolError
 
     tools = fake_tools(app)
-    flights = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=3)
+    flights = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14", limit=3)
     assert flights["shown"] == {
         "cards": 0,
         "of": 0,
@@ -56,7 +56,7 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app):
         "sorted_by": "price",
     }
     with pytest.raises(ToolError, match="limit"):
-        await tools.search_flights("BEG", "MOW", "2026-11-14", limit=0)
+        await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14", limit=0)
     with pytest.raises(ToolError, match="limit"):
         await tools.search_stays("Belgrade", "2026-11-14", "2026-11-16", limit=1000)
 
@@ -112,12 +112,12 @@ async def test_a_follow_up_is_a_view_of_the_search_and_costs_nothing(app):
     from mcp.server.mcpserver.exceptions import ToolError
 
     tools = fake_tools(app)
-    first = await tools.search_flights("BEG", "MOW", "2026-11-14")
+    first = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14")
     assert first["from_memory"] is False
 
     kinds = tools.searches.kinds
     kinds["flights"] = replace(kinds["flights"], search=unexpected)  # a follow-up must not search
-    again = await tools.search_flights("BEG", "MOW", "2026-11-14", limit=50)
+    again = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14", limit=50)
     assert again["from_memory"] is True and again["search_id"] == first["search_id"]
     view = await tools.refine_flights(first["search_id"], depart_after="17:00", sort="duration")
     assert view["search_id"] == first["search_id"] and view["shown"]["sorted_by"] == "duration"

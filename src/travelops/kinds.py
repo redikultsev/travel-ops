@@ -67,6 +67,10 @@ def flight_query(
         adults += sum(1 for age in ages if age >= 12)
     if infants > adults:
         raise ValueError("infants cannot exceed adults")
+    if origin is None:  # not named: the profile's home airports, as modes/trip.md asks
+        if not profile.home_airports:
+            raise ValueError("origin is needed: no home_airports in the profile, so ask the human where from")
+        origin = ",".join(profile.home_airports)
     return FlightQuery(
         _airports(origin), _airports(destination), depart, return_date, flex_days, adults, children, infants, cabin
     )

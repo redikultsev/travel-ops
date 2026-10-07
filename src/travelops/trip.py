@@ -39,7 +39,7 @@ class TripPlan:
 
 async def plan_trip(
     app: App,
-    origin: str,
+    origin: str | None,
     place: str,
     depart,
     return_date=None,

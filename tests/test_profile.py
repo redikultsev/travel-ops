@@ -26,3 +26,13 @@ def test_data_directory_override(tmp_path, monkeypatch):
     assert data_dir(tmp_path) == tmp_path / "data"
     monkeypatch.setenv("TRAVELOPS_DATA", str(tmp_path / "custom"))
     assert data_dir(tmp_path) == tmp_path / "custom"
+
+
+def test_no_origin_means_the_home_airports(tmp_path):
+    from travelops.kinds import flight_query
+
+    with pytest.raises(ValueError, match="origin"):
+        flight_query(load_profile(tmp_path), None, "TIV", "2026-10-22")
+    (tmp_path / "profile.yml").write_text("home_airports: [BEG]\n")
+    assert flight_query(load_profile(tmp_path), None, "TIV", "2026-10-22").origins == ("BEG",)
+    assert flight_query(load_profile(tmp_path), "VIE", "TIV", "2026-10-22").origins == ("VIE",), "a named one wins"

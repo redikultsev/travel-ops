@@ -4,7 +4,8 @@ A trip is a place and two dates: "Montenegro, 22 to 23 October, staying in Kotor
 
 1. Take what the human already said, then the profile; ask only for what neither gives. Needed: where from,
    the place to stay, both dates, the party. `origin` is IATA codes: the airport of the human's city (Belgrade is
-   BEG) or a city code (MOW); if you are not sure which airports serve that city, ask `airports_near`. A date
+   BEG) or a city code (MOW); if you are not sure which airports serve that city, ask `airports_near`. When the
+   human names no city to fly from, leave `origin` out: the search takes the profile's `home_airports`. A date
    without a year is the next such date. Write the place in Latin script and pass its country separately:
    "Котор" in Montenegro is `place="Kotor", country="Montenegro"`. A country alone is not a place to stay: if
    the human named only a country or region, ask where in it, or offer two or three bases.

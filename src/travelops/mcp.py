@@ -82,9 +82,9 @@ class Tools:
     @answers("flight search")
     async def search_flights(
         self,
-        origin: str,
         destination: str,
         depart: str,
+        origin: str | None = None,  # not named: the profile's home airports
         return_date: str | None = None,
         flex_days: int = 0,
         adults: int | None = None,
@@ -281,9 +281,9 @@ class Tools:
     @answers("trip search")
     async def search_trip(
         self,
-        origin: str,
         place: str,
         depart: str,
+        origin: str | None = None,  # not named: the profile's home airports
         return_date: str | None = None,
         checkout: str | None = None,
         flex_days: int = 0,
