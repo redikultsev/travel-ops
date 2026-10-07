@@ -7,6 +7,7 @@ import math
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import airportsdata
 
@@ -19,6 +20,13 @@ ROUTING = "https://routing.openstreetmap.de/routed-car/table/v1/driving/"
 AGENT = "travel-ops/0.1 (+https://github.com/redikultsev/travel-ops)"
 ROAD_CREDIT = "road distances: OSRM on OpenStreetMap data, routing.openstreetmap.de; © OpenStreetMap contributors"
 _AIRPORTS = airportsdata.load("IATA")
+# Airports airlines fly to, from OurAirports (scripts/update_airports.py): the table above also holds closed
+# airports and air bases, which no search answers for.
+SCHEDULED = frozenset(
+    line.strip()
+    for line in (Path(__file__).parent / "data" / "scheduled_airports.txt").read_text().splitlines()
+    if line.strip() and not line.startswith("#")
+)
 FORMAL = re.compile(r"^(the |(republic|kingdom|state|commonwealth|principality|grand duchy) of (the )?)", re.I)
 
 
@@ -132,9 +140,12 @@ async def locate(net: Net, name: str, country: str | None = None, language: str 
 
 
 def airports_near(lat: float, lon: float, radius_km: float = 100, limit: int = 6) -> list[dict]:
-    """Airports with an IATA code by distance. Whether airlines fly there is not known here: a search tells."""
+    """Airports with scheduled passenger flights, by distance. Which routes they have is not known here: a search
+    tells."""
     found = []
     for code, airport in _AIRPORTS.items():
+        if code not in SCHEDULED:
+            continue
         km = distance_km(lat, lon, airport["lat"], airport["lon"])
         if km <= radius_km:
             found.append(

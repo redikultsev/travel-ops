@@ -7,6 +7,7 @@ travel-ops includes ideas and code adapted from these MIT-licensed projects:
 
 Each adapted file names its origin in a header comment.
 Currency rates by https://www.exchangerate-api.com (open access endpoint).
+Which airports have scheduled flights: OurAirports, https://ourairports.com/data/ (public domain).
 
 Third-party copyright notices:
 

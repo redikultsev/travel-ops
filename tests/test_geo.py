@@ -91,3 +91,12 @@ def test_a_place_is_labelled_the_way_a_search_box_reads_it():
 
     assert Place("Istanbul", "Republic of Türkiye", "TR", None, 41.0, 29.0).label() == "Istanbul, Türkiye"
     assert Place("Kotor", "Montenegro", "ME", None, 42.4, 18.8).label() == "Kotor, Montenegro"
+
+
+def test_only_airports_with_scheduled_flights_serve_a_place():
+    from travelops.geo import airports_near
+
+    istanbul = [a["iata"] for a in airports_near(41.01, 28.98, 100)]
+    assert istanbul[:2] == ["SAW", "IST"] and "ISL" not in istanbul, "Atatürk is closed to passengers"
+    tokyo = [a["iata"] for a in airports_near(35.68, 139.76, 100)]
+    assert tokyo[:2] == ["HND", "NRT"] and not {"NJA", "OKO"} & set(tokyo), "air bases sell no tickets"
