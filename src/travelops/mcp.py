@@ -444,7 +444,8 @@ GROUND = (
     "default train and bus. Prices are for the whole party. A train price is `price_from`: the cheapest class "
     "for everyone, which the party may not all get; `classes_per_seat` gives one seat in each class (seat, "
     "open_berth, compartment, sleeper). Sources: tutu (Russia and the CIS, some international buses), 12go "
-    "(Turkey, south-east Asia, parts of the Balkans, ferries). Flights are not here: use the flight tools. "
+    "(Turkey, south-east Asia, parts of the Balkans, ferries), flixbus (Europe and North America, with partner "
+    "carriers). Flights are not here: use the flight tools. "
 )
 TRIP = (
     "Whole trip in one call: flights from `origin` (IATA codes, e.g. BEG or a city code such as MOW) to the airports "

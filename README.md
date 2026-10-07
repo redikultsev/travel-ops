@@ -113,11 +113,13 @@ search, every source must be reported. See `evals/README.md`.
 | Kupibilet | Flights | HTTP requests |
 | Wildberries Travel | Flights | Browser session and HTTP requests |
 | Kiwi.com | Flights | Kiwi's public MCP server; prices in EUR, sold outside Russia |
+| Google Flights | Flights | Google's public search page, no API (see its terms); worldwide |
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |
 | Tutu | Trains and buses | Tutu MCP search; Russia and the CIS, some international buses |
 | 12Go | Trains, buses, ferries | 12Go's public MCP server; Turkey, south-east Asia, parts of the Balkans |
+| FlixBus | Buses and trains | FlixBus shop JSON; Europe and North America, partner carriers included |
 
 Sites may limit automated requests or block them. Respect each site's terms and use the tool for personal-volume
 searches. Do not bypass blocks with proxies or use booking, checkout, or passenger-data flows.

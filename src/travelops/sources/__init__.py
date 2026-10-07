@@ -22,6 +22,11 @@ RULES: dict[str, Rule] = {
     "trivago": Rule(interval=3, jitter=1, window=30, per=600, quarantine=1800),
     "12go": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "12go/handshake": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
+    # FlixBus's own shop JSON; city lookups are cached and wait in a short line of their own.
+    "flixbus": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
+    "flixbus/lookup": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
+    # Google's search page, read without an API: slow and few, and a refusal rests it for an hour.
+    "google": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # A public routing service that asks for one request a second at most.
     "routing": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
     # Photo CDNs, not the travel sites themselves.
@@ -52,6 +57,10 @@ from .flights.kiwi import Source as Kiwi
 
 FLIGHT_SOURCES["kiwi"] = Kiwi
 
+from .flights.google import Source as Google
+
+FLIGHT_SOURCES["google"] = Google
+
 from .stays.booking import Source as Booking
 
 STAY_SOURCES["booking"] = Booking
@@ -71,3 +80,7 @@ GROUND_SOURCES["tutu"] = TutuGround
 from .ground.twelvego import Source as TwelveGo
 
 GROUND_SOURCES["12go"] = TwelveGo
+
+from .ground.flixbus import Source as FlixBus
+
+GROUND_SOURCES["flixbus"] = FlixBus

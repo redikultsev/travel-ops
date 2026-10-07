@@ -96,3 +96,61 @@ def test_12go_keeps_modes_not_asked_out():
 async def test_12go_does_not_guess_children():
     with pytest.raises(NotConfigured):
         await TwelveGo().fetch(GroundQuery("A", "B", date(2026, 11, 14), children=1), Context(None, None, lambda: NOW))
+
+
+FLIX = "flixbus/belgrade-vienna-2026-11-14.json"
+
+
+def test_flixbus_prices_the_party_with_its_fee_and_names_partner_carriers():
+    from travelops.sources.ground.flixbus import Source as FlixBus
+
+    query = GroundQuery("Belgrade", "Vienna", date(2026, 11, 14), adults=2, modes=("train", "bus"))
+    parsed = FlixBus().parse([raw(FLIX)], query, NOW)
+    assert len(parsed.offers) == 7
+    direct = next(o for o in parsed.offers if len(o.rides) == 1 and o.rides[0].carrier == "FUDEKS d.o.o.")
+    assert (str(direct.price.amount), direct.price.currency) == ("82.59", "EUR"), "81.60 plus the service fee"
+    assert direct.duration_min() == 525 and direct.link.url.startswith("https://shop.global.flixbus.com/search?")
+    change = next(o for o in parsed.offers if len(o.rides) == 2)
+    assert change.rides[0].destination == change.rides[1].origin == "Budapest Népliget"
+    assert not any("understood as" in n for n in parsed.notes), "the names were plain to FlixBus"
+    assert any("service fee" in n for n in parsed.notes)
+
+
+def test_flixbus_keeps_modes_not_asked_out_and_says_a_place_it_read_otherwise():
+    from travelops.sources.ground.flixbus import Source as FlixBus
+
+    trains = FlixBus().parse([raw(FLIX)], GroundQuery("Belgrade", "Vienna", date(2026, 11, 14), modes=("train",)), NOW)
+    assert trains.offers == [] and "also found by bus, not asked for" in trains.notes
+    other = FlixBus().parse([raw(FLIX)], GroundQuery("Beograd", "Wien", date(2026, 11, 14)), NOW)
+    assert "Beograd: understood as Belgrade (RS)" in other.notes
+
+
+async def test_flixbus_looks_up_both_places_then_searches_once_and_drops_traveller_text():
+    from travelops.sources.ground.flixbus import Source as FlixBus
+
+    calls = []
+    answer = {
+        "trips": [{"results": {"t": {"uid": "t", "status": "available", "messages": ["call us"], "legs": []}}}],
+        "stations": {},
+        "operators": {},
+        "platform_fee_in_price_required": True,
+    }
+
+    class Net:
+        async def request(self, source, method, url, **kw):
+            calls.append((url.rsplit("/", 1)[-1], kw.get("queue"), kw.get("params")))
+            if "autocomplete" in url:
+                return Response(
+                    200, json.dumps([{"id": kw["params"]["q"].lower(), "name": kw["params"]["q"]}]).encode()
+                )
+            return Response(200, json.dumps(answer).encode())
+
+    query = GroundQuery("Belgrade", "Vienna", date(2026, 11, 14), adults=2)
+    (raw_answer,) = await FlixBus().fetch(query, Context(Net(), None, lambda: NOW))
+    assert [(c[0], c[1]) for c in calls] == [("cities", "lookup"), ("cities", "lookup"), ("search", None)]
+    sent = calls[-1][2]
+    assert sent["from_city_id"] == "belgrade" and sent["departure_date"] == "14.11.2026"
+    assert json.loads(sent["products"]) == {"adult": 2}
+    assert "messages" not in json.loads(raw_answer)["trips"][0]
+    with pytest.raises(NotConfigured):
+        await FlixBus().fetch(GroundQuery("A", "B", date(2026, 11, 14), children=1), Context(None, None, lambda: NOW))
