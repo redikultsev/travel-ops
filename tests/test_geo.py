@@ -74,3 +74,20 @@ async def test_the_drive_from_each_airport_comes_from_one_routing_request_and_fa
     assert "OpenStreetMap" in credit
     kept, note = await with_roads(Net(TimeoutError("slow")), 42.42067, 18.76825, [dict(a) for a in near])
     assert all("km_road" not in a for a in kept) and "unavailable" in note and kept[0]["km_straight"] == 4
+
+
+def test_a_country_is_found_as_people_write_it():
+    from travelops.geo import Place, in_country
+
+    turkey = Place("Istanbul", "Republic of Türkiye", "TR", None, 41.0, 29.0)
+    assert all(in_country(turkey, c) for c in ("Turkey", "TR", "tr", "Türkiye", "Turkiye", "Republic of Türkiye"))
+    assert not in_country(turkey, "Tur"), "a fragment is not a country"
+    bosnia = Place("Kotor", "Bosnia and Herzegovina", "BA", None, 44.6, 17.4)
+    assert in_country(bosnia, "Bosnia") and not in_country(bosnia, "Montenegro")
+
+
+def test_a_place_is_labelled_the_way_a_search_box_reads_it():
+    from travelops.geo import Place
+
+    assert Place("Istanbul", "Republic of Türkiye", "TR", None, 41.0, 29.0).label() == "Istanbul, Türkiye"
+    assert Place("Kotor", "Montenegro", "ME", None, 42.4, 18.8).label() == "Kotor, Montenegro"

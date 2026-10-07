@@ -143,3 +143,29 @@ def test_a_listing_page_gives_amenities_place_and_what_the_place_really_is():
     assert len(details["photos"]) == 4 and all("icon" not in url for url in details["photos"])
     with pytest.raises(ParseError):
         Source().parse_details(b"<html>unrelated</html>")
+
+
+def test_one_card_with_a_nightly_rate_only_is_left_out_not_the_answer():
+    import json
+    from travelops.sources.stays._html import Tree
+
+    data = json.loads(Tree(recorded()).root.find(id="data-deferred-state-0").text())
+    whole = len(Source().parse([recorded()], QUERY, NOW).offers)
+    first = []
+
+    def strip_first(x):
+        if isinstance(x, dict):
+            if x.get("__typename") == "StaySearchResult" and not first:
+                first.append(x)
+                x["structuredDisplayPrice"] = {"primaryLine": {"price": "€40", "qualifier": "per night"}}
+            for v in x.values():
+                strip_first(v)
+        elif isinstance(x, list):
+            for v in x:
+                strip_first(v)
+
+    strip_first(data)
+    raw = ('<script id="data-deferred-state-0">' + json.dumps(data) + "</script>").encode()
+    parsed = Source().parse([raw], QUERY, NOW)
+    assert len(parsed.offers) == whole - 1
+    assert "1 listings showed a nightly rate only and were left out" in parsed.notes

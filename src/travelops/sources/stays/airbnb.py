@@ -98,7 +98,7 @@ class Source:
             raise ParseError("full-stay total missing; nightly rates cannot establish fees")
 
         offers = {}
-        total_count = None
+        total_count, unpriced = None, 0
         try:
             for raw in raws:
                 tree = Tree(raw).root
@@ -140,6 +140,13 @@ class Source:
                                 and p["picture"].startswith(("http://", "https://"))
                             )
                         )
+                        try:
+                            total = total_price(item["structuredDisplayPrice"])
+                        except ParseError:
+                            # A card that shows a nightly rate only: its fees are unknown, so it is left out, not
+                            # the whole answer.
+                            unpriced += 1
+                            continue
                         url = f"https://www.airbnb.com/rooms/{source_id}?" + urlencode(
                             {
                                 "check_in": query.checkin.isoformat(),
@@ -174,7 +181,7 @@ class Source:
                                 photos,
                             ),
                             Rate(
-                                total_price(item["structuredDisplayPrice"]),
+                                total,
                                 self.name,
                                 self.name,
                                 Link(url, "property"),
@@ -187,6 +194,8 @@ class Source:
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             raise ParseError(f"Airbnb search fields: {exc}") from exc
         if not offers:
+            if unpriced:
+                raise ParseError("full-stay total missing on every card; nightly rates cannot establish fees")
             return Parsed()
         coverage = f"first SSR page: {len(offers)} listings; " + (
             f"total {total_count}" if total_count is not None else "total count not provided"
@@ -197,6 +206,7 @@ class Source:
                 coverage,
                 "amenities are not in search cards; stay_details reads them from the listing page",
                 "taxes and fees inside or on top of the total are not stated",
+                *([f"{unpriced} listings showed a nightly rate only and were left out"] if unpriced else []),
             ],
         )
 

@@ -4,6 +4,8 @@ none of its own, and the right ones (Tivat, Podgorica, Dubrovnik) follow from di
 from __future__ import annotations
 
 import math
+import re
+import unicodedata
 from dataclasses import asdict, dataclass
 
 import airportsdata
@@ -17,6 +19,7 @@ ROUTING = "https://routing.openstreetmap.de/routed-car/table/v1/driving/"
 AGENT = "travel-ops/0.1 (+https://github.com/redikultsev/travel-ops)"
 ROAD_CREDIT = "road distances: OSRM on OpenStreetMap data, routing.openstreetmap.de; © OpenStreetMap contributors"
 _AIRPORTS = airportsdata.load("IATA")
+FORMAL = re.compile(r"^(the |(republic|kingdom|state|commonwealth|principality|grand duchy) of (the )?)", re.I)
 
 
 @dataclass(frozen=True)
@@ -29,7 +32,10 @@ class Place:
     lon: float
 
     def label(self) -> str:
-        return f"{self.name}, {self.country}"
+        """The place as a site's search box reads it: "Istanbul, Türkiye". The geocoder writes some countries in
+        their formal style ("Republic of Türkiye"), which Booking does not recognise and answers with its home
+        page."""
+        return f"{self.name}, {FORMAL.sub('', self.country)}"
 
 
 def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -40,6 +46,56 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         + math.cos(lat1 * p) * math.cos(lat2 * p) * (1 - math.cos((lon2 - lon1) * p)) / 2
     )
     return 12742 * math.asin(math.sqrt(h))
+
+
+# English names people write that differ from the geocoder's own, by ISO code.
+COUNTRY_NAMES = {
+    "turkey": "TR",
+    "czech republic": "CZ",
+    "russia": "RU",
+    "usa": "US",
+    "united states of america": "US",
+    "america": "US",
+    "uk": "GB",
+    "great britain": "GB",
+    "britain": "GB",
+    "england": "GB",
+    "scotland": "GB",
+    "south korea": "KR",
+    "korea": "KR",
+    "holland": "NL",
+    "the netherlands": "NL",
+    "macedonia": "MK",
+    "bosnia": "BA",
+    "ivory coast": "CI",
+    "uae": "AE",
+    "emirates": "AE",
+    "vatican": "VA",
+    "burma": "MM",
+    "cape verde": "CV",
+    "swaziland": "SZ",
+    "east timor": "TL",
+    "laos": "LA",
+    "moldova": "MD",
+    "iran": "IR",
+    "syria": "SY",
+    "vietnam": "VN",
+}
+
+
+def _folded(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(c)).strip()
+
+
+def in_country(place: Place, country: str) -> bool:
+    """Whether a place is in the country a person named: its code, its name as the geocoder writes it or a word
+    of it ("Türkiye" in "Republic of Türkiye"), or a common English name ("Turkey")."""
+    wanted = _folded(country)
+    code = place.country_code.lower()
+    if code in (wanted, COUNTRY_NAMES.get(wanted, "").lower()):
+        return True
+    name = _folded(place.country)
+    return wanted == name or (len(wanted) > 3 and (wanted in name.split() or wanted in name or name in wanted))
 
 
 def parse_places(payload: dict, country: str | None = None) -> list[Place]:
@@ -55,8 +111,7 @@ def parse_places(payload: dict, country: str | None = None) -> list[Place]:
         for r in payload.get("results") or []
     ]
     if country:
-        wanted = country.strip().lower()
-        places = [p for p in places if wanted in (p.country.lower(), p.country_code.lower())]
+        places = [p for p in places if in_country(p, country)]
     return places
 
 

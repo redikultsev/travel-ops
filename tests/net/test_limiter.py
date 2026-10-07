@@ -67,3 +67,16 @@ async def test_reset(tmp_path):
 def test_bucket_name():
     assert Limiter.bucket("booking", "") == "booking"
     assert Limiter.bucket("booking", "home:1080") == "booking@home:1080"
+
+
+def test_a_spent_window_is_part_of_the_wait_told_before_a_search():
+    from travelops.net.limiter import Limiter, Rule, State
+
+    now = [1000.0]
+    limiter = Limiter(None, {"booking": Rule(interval=10, jitter=0, window=3, per=600)}, clock=lambda: now[0])
+    limiter.save("booking", State(last=990.0, history=[700.0, 800.0, 990.0]))
+    assert limiter.window_wait("booking") == 300.0, "the oldest of the three frees at 1300"
+    assert limiter.window_wait("booking", 2) == 400.0
+    assert limiter.estimate("booking", 2) == 10 + 400.0
+    now[0] = 1301.0
+    assert limiter.window_wait("booking") == 0.0

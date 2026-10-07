@@ -81,8 +81,18 @@ async def run_source(
     except Blocked as exc:
         return [], report(Status.BLOCKED, str(exc))
     except (TimeoutError, asyncio.TimeoutError) as exc:
-        # A single request that hung says so itself; an empty message is the deadline of the whole run.
-        return [], report(Status.TIMEOUT, str(exc) or f"no answer in {timeout:.0f} s")
+        # A single request that hung says so itself; an empty message is the deadline of the whole run, which our
+        # own request budget for the source can be the cause of.
+        reason = str(exc) or f"no answer in {timeout:.0f} s"
+        if not str(exc) and ctx.net:
+            bucket = Limiter.bucket(source.name, ctx.net.exit)
+            if (free := ctx.net.limiter.window_wait(bucket)) > 0:
+                rule = ctx.net.limiter.rule(bucket)
+                reason = (
+                    f"our own request budget for {source.name} ({rule.window} per {rule.per / 60:.0f} min) is spent; "
+                    f"it frees in {free / 60:.0f} min"
+                )
+        return [], report(Status.TIMEOUT, reason)
     except ParseError as exc:
         return [], report(Status.UNPARSED, f"answer not understood: {exc}")
     except (NotConfigured, BrowserUnavailable) as exc:

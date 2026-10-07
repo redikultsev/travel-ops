@@ -106,9 +106,19 @@ class Limiter:
         self.db.execute("DELETE FROM limiter WHERE bucket = ?", (bucket,))
         self.db.commit()
 
+    def window_wait(self, bucket: str, requests: int = 1) -> float:
+        """Seconds until `requests` more fit in the source's window: its own budget of requests per period."""
+        rule, st, now = self.rule(bucket), self.state(bucket), self.clock()
+        recent = sorted(t for t in st.history if t > now - rule.per)
+        over = len(recent) + requests - rule.window
+        if over <= 0:
+            return 0.0
+        return max(0.0, recent[min(over, len(recent)) - 1] + rule.per - now)
+
     def estimate(self, bucket: str, requests: int) -> float:
         rule, st = self.rule(bucket), self.state(bucket)
-        return max(0, requests - 1) * (rule.interval * st.slow + rule.jitter / 2)
+        spacing = max(0, requests - 1) * (rule.interval * st.slow + rule.jitter / 2)
+        return spacing + self.window_wait(bucket, requests)
 
     def longest_wait(self, bucket: str, requests: int) -> float:
         """Upper bound of the spacing these requests can cost, for deadlines rather than for the user."""

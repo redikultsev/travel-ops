@@ -60,7 +60,11 @@ async def plan_trip(
         raise ValueError("max_airports must be from 1 to 3")
     candidates = await locate(app.net, place, country)
     if not candidates:
-        raise ValueError(f"place not found: {place!r}; write it in Latin script and add the country")
+        raise ValueError(
+            f"place not found: {place!r}"
+            + (f" in {country!r}; check the country, in English or as a two-letter code" if country else "")
+            + "; write the place in Latin script"
+        )
     here = candidates[0]
     reach, roads = await with_roads(app.net, here.lat, here.lon, airports_near(here.lat, here.lon, radius_km))
     chosen = airports or ",".join(a["iata"] for a in reach[:max_airports])
