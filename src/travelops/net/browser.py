@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -59,6 +60,40 @@ async def launch(engine: str, url: str, ready_cookie: str | None, proxy: str | N
         return await _harvest(browser, engine, url, ready_cookie)
 
 
+Capturer = Callable[[str, str, str, str | None, bool], Awaitable[list[bytes]]]
+
+
+async def capture(engine: str, url: str, pattern: str, proxy: str | None, headless: bool) -> list[bytes]:
+    """Open a page as a person would and keep the bodies of the answers it receives from URLs matching `pattern`,
+    once the page has had one. For a site whose requests the page signs itself: the browser makes the search, and
+    nothing it sends is forged. Camoufox only."""
+    from camoufox.async_api import AsyncCamoufox
+
+    wanted, bodies, arrived = re.compile(pattern), [], asyncio.Event()
+
+    async with AsyncCamoufox(headless=headless, proxy={"server": proxy} if proxy else None, geoip=True) as browser:
+        page = await browser.new_page()
+
+        async def keep(response):
+            if wanted.search(response.url):
+                try:
+                    bodies.append(await response.body())
+                    arrived.set()
+                except Exception:  # an answer the page dropped before it finished
+                    pass
+
+        page.on("response", keep)
+        first = await page.goto(url, wait_until="domcontentloaded")
+        if first is not None and first.status in (403, 429, 451):
+            raise Blocked(f"browser navigation refused with HTTP {first.status}")
+        try:
+            await asyncio.wait_for(arrived.wait(), READY_TIMEOUT_S)
+        except TimeoutError:
+            raise Blocked("the page did not search: an anti-bot check may have stopped it") from None
+        await page.wait_for_timeout(2000)  # a streamed answer may still be finishing
+    return bodies
+
+
 async def _harvest(browser, engine: str, url: str, ready_cookie: str | None) -> Session:
     page = await browser.new_page()
     user_agent = await page.evaluate("navigator.userAgent")
@@ -84,6 +119,7 @@ class BrowserSessions:
         exit_: str,
         proxy: str | None,
         launcher: Launcher = launch,
+        capturer: Capturer = capture,
         clock: Callable[[], float] = time.time,
         limiter: Limiter | None = None,
         counts: Counter | None = None,
@@ -91,6 +127,7 @@ class BrowserSessions:
         self.dir = data_dir / "sessions"
         self.dir.mkdir(parents=True, exist_ok=True)
         self.exit, self.proxy, self.launcher, self.clock = exit_, proxy, launcher, clock
+        self.capturer = capturer
         self.limiter, self.counts = limiter, counts
         self.locks: dict[str, asyncio.Lock] = {}
 
@@ -127,6 +164,23 @@ class BrowserSessions:
             path.touch(mode=0o600, exist_ok=True)
             path.write_text(json.dumps(asdict(session)))
             return session
+
+    async def search(self, source: str, url: str, pattern: str, *, headless: bool = True) -> list[bytes]:
+        """A search the page makes itself: open `url` in a browser and return the answers it got from URLs
+        matching `pattern`. One page is one request of the source, spaced and quarantined like any other."""
+        bucket = Limiter.bucket(source, self.exit)
+        if self.limiter is not None:
+            await self.limiter.acquire(bucket)
+        count(self.counts, source)
+        try:
+            bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless)
+        except Blocked:
+            if self.limiter is not None:
+                self.limiter.blocked(bucket)
+            raise
+        if self.limiter is not None:
+            self.limiter.succeeded(bucket)
+        return bodies
 
     def drop(self, source: str) -> None:
         self._path(source).unlink(missing_ok=True)

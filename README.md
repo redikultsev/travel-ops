@@ -114,6 +114,7 @@ search, every source must be reported. See `evals/README.md`.
 | Wildberries Travel | Flights | Browser session and HTTP requests |
 | Kiwi.com | Flights | Kiwi's public MCP server; prices in EUR, sold outside Russia |
 | Google Flights | Flights | Google's public search page, no API (see its terms); worldwide |
+| Trip.com | Flights | A browser opens its results page; one way only; Asia and worldwide |
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |

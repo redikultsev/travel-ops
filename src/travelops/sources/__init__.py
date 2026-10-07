@@ -25,6 +25,8 @@ RULES: dict[str, Rule] = {
     # FlixBus's own shop JSON; city lookups are cached and wait in a short line of their own.
     "flixbus": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "flixbus/lookup": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
+    # Trip.com: each search is a browser opening the results page, so few and far apart.
+    "tripcom": Rule(interval=20, jitter=6, window=10, per=600, quarantine=3600),
     # Google's search page, read without an API: slow and few, and a refusal rests it for an hour.
     "google": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # A public routing service that asks for one request a second at most.
@@ -60,6 +62,10 @@ FLIGHT_SOURCES["kiwi"] = Kiwi
 from .flights.google import Source as Google
 
 FLIGHT_SOURCES["google"] = Google
+
+from .flights.tripcom import Source as TripCom
+
+FLIGHT_SOURCES["tripcom"] = TripCom
 
 from .stays.booking import Source as Booking
 
