@@ -44,7 +44,10 @@ Missing inclusion remains unknown. `luggageMeta.cabin` indicates cabin luggage
 when present. Extra per-flight tariff endpoints are intentionally not called:
 they multiply traffic and are not necessary to show the summary price. State
 that only summary fares are shown and detailed tariff terms are unknown.
-There is no known results URL: `link` stays null and its absence is reported.
+The link is WB Travel's own results page for the same search:
+`https://www.wildberries.ru/travel/avia/results?token=BEG141126IST171126Y200` is from, day (DDMMYY), to, the
+day back, the class and the adults, children and infants; it opened that round trip for two on 2026-10-07.
+Only economy is verified; another cabin has no link.
 
 ## Request budget
 

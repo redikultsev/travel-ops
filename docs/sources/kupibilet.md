@@ -34,8 +34,10 @@ RUB is the requested currency. `price.amount` is for the whole party: one search
 for two. Kupibilet prices a child by age and the flight query carries no ages, so
 children and infants are not configured.
 
-No exact-ticket URL or fully validated results URL was established. Return
-`link: null` with an explicit note; never construct a guessed purchase URL.
+The link is Kupibilet's own results page for the same search, as its search form builds it (seen
+2026-10-07): `https://www.kupibilet.ru/search?adult=2&child=0&infant=0&childrenAges=[]&cabinClass=Y&route[0]=iatax:BEG_2026-11-14_date_2026-11-14_iatax:IST&route[1]=iatax:IST_2026-11-17_date_2026-11-17_iatax:BEG&v=2`
+opened that round trip for two. Only economy (`Y`) is verified; another cabin has no link rather than a
+guessed one. A ticket URL is never constructed. The cabin of a fare is the one each flight states.
 
 ## Limits
 

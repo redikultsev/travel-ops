@@ -3,6 +3,7 @@ import pytest
 from travelops.core.flights import FlightQuery
 from travelops.net.client import Response
 from travelops.sources.base import Context, NotConfigured
+from travelops.sources.flights import kupibilet
 from travelops.sources.flights.kupibilet import Source
 
 QUERY = FlightQuery(("BEG",), ("MOW",), date(2026, 11, 14))
@@ -54,8 +55,11 @@ def test_recorded_all_variants_and_fare():
     assert first.fare.price == Money("37154", "RUB")
     assert first.fare.baggage.checked == 0 and first.fare.baggage.checked_kg == 0
     assert first.fare.baggage.carry_on is True
-    assert first.fare.cabin == "economy" and first.fare.link is None
-    assert "no validated ticket or results URL" in parsed.notes
+    assert first.fare.cabin == "economy", "the cabin each flight states"
+    assert first.fare.link.kind == "results" and first.fare.link.url.startswith("https://www.kupibilet.ru/search?")
+    assert "route%5B0%5D=iatax%3ABEG_2026-11-14_date_2026-11-14_iatax%3AMOW" in first.fare.link.url
+    business = FlightQuery(QUERY.origins, QUERY.destinations, QUERY.depart, cabin="business")
+    assert kupibilet.results_url(business, "BEG", "MOW") is None, "another cabin's link is not verified"
 
 
 def test_empty_garbage_and_unknown_baggage():

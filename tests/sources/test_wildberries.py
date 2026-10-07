@@ -62,7 +62,8 @@ def test_recorded_stream_minor_price_and_moscow_wall_time():
     assert segment.departs.isoformat() == "2026-11-14T11:30:00+03:00"
     assert segment.arrives.isoformat() == "2026-11-14T13:00:00+03:00"
     assert offer.fare.baggage.checked == 0 and offer.fare.baggage.carry_on is True
-    assert offer.fare.cabin == "economy" and offer.fare.link is None
+    assert offer.fare.cabin == "economy"
+    assert offer.fare.link.url == "https://www.wildberries.ru/travel/avia/results?token=MOW141126LEDY100"
     assert "summary fares only; detailed tariff terms unknown" in result.notes
 
 

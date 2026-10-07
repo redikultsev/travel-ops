@@ -8,6 +8,16 @@ from ..base import NotConfigured
 
 URL = "https://travel.wildberries.ru/stream/api/avia-service/v3/stream/getFlights"
 CLASSES = {"economy": "ECONOMY", "premium_economy": "COMFORT", "business": "BUSINESS", "first": "FIRST"}
+SITE = "https://www.wildberries.ru/travel/avia/results"
+
+
+def results_url(query, origin: str, destination: str) -> str | None:
+    """WB Travel's own results page for the same search: `BEG141126IST171126Y200` is from, day, to, the day back,
+    the class and the adults, children and infants (seen 2026-10-07). Only economy is verified."""
+    if query.cabin != "economy":
+        return None
+    back = query.return_.strftime("%d%m%y") if query.return_ else ""
+    return f"{SITE}?token={origin}{query.depart.strftime('%d%m%y')}{destination}{back}Y{query.adults}00"
 
 
 def challenge(response):
@@ -79,6 +89,7 @@ class Source:
         from datetime import datetime
         from decimal import Decimal
         from zoneinfo import ZoneInfo
+        from ...core.common import Link
         from ...core.flights import Baggage, Fare, FlightOffer, Itinerary, Segment, at_airport, cabin, flight_number
         from ...core.money import Money
         from ..base import Parsed, ParseError
@@ -92,8 +103,10 @@ class Source:
             return at_airport(value, airport)
 
         offers = []
+        routes = list(product(query.origins, query.destinations))
         try:
-            for raw in raws:
+            for index, raw in enumerate(raws):
+                url = results_url(query, *routes[index]) if len(routes) == len(raws) else None
                 latest = {}
                 for line in raw.splitlines():
                     if not line.strip():
@@ -147,7 +160,7 @@ class Source:
                                 self.name,
                                 normalized,
                                 Baggage(checked, weight, carry),
-                                None,
+                                Link(url, "results") if url else None,
                                 seen_at,
                             ),
                         )
@@ -159,7 +172,11 @@ class Source:
             [
                 f"requested cabin: {query.cabin}",
                 "summary fares only; detailed tariff terms unknown",
-                "no validated ticket or results URL",
+                *(
+                    ["no results link: WB Travel's link for this cabin is not verified"]
+                    if query.cabin != "economy"
+                    else []
+                ),
                 "included baggage piece count unknown when only inclusion is reported",
             ]
             if offers

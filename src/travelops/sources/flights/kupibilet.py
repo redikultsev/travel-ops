@@ -1,11 +1,26 @@
 """Kupibilet search transport from docs/sources/kupibilet.md."""
 
 from itertools import product
+from urllib.parse import urlencode
 
 from ...core.flights import CABINS
 from ..base import NotConfigured
 
 URL = "https://api-rs-lb.kupibilet.ru/frontend_search"
+SITE = "https://www.kupibilet.ru/search"
+
+
+def results_url(query, origin: str, destination: str) -> str | None:
+    """Kupibilet's own results page for the same search, as its search form builds it (seen 2026-10-07). Only
+    economy is verified, so another cabin has no link rather than a guessed one."""
+    if query.cabin != "economy":
+        return None
+    routes = [(origin, query.depart, destination)] + ([(destination, query.return_, origin)] if query.return_ else [])
+    params = {"adult": query.adults, "child": 0, "infant": 0, "childrenAges": "[]", "cabinClass": "Y"}
+    for index, (a, day, b) in enumerate(routes):
+        params[f"route[{index}]"] = f"iatax:{a}_{day.isoformat()}_date_{day.isoformat()}_iatax:{b}"
+    params["v"] = 2
+    return f"{SITE}?{urlencode(params)}"
 
 
 def challenge(response):
@@ -60,23 +75,27 @@ class Source:
 
     def parse(self, raws, query, seen_at):
         import json
-        from ...core.flights import Baggage, Fare, FlightOffer, Itinerary, Segment, at_airport, flight_number
+        from ...core.common import Link
+        from ...core.flights import Baggage, Fare, FlightOffer, Itinerary, Segment, at_airport, cabin, flight_number
         from ...core.money import Money
         from ..base import Parsed, ParseError
 
         offers = []
+        routes = list(product(query.origins, query.destinations))
         try:
-            for raw in raws:
+            for index, raw in enumerate(raws):
+                url = results_url(query, *routes[index]) if len(routes) == len(raws) else None
                 data = json.loads(raw)
                 variants, flights = data["variants"], data["flights"]
                 if not isinstance(variants, list) or not isinstance(flights, dict):
                     raise ParseError("variants must be a list and flights a map")
                 for variant in variants:
-                    directions = []
+                    directions, cabins = [], set()
                     for leg in variant["segments"]:
                         segments = []
                         for fid in leg["flights"]:
                             f = flights[fid]
+                            cabins.add(cabin(f.get("cabin")))
                             carrier = f.get("marketing_carrier") or f["operating_carrier"]
                             segments.append(
                                 Segment(
@@ -107,15 +126,17 @@ class Source:
                                 Money(price["amount"], price.get("currency", "RUB")),
                                 self.name,
                                 self.name,
-                                query.cabin,
+                                # Each flight says its cabin; a mixed or unstated one is not the cabin asked for.
+                                cabins.pop() if len(cabins) == 1 else None,
                                 Baggage(count, weight, carry),
-                                None,
+                                Link(url, "results") if url else None,
                                 seen_at,
                             ),
                         )
                     )
         except (ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
             raise ParseError(f"Kupibilet response fields: {exc}") from exc
-        return Parsed(
-            offers, [f"requested cabin: {query.cabin}", "no validated ticket or results URL"] if offers else []
-        )
+        notes = [f"requested cabin: {query.cabin}"]
+        if query.cabin != "economy":
+            notes.append("no results link: Kupibilet's link for this cabin is not verified")
+        return Parsed(offers, notes if offers else [])
