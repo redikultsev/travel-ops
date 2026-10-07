@@ -26,10 +26,14 @@ RUN playwright install-deps firefox \
     && echo "${CHROME_SHA256}  /tmp/chrome.deb" | sha256sum -c - \
     && apt-get update && apt-get install -y --no-install-recommends /tmp/chrome.deb \
     && rm -rf /tmp/chrome.deb /var/lib/apt/lists/*
-RUN useradd --create-home --uid 10001 travel && install -d -o travel -g travel /data
+# camoufox fetch writes its fingerprint model into the package's folder: it must belong to the user who fetches.
+RUN useradd --create-home --uid 10001 travel && install -d -o travel -g travel /data \
+    && chown -R travel:travel /app/.venv/lib/python3.12/site-packages/fpgen
 USER travel
-# Camoufox's Firefox and its GeoIP base, into the user's cache; the build log says which one is active.
-RUN python -m camoufox set ${CAMOUFOX_VERSION} && python -m camoufox active
+# Camoufox's Firefox and its GeoIP base, into the user's cache: sync the list of releases, pick the pinned one,
+# download it. The build log says which one is active.
+RUN python -m camoufox sync && python -m camoufox set ${CAMOUFOX_VERSION} && python -m camoufox fetch \
+    && python -m camoufox active
 ENV TRAVELOPS_DATA=/data
 EXPOSE 8765
 CMD ["travelops", "mcp", "--http", "--host", "0.0.0.0", "--port", "8765"]

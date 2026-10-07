@@ -31,7 +31,10 @@ def test_both_browsers_and_nothing_personal():
     assert re.fullmatch(r"official/stable/\d+\.\d+(\.\d+)?-beta\.\d+", args["CAMOUFOX_VERSION"])
     assert "playwright install-deps firefox" in runs and "camoufox set ${CAMOUFOX_VERSION}" in runs, \
         "Camoufox is a Firefox, of one release"
-    assert "camoufox fetch" not in runs, "not «whatever is newest» at build time"
+    assert "camoufox sync && python -m camoufox set ${CAMOUFOX_VERSION} && python -m camoufox fetch" in runs, \
+        "set only picks the release; fetch then downloads that one, not «whatever is newest»"
+    assert "chown -R travel:travel /app/.venv/lib/python3.12/site-packages/fpgen" in runs, \
+        "camoufox fetch writes its fingerprint model there, as the user who runs it"
     assert "install chromium" not in runs, "Playwright's own Chromium is not used: 650 MB for nothing"
     copied = [arg.split()[:-1] for op, arg in steps if op == "COPY"]
     assert copied == [["pyproject.toml", "uv.lock"], ["src"]], "the code and its lock, nothing else"
