@@ -34,3 +34,12 @@ def test_room_name_tells_a_dormitory_bed_from_a_room():
     assert kind_of_room("One-Bedroom Apartment") == "apartment"
     assert kind_of_room("Twin Room") == "room" and kind_of_room(None) == "other"
     assert kind_of_room("Mobile Home") == "house" and kind_of_room("Junior Suite") == "apartment"
+
+
+def test_a_dorm_is_a_bed_among_strangers_whatever_the_wording():
+    from travelops.core.stays import kind_of_room
+
+    for room in ("6 Bed Basement Female Dorm", "Bed in 8-Bed Mixed Dormitory Room", "Female dorms", "Bunk bed"):
+        assert kind_of_room(room) == "shared_room", room
+    assert kind_of_room("Double Room with Garden View") == "room"
+    assert kind_of_room("Dormer Attic Suite") == "apartment", "a dormer window is not a dorm"

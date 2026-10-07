@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -90,7 +91,7 @@ async def run_source(
                 rule = ctx.net.limiter.rule(bucket)
                 reason = (
                     f"our own request budget for {source.name} ({rule.window} per {rule.per / 60:.0f} min) is spent; "
-                    f"it frees in {free / 60:.0f} min"
+                    + (f"it frees in {math.ceil(free / 60)} min" if free >= 60 else "it frees within a minute")
                 )
         return [], report(Status.TIMEOUT, reason)
     except ParseError as exc:

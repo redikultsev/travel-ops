@@ -75,6 +75,8 @@ def flight_search_json(search: FlightSearch, rates: Rates) -> dict:
                 "route": route,
                 "stops": itinerary.stops(),
                 "airport_changes": [list(pair) for pair in itinerary.airport_changes()],
+                # A round trip that lands at one airport and leaves from another, or comes home to another.
+                "open_jaw": itinerary.open_jaw() if itinerary.inbound else None,
                 "duration_min": int(itinerary.duration().total_seconds() / 60),
                 "return_duration_min": int(itinerary.duration(inbound=True).total_seconds() / 60)
                 if itinerary.inbound

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -79,7 +81,12 @@ class StayOffer:
 def kind_of_room(room: str | None) -> str:
     """What the human gets, as far as a room name tells: a bed among strangers is not a room of one's own."""
     text = (room or "").lower()
-    if "dormitory" in text or "bunk bed" in text or text.startswith("bed in") or "shared room" in text:
+    if (
+        re.search(r"\bdorm(itory|itories|s)?\b", text)
+        or "bunk bed" in text
+        or text.startswith("bed in")
+        or "shared room" in text
+    ):
         return "shared_room"
     if "apartment" in text or "studio" in text or "suite" in text or "flat" in text:
         return "apartment"

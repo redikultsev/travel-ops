@@ -146,3 +146,17 @@ def test_mulhouse_and_basel_are_one_airport_not_a_change():
     assert Itinerary(legs).airport_changes() == []
     moved = (Segment("TK", "TK1", "BEG", "IST", t, t), Segment("VF", "VF2", "SAW", "AYT", t, t))
     assert Itinerary(moved).airport_changes() == [("IST", "SAW")]
+
+
+def test_a_round_trip_into_one_airport_and_out_of_another_is_open_jaw():
+    from datetime import datetime, timezone
+
+    from travelops.core.flights import Itinerary, Segment
+
+    t = datetime(2026, 11, 14, 10, tzinfo=timezone.utc)
+    out, back = Segment("TK", "TK1", "BEG", "SAW", t, t), Segment("TK", "TK2", "IST", "BEG", t, t)
+    assert Itinerary((out,), (back,)).open_jaw() is True
+    home = Segment("TK", "TK3", "SAW", "BEG", t, t)
+    assert Itinerary((out,), (home,)).open_jaw() is False
+    basel = Itinerary((Segment("U2", "U21", "BEG", "MLH", t, t),), (Segment("LX", "LX2", "BSL", "BEG", t, t),))
+    assert basel.open_jaw() is False, "one airport under two codes"

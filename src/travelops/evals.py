@@ -134,7 +134,12 @@ def check_turn(turn: dict, answer: str, calls: list[dict], amounts: set, links: 
     for name in rules.get("forbid") or []:
         if any(call["tool"] == name for call in calls):
             failures.append(f"called {name}, which this turn must not need")
-    searches = [call["tool"] for call in calls if call["tool"] in SEARCHES]
+    # A call answered with needs_confirmation asked the human first and searched nothing.
+    searches = [
+        call["tool"]
+        for call in calls
+        if call["tool"] in SEARCHES and not (call.get("result") or {}).get("needs_confirmation")
+    ]
     if "searches_at_most" in rules and len(searches) > rules["searches_at_most"]:
         failures.append(
             f"{len(searches)} searches ({', '.join(searches)}), at most {rules['searches_at_most']} allowed"

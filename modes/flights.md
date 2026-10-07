@@ -28,6 +28,8 @@
    comparable competitors, every outbound/return flight with airport-local
    times, complete route, stops, airport changes and door-to-door duration.
    Include cabin, reported baggage, refundability and link kind. Show
-   an airport change as an explicit transfer between those two airports.
+   an airport change as an explicit transfer between those two airports. A round
+   trip with `open_jaw: true` lands at one airport and leaves from another (or
+   comes home to another): name both, since the stay starts at one and ends at the other.
 6. End with what the filters hid and the source report as AGENTS.md describes it.
    A useful alternative may lack a validated link; flag it.

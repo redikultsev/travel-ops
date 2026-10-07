@@ -142,6 +142,14 @@ class Itinerary:
             ]
         return changes
 
+    def open_jaw(self) -> bool:
+        """Whether the way back starts or ends at another airport than the way out ended or started."""
+        same = lambda a, b: ONE_AIRPORT.get(a, a) == ONE_AIRPORT.get(b, b)  # noqa: E731
+        return not (
+            same(self.outbound[-1].destination, self.inbound[0].origin)
+            and same(self.inbound[-1].destination, self.outbound[0].origin)
+        )
+
     def duration(self, inbound: bool = False) -> timedelta:
         """Door to door, waiting at connections included — not the sum of flying time."""
         leg = self.inbound if inbound else self.outbound

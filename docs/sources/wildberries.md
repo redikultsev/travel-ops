@@ -34,10 +34,11 @@ not configured. A leg has
 `startAirportCode`, `endAirportCode`, `dateBeginAt`, `dateEndAt`, and `segments`.
 Each segment has `airlineCode` or `operationAirlineCode`, `flightNumber`,
 `serviceClass`, `airportBeginCode`, `airportEndCode`, `dateBeginAt`, `dateEndAt`.
-Preserve all segments. For this source a timestamp ending with Z represents
-Moscow wall-clock time, not UTC: remove the Z, attach Europe/Moscow, then convert
-to the appropriate airport time zone. Never apply that interpretation to other
-sources.
+Preserve all segments. For this source a timestamp ending with Z is not UTC: it is
+the wall-clock time of the airport it belongs to. Air Serbia JU426 is written
+`2026-12-05T00:50:00Z` from BEG and `04:40:00Z` into IST, its scheduled local times
+(2026-10-07); on Moscow routes this had looked like Moscow time. Never apply that
+interpretation to other sources.
 
 `baggage.isIncluded` is explicit inclusion; `weightKg` is the allowance.
 Missing inclusion remains unknown. `luggageMeta.cabin` indicates cabin luggage

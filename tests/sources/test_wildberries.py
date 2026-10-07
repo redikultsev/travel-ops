@@ -87,7 +87,8 @@ def test_other_airport_zone_empty_and_garbage():
     segment = first["result"]["data"]["flights"][0]["legs"][0]["segments"][0]
     segment["airportBeginCode"] = "SVX"
     result = Source().parse([json.dumps(first).encode()], QUERY, NOW)
-    assert result.offers[0].itinerary.outbound[0].departs.isoformat() == "2026-11-14T13:30:00+05:00"
+    # 11:30Z is 11:30 on the Yekaterinburg clock, the airport the segment leaves from.
+    assert result.offers[0].itinerary.outbound[0].departs.isoformat() == "2026-11-14T11:30:00+05:00"
     assert Source().parse([b'{"result":{"data":{"flights":[]}}}'], QUERY, NOW).offers == []
     with pytest.raises(ParseError):
         Source().parse([b"{}"], QUERY, NOW)
@@ -99,3 +100,39 @@ async def test_live_search():
 
     offers = await check_source(Source(), QUERY)
     assert offers[0].fare.price.currency == "RUB"
+
+
+def test_a_z_time_is_the_airport_s_own_clock_not_moscow():
+    import json
+
+    line = {
+        "result": {
+            "data": {
+                "flights": [
+                    {
+                        "id": "1",
+                        "fullPrice": 1500000,
+                        "legs": [
+                            {
+                                "segments": [
+                                    {
+                                        "airlineCode": "JU",
+                                        "flightNumber": "426",
+                                        "airportBeginCode": "BEG",
+                                        "airportEndCode": "IST",
+                                        "dateBeginAt": "2026-12-05T00:50:00Z",
+                                        "dateEndAt": "2026-12-05T04:40:00Z",
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    query = FlightQuery(("BEG",), ("IST",), date(2026, 12, 5))
+    (offer,) = Source().parse([json.dumps(line).encode()], query, NOW).offers
+    segment = offer.itinerary.outbound[0]
+    assert segment.departs.isoformat() == "2026-12-05T00:50:00+01:00"
+    assert segment.arrives.isoformat() == "2026-12-05T04:40:00+03:00"

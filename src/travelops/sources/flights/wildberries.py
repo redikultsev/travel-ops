@@ -88,19 +88,15 @@ class Source:
     def parse(self, raws, query, seen_at):
         from datetime import datetime
         from decimal import Decimal
-        from zoneinfo import ZoneInfo
         from ...core.common import Link
         from ...core.flights import Baggage, Fare, FlightOffer, Itinerary, Segment, at_airport, cabin, flight_number
         from ...core.money import Money
         from ..base import Parsed, ParseError
 
         def moment(value, airport):
-            value = (
-                datetime.fromisoformat(value[:-1]).replace(tzinfo=ZoneInfo("Europe/Moscow"))
-                if value.endswith("Z")
-                else value
-            )
-            return at_airport(value, airport)
+            # The Z is not UTC: the time is the airport's own wall clock (Air Serbia JU426 leaves Belgrade at
+            # 00:50 and is written 00:50Z). On Moscow routes that looked like Moscow time.
+            return at_airport(datetime.fromisoformat(value[:-1]) if value.endswith("Z") else value, airport)
 
         offers = []
         routes = list(product(query.origins, query.destinations))
