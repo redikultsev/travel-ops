@@ -165,3 +165,11 @@ async def test_live_search():
 
     offers = await check_source(Source(), QUERY)
     assert all(offer.fare.seen_at.tzinfo for offer in offers)
+
+
+def test_a_ticket_into_another_airport_of_the_city_links_to_its_own_page():
+    payload = json.loads(FIXTURE.read_bytes())
+    payload["destination"] = "VKO"  # as if the search had asked for Vnukovo and the answer brought Sheremetyevo
+    parsed = Source().parse([json.dumps(payload).encode()], FlightQuery(("BEG",), ("VKO",), date(2026, 11, 14)), NOW)
+    to_svo = next(o for o in parsed.offers if o.itinerary.outbound[-1].destination == "SVO")
+    assert to_svo.fare.link.url == "https://www.aviasales.ru/search/BEG1411SVO1"

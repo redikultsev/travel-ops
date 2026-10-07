@@ -19,6 +19,7 @@ from ...core.flights import (
     at_airport,
     cabin,
     flight_number,
+    is_airport,
 )
 from ...core.money import Money
 from ...net.client import Blocked
@@ -241,6 +242,16 @@ class Source:
                         if not 1 <= len(legs) <= 2:
                             raise ValueError("expected one or two ticket legs")
                         itinerary = Itinerary(legs[0], legs[1] if len(legs) == 2 else ())
+                        # A search for SAW also brings flights into IST, which the SAW page does not list: such a
+                        # ticket gets the page of its own airport. A city code (MOW) already covers its airports.
+                        ends = [
+                            asked if asked == actual or not is_airport(asked) else actual
+                            for asked, actual in (
+                                (search["origin"], legs[0][0].origin),
+                                (search["destination"], legs[0][-1].destination),
+                            )
+                        ]
+                        ticket_link = link and results_link(query, *ends)
                         for proposal in ticket["proposals"]:
                             price = proposal["price"]
                             terms = [proposal.get("flight_terms", {}).get(index, {}) for index in identifiers]
@@ -269,7 +280,7 @@ class Source:
                                         self.name,
                                         normalized,
                                         Baggage(checked, checked_kg, carry_on),
-                                        link,
+                                        ticket_link,
                                         seen_at,
                                         refundable=refundable,
                                         fare_name=info.get("fare_name"),

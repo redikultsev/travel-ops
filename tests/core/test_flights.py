@@ -134,3 +134,15 @@ def test_query_date_pairs_keep_trip_length():
         (date(2026, 11, 15), date(2026, 11, 20)),
         (date(2026, 11, 16), date(2026, 11, 21)),
     ]
+
+
+def test_mulhouse_and_basel_are_one_airport_not_a_change():
+    from datetime import datetime, timezone
+
+    from travelops.core.flights import Itinerary, Segment
+
+    t = datetime(2026, 11, 14, 10, tzinfo=timezone.utc)
+    legs = (Segment("U2", "U21", "BEG", "MLH", t, t), Segment("LX", "LX2", "BSL", "ZRH", t, t))
+    assert Itinerary(legs).airport_changes() == []
+    moved = (Segment("TK", "TK1", "BEG", "IST", t, t), Segment("VF", "VF2", "SAW", "AYT", t, t))
+    assert Itinerary(moved).airport_changes() == [("IST", "SAW")]

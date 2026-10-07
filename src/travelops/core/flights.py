@@ -65,6 +65,15 @@ def at_airport(value: str | datetime, airport: str) -> datetime:
     return moment.astimezone(tz) if moment.tzinfo else moment.replace(tzinfo=tz)
 
 
+# Codes that name one building: EuroAirport sells its French and Swiss sides as Mulhouse and Basel.
+ONE_AIRPORT = {"MLH": "EAP", "BSL": "EAP", "EAP": "EAP"}
+
+
+def is_airport(code: str) -> bool:
+    """An airport's code, not a city's (MOW, LON): a city code stands for all its airports."""
+    return code.upper() in _AIRPORTS
+
+
 def serves(asked: str, airport: str) -> bool:
     """Whether a flight to `airport` answers a question about `asked`: the same airport, or another one of the
     same country within 80 km (Sabiha Gokcen for Istanbul). City names in the data differ by airport, so place
@@ -126,7 +135,11 @@ class Itinerary:
     def airport_changes(self) -> list[tuple[str, str]]:
         changes = []
         for leg in (self.outbound, self.inbound):
-            changes += [(a.destination, b.origin) for a, b in zip(leg, leg[1:]) if a.destination != b.origin]
+            changes += [
+                (a.destination, b.origin)
+                for a, b in zip(leg, leg[1:])
+                if ONE_AIRPORT.get(a.destination, a.destination) != ONE_AIRPORT.get(b.origin, b.origin)
+            ]
         return changes
 
     def duration(self, inbound: bool = False) -> timedelta:
