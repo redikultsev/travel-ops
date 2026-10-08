@@ -207,3 +207,17 @@ async def test_a_name_the_search_box_does_not_know_finds_nothing():
             return Response(200, b'{"results": [{"dest_type": "city", "dest_id": "1"}]}')
 
     assert await Source().lookup(QUERY, "Nowhere Inn", Context(Net(), Browser(), lambda: NOW), NOW) == []
+
+
+def test_a_property_unavailable_at_the_dates_is_left_out_not_an_error():
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "fixtures" / "booking" / "belgrade-2026-11-14.html").read_bytes()
+    sold = (
+        b'<div data-testid="property-card"><div data-testid="title">Holiday Inn Express Jing\'an Temple</div>'
+        b"<p>This property is unavailable on our site for your dates</p></div>"
+    )
+    whole = Source().parse([page], QUERY, NOW)
+    parsed = Source().parse([page.replace(b"</body>", sold + b"</body>", 1)], QUERY, NOW)
+    assert len(parsed.offers) == len(whole.offers) > 0
+    assert "1 properties shown as unavailable at these dates left out" in parsed.notes

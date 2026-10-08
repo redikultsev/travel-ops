@@ -159,7 +159,7 @@ class Source:
         from ..base import Parsed, ParseError
         from ._html import Tree, money
 
-        unique, notes, unusable = {}, [], 0
+        unique, notes, unusable, unavailable = {}, [], 0, 0
         try:
             for index, raw in enumerate(raws):
                 tree = Tree(raw).root
@@ -182,6 +182,10 @@ class Source:
                     if not title or not title.text():
                         raise ParseError("property name missing")
                     if not price:
+                        # A property shown for its name or its place but sold out at these dates has no price.
+                        if "unavailable on our site" in card.text().lower():
+                            unavailable += 1
+                            continue
                         raise ParseError("property total price missing")
                     total = money(price.text())
                     href = next(
@@ -286,6 +290,8 @@ class Source:
             raise ParseError(f"Booking card fields: {exc}") from exc
         if raws and unusable == len(raws):
             raise ParseError("no page was a search results page")
+        if unavailable:
+            notes.append(f"{unavailable} properties shown as unavailable at these dates left out")
         if not unique:
             return Parsed([], notes)
         notes += [
