@@ -27,6 +27,7 @@ def test_a_one_way_page_is_read_into_priced_flights_with_a_link_to_google():
     assert cheapest.itinerary.outbound[0].departs.utcoffset().total_seconds() == 3600, "local time at Belgrade"
     assert cheapest.fare.cabin == "economy" and cheapest.fare.seller == "google"
     assert cheapest.fare.link.kind == "results" and cheapest.fare.link.url.startswith(google.PAGE + "?tfs=")
+    assert "tfu=EgQIABABIgA" in cheapest.fare.link.url, "every flight, not the first ten"
     assert any("metasearch" in note for note in parsed.notes)
 
 

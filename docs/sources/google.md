@@ -3,7 +3,7 @@
 ## Access
 
 No API: Google closed QPX in 2018. The public search page
-`https://www.google.com/travel/flights?tfs=…&hl=en&gl=US&curr=EUR` carries its result rows inline, in an
+`https://www.google.com/travel/flights?tfs=…&tfu=EgQIABABIgA&hl=en&gl=US&curr=EUR` carries its result rows inline, in an
 `AF_initDataCallback` block keyed `ds:1`. A plain GET with a Chrome TLS fingerprint reads it: no key, no browser.
 The recipe is the open-source `fli` library (MIT, see NOTICE); the adapter sends its own requests through the
 tool's limiter. A pre-answered consent cookie (`SOCS`) keeps an address in the EU from the consent page.
@@ -29,9 +29,11 @@ the price and `[1][1]` a protobuf token whose field 3.3 names the currency.
   only on its own page, so the seller is `google` and the link opens that page for the same flights.
 - A round trip is the outbound page, then one page per outbound tried with that flight pinned, which lists the
   returns at the round-trip price. The six cheapest outbounds are tried: seven requests per route.
-- Depth: the page lists its top flights and about ten others (13 rows for Belgrade to Lisbon on 20 November,
-  checked 2026-10-08); the rest it loads behind "more flights", which is not read. `fli` reads the same two
-  lists.
+- Depth: without `tfu` the page lists its top flights and about ten others, the rest behind "View more
+  flights". `tfu=EgQIABABIgA` (decoded `{2:{1:0,2:1},4:{}}`, the "all flights" bit; fast-flights PR #115,
+  2026-09-21) makes the same page carry every flight: Belgrade to Lisbon on 20 November went from 13 rows to 34
+  (2026-10-08). The `GetShoppingResults` call behind the button needs a BotGuard signature since 2026-08 and is
+  not used.
 - Baggage and refund terms are not stated. Children are sent as Google counts them; Google itself lists fewer
   rows for parties with children.
 - Ten seconds between pages; a refusal rests the source for an hour.

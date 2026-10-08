@@ -76,8 +76,13 @@ def tfs(query: FlightQuery, origin: str, destination: str, pinned: list[dict] = 
     return base64.urlsafe_b64encode(message).decode().rstrip("=")
 
 
+# `tfu` asks for every flight at once: without it the page carries its top flights and about ten others, the
+# rest behind "View more flights" (decoded {2:{1:0,2:1},4:{}}; fast-flights PR #115, 2026-09-21).
+ALL_FLIGHTS = "EgQIABABIgA"
+
+
 def page_url(code: str) -> str:
-    return f"{PAGE}?tfs={code}&hl=en&gl=US&curr=EUR"
+    return f"{PAGE}?tfs={code}&tfu={ALL_FLIGHTS}&hl=en&gl=US&curr=EUR"
 
 
 def payload_of(html: str):
@@ -283,9 +288,5 @@ class Source:
             notes.append(
                 "a metasearch: the price is the cheapest a seller shows on Google, which names the seller only on "
                 "its own page; baggage is not stated"
-            )
-            notes.append(
-                "Google's page lists its top flights and about ten others; the rest it keeps behind \"more flights\", "
-                "which is not read here: the other sources cover the depth"
             )
         return Parsed(offers, notes)
