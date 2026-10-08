@@ -13,6 +13,10 @@ from .memory import REUSE_SECONDS, Stored
 from .rates import load_rates
 
 
+# Fields added after recordings were made: left out of the key while unset, so the recordings still answer.
+UNSET_IF_NONE = frozenset({"min_rating", "max_total", "max_night_eur"})
+
+
 class NeedsConfirmation(Exception):
     """The search would wait longer than the profile allows without asking. Nothing has been sent."""
 
@@ -46,13 +50,19 @@ class Searches:
             raise ValueError("currency must be a three-letter code")
         return value.upper()
 
-    def key(self, kind: str, query, sources: list, currency: str) -> str:
-        # Empty optional fields are left out, so a query written before a field existed still finds its answer.
-        asked = {name: value for name, value in asdict(query).items() if value != ()}
+    def key(self, kind: str, query, sources: list, currency: str, bare: bool = False) -> str:
+        """Empty optional fields are left out, so a query written before a field existed still finds its answer.
+        `bare` leaves out the bars a source may apply as well: a recording made before them answers with all it
+        has, and the view applies the bars."""
+        asked = {
+            name: value
+            for name, value in asdict(query).items()
+            if value != () and not (name in UNSET_IF_NONE and (value is None or bare)) and name != "max_night_eur"
+        }
         return self.app.results.key(kind, asked, [s.name for s in sources], currency)
 
     def remembered(self, kind: str, query, sources: list, currency: str) -> Stored | None:
-        key = self.key(kind, query, sources, currency)
+        key = self.key(kind, query, sources, currency, bare=self.app.replay)
         # A recording has no age: it is the only answer a replay can give.
         if self.app.replay:
             return self.app.results.recent(key, None, any_sources=True)

@@ -31,13 +31,18 @@ async def test_handshake_then_one_search_and_nothing_addressed_to_a_model_is_kep
             answer = {"jsonrpc": "2.0", "id": 2, "result": {"structuredContent": payload, "content": []}}
             return Response(200, b"data: " + json.dumps(answer).encode() + b"\n\n")
 
-    family = StayQuery(QUERY.place, QUERY.checkin, QUERY.checkout, adults=2, children=2, children_ages=(3, 9))
+    family = StayQuery(
+        QUERY.place, QUERY.checkin, QUERY.checkout, adults=2, children=2, children_ages=(3, 9), min_rating=8.2
+    )
     raws = await Source().fetch(family, Context(Net(), None, lambda: NOW))
     assert [c[:2] for c in Net.calls] == [
         ("initialize", None),
         ("notifications/initialized", "s1"),
-        ("tools/call", "s1"),
+    ] + [("tools/call", "s1")] * 6, "once as ranked, then once per star class, in one session"
+    assert [c[2]["params"]["arguments"].get("hotel_rating") for c in Net.calls[2:]] == [
+        None, {"1star": True}, {"2star": True}, {"3star": True}, {"4star": True}, {"5star": True}
     ]
+    assert len(Source().parse(raws, family, NOW).offers) == 4, "a stay in two lists is one stay"
     assert Net.calls[2][2]["params"]["arguments"] == {
         "query": "Kotor, Montenegro",
         "arrival": "2026-10-22",
@@ -48,6 +53,7 @@ async def test_handshake_then_one_search_and_nothing_addressed_to_a_model_is_kep
         "language": "en",
         "children": 2,
         "children_ages": "3-9",
+        "review_rating": {"rating80": True},
     }
     assert b"system_message" not in raws[0] and b"MUST" not in raws[0]
     with pytest.raises(NotConfigured, match="by age"):

@@ -23,7 +23,7 @@ PAGE = "https://www.google.com/travel/flights"
 CABINS = {"economy": 1, "premium_economy": 2, "business": 3, "first": 4}
 CABIN_NAMES = {code: name for name, code in CABINS.items()}
 # Return flights are found by pinning one outbound flight and asking again: one page per outbound tried.
-OUTBOUNDS_TRIED = 3
+OUTBOUNDS_TRIED = 6  # returns are looked up for this many of the cheapest outbound flights
 # A consent already answered, as `fli` sends it: an address in the EU is otherwise shown the consent page.
 CONSENT = {"SOCS": "CAISNQgQEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwMzE3LjA5X3AwGgJlbiADGgYIgLC_rwY"}
 _BLOCK = re.compile(r"AF_initDataCallback\((\{.*?\})\);", re.S)
@@ -274,7 +274,11 @@ class Source:
         if unpriced:
             notes.append(f"{unpriced} itineraries listed without a price were left out")
         if query.return_:
-            notes.append(f"returns were looked up for the {OUTBOUNDS_TRIED} cheapest outbound flights of each route")
+            pinned = max((len(json.loads(raw)["pages"]) - 1 for raw in raws), default=0)
+            notes.append(
+                f"returns were looked up for the {pinned} cheapest outbound flights of each route; the dearer "
+                "outbound flights have no round-trip price here"
+            )
         if offers:
             notes.append(
                 "a metasearch: the price is the cheapest a seller shows on Google, which names the seller only on "

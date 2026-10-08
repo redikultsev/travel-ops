@@ -80,3 +80,13 @@ async def test_a_city_is_typed_once_and_kept(tmp_path):
 async def test_children_are_not_configured():
     with pytest.raises(NotConfigured):
         await Source().fetch(StayQuery("Shanghai", date(2026, 12, 1), date(2026, 12, 30), children=1), None)
+
+
+def test_later_pages_come_as_json_and_a_hotel_seen_twice_is_one():
+    first = tripcom.list_data(PAGE)["hotelList"]
+    later = json.dumps({"data": {"hotelList": first[:1] + [dict(first[0], hotelInfo=dict(
+        first[0]["hotelInfo"], summary={"hotelId": "777"}))]}}).encode()
+    parsed = Source().parse([PAGE, later], QUERY, NOW)
+    assert [o.stay.source_id for o in parsed.offers] == ["83740608", tripcom.list_data(PAGE)["hotelList"][1][
+        "hotelInfo"]["summary"]["hotelId"], "777"]
+    assert parsed.notes[0].startswith("3 stays from 2 pages")

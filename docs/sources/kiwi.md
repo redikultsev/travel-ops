@@ -36,3 +36,11 @@ divide evenly), and `outbound` / `inbound` legs whose `segments` carry `from`, `
 
 BEG to TGD round trip 22 to 23 October 2026: 15 itineraries from 110 EUR. BEG to
 TIV one way: 15 itineraries. Both from a home address, without a handshake.
+
+## Depth (2026-10-08)
+
+An answer holds 15 itineraries and the tool has no pages. It filters by `price_from` and `price_to` (whole party,
+in the currency asked), so a route is read up the price: each further answer starts at the dearest price of
+the one before, up to four answers (60 itineraries). Repeats at the boundary are dropped by `bookingUrl`.
+Other filters the tool takes: stops, flight duration, layover hours, departure and arrival hours, airlines,
+bags, weekdays (tools/list).

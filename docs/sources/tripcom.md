@@ -55,8 +55,12 @@ The same rule: nothing signed is sent from here.
   (BD09, GCJ-02 and WGS84 — only WGS84 is kept: in China the others are shifted by hundreds of metres) and one
   room, `roomInfo[0]`, with `priceInfoLayer.payInfo`: the rooms and nights before taxes, `payTax` and the total.
   A room priced per bed says `1 bed ×` and is a dormitory.
-- **Limits.** First page only, ranked Trip.com's way; one room per hotel, the one the list shows. Children are
-  not verified.
+- **Pages.** Scrolling to the end of the list makes the page ask `/restapi/soa2/34951/fetchHotelList` for the
+  next twelve or so, signed by the page, in the same shape as `initListData`. Only a scroll to the very end
+  asks (a wheel alone did not): nine scrolls gave 124 hotels for Shanghai. The browser scrolls up to twelve
+  times, stopping when the list stops growing. No total is given.
+- **Limits.** Ranked Trip.com's way, no filters passed; one room per hotel, the one the list shows. Children
+  are not verified.
 - **Verified, 2026-10-08.** Shanghai, 1–30 December, one adult: Orange Hotel (Shanghai Bund South Zhongshan
   Road) €1,777.14 + €106.61 taxes = €1,883.75. Okura Garden Hotel Shanghai by its id: €3,053 with taxes.
 

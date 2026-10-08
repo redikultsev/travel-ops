@@ -5,13 +5,35 @@ https://github.com/Suzzzzik/fare-scraper/blob/main/stays.py
 The applicable MIT license is retained in NOTICE.
 """
 
+import math
+import re
 from urllib.parse import urlencode
 from ...net.client import Blocked
-from ..base import NotConfigured
+from ..base import NotConfigured, ParseError
 
 URL = "https://www.booking.com/searchresults.html"
 AUTOCOMPLETE = "https://accommodations.booking.com/autocomplete.json"
-BANDS = (None, (0, 100), (100, 250), (250, 2000))
+# A results page holds 25 properties and `offset` is ignored over HTTP, so a search walks up the price instead:
+# each page asks for the cheapest above the dearest of the page before. PAGES is how far one search goes.
+PAGES = 10
+PER_PAGE = 25
+CEILING = 10000  # EUR a night: the top of a price filter with no maximum asked
+SCORES = (90, 80, 70, 60)  # Booking's review-score filter steps
+
+
+def found_count(body: bytes) -> int | None:
+    """How many properties Booking counts for the page's filters: "604 properties found"."""
+    match = re.search(rb"([\d,]+) propert(?:y|ies) found", body)
+    return int(match[1].replace(b",", b"")) if match else None
+
+
+def filters(query, low: int, high: int) -> str:
+    parts = [f"price=EUR-{low}-{high}-1"]
+    if query.min_rating:
+        score = next((s for s in SCORES if s <= query.min_rating * 10), None)
+        if score:
+            parts.insert(0, f"review_score={score}")
+    return ";".join(parts)
 
 
 def challenge(response):
@@ -30,7 +52,7 @@ class Source:
     name = "booking"
 
     def max_requests(self, query):
-        return 1 + len(BANDS)
+        return 1 + PAGES
 
     def _params(self, query):
         if query.children and len(query.children_ages) != query.children:
@@ -116,17 +138,15 @@ class Source:
     async def fetch(self, query, ctx):
         params = dict(self._params(query), order="price")
         session = await self._session(params, ctx)
-        raws, faults = [], []
+        high = math.ceil(query.max_night_eur) if query.max_night_eur else CEILING
+        low, raws, faults = 0, [], []
         try:
-            for band in BANDS:
-                page_params = dict(params)
-                if band is not None:
-                    page_params["nflt"] = f"price=EUR-{band[0]}-{band[1]}-1"
+            for _ in range(PAGES):
                 response = await ctx.net.request(
                     self.name,
                     "GET",
                     URL,
-                    params=page_params,
+                    params=dict(params, nflt=filters(query, low, high)),
                     cookies=session.cookies,
                     impersonate=session.impersonate,
                     # No user-agent header: with the headless browser's own one Booking served a page without results.
@@ -134,20 +154,35 @@ class Source:
                     blocked_if=challenge,
                 )
                 if response.status >= 500:
-                    # Booking's own fault page. It stands in for its band, which parse reports as missing.
+                    # Booking's own fault page: the walk stops there, and parse says how far it got.
                     faults.append(response.status)
-                elif response.status != 200:
+                    break
+                if response.status != 200:
                     from ..base import ParseError
 
                     raise ParseError(f"Booking search returned HTTP {response.status}")
                 raws.append(response.body)
+                try:
+                    found = self.parse([response.body], query, ctx.now()).offers
+                except ParseError:
+                    break  # not a results page: parse says so, and the walk cannot go on from it
+                count = found_count(response.body)
+                if len(found) < PER_PAGE or count is None or count <= PER_PAGE:
+                    break  # this was the last page of what passes the filters
+                top = max(o.rate.total.amount for o in found) / query.nights
+                # A little below the dearest: the filter may round, and a property seen twice is merged.
+                low = max(low + 1, math.floor(float(top) * 0.98))
+                if low >= high:
+                    break
         except Blocked:
             ctx.browser.drop(self.name)
             raise
-        if len(faults) == len(raws):
+        if faults and not raws:
             from ..base import SourceFault
 
-            raise SourceFault(f"Booking answered every page with HTTP {faults[0]}")
+            raise SourceFault(f"Booking answered with HTTP {faults[0]}")
+        if faults:
+            raws.append(b"<!-- fault -->")
         return raws
 
     def parse(self, raws, query, seen_at):
@@ -164,8 +199,10 @@ class Source:
             for index, raw in enumerate(raws):
                 tree = Tree(raw).root
                 cards = [node for node in tree.walk() if node.attrs.get("data-testid") == "property-card"]
-                band = BANDS[index] if index < len(BANDS) else None
-                label = "all prices" if band is None else f"EUR {band[0]}-{band[1]} nightly"
+                if raw == b"<!-- fault -->":
+                    notes.append("Booking failed on the next page (HTTP 5xx): the dearer properties are missing")
+                    continue
+                label = f"page {index + 1}"
                 notes.append(f"{label}: {len(cards)} cards")
                 if not cards and not (
                     tree.find(data_testid="search-results")
@@ -174,7 +211,7 @@ class Source:
                 ):
                     # Booking now and then answers one of the requests with another page (its home page, for one).
                     # That loses a price band, not the search: the other pages still hold real offers.
-                    notes[-1] = f"{label}: not a results page, this band is missing"
+                    notes[-1] = f"{label}: not a results page, its properties are missing"
                     unusable += 1
                     continue
                 for card in cards:
@@ -288,15 +325,22 @@ class Source:
                         unique[source_id] = offer
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             raise ParseError(f"Booking card fields: {exc}") from exc
-        if raws and unusable == len(raws):
+        real = [raw for raw in raws if raw != b"<!-- fault -->"]
+        if real and unusable == len(real):
             raise ParseError("no page was a search results page")
         if unavailable:
             notes.append(f"{unavailable} properties shown as unavailable at these dates left out")
         if not unique:
             return Parsed([], notes)
+        counted = found_count(real[0]) if real else None
         notes += [
-            f"deduplicated: {len(unique)} properties",
-            "bounded price-range coverage; inventory is not complete",
+            f"deduplicated: {len(unique)} properties"
+            + (f" of {counted} Booking counts for these filters" if counted is not None else ""),
+            *(
+                [f"the {counted - len(unique)} not seen are dearer than the last page: lower max_total to reach them"]
+                if counted is not None and counted > len(unique)
+                else []
+            ),
             "coordinates and amenities are not in search cards; stay_details reads them from the property page",
             "free cancellation is stated per card; its cutoff date is not",
             "missing ratings, review counts and photos remain unknown",

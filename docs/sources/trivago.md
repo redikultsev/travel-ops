@@ -26,7 +26,12 @@ trivago page of that deal).
 - A metasearch: one advertiser's price per stay. The seller is recorded as
   `trivago:<advertiser>`; the link leads to trivago, which hands over to the
   advertiser.
-- First page only; the total is not given.
+- No pages and no total. The tool filters by `hotel_rating` (`1star`…`5star`) and `review_rating`
+  (`rating70`, `rating75`, `rating80`, `rating85`), so a search asks once as ranked and once per star class:
+  each class has its own first 25, up to 150 stays in six calls. Stays without stars (flats) come only in the
+  first answer. A `min_rating` becomes the highest `review_rating` at or below it. Other filters it takes:
+  `filters` (`freeCancellation`, `breakfastIncluded`, `kitchen`, `freeWiFi`, …); a
+  `trivago-accommodation-radius-search` takes coordinates instead of a name (tools/list, 2026-10-08).
 - `top_amenities` is a short list: an amenity it names is there, one it does not
   name is unknown.
 - The same property can also come from Booking.com directly. A listing with the

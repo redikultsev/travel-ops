@@ -28,6 +28,9 @@ from ..base import Context, Parsed, ParseError
 URL = "https://mcp.kiwi.com"
 CLASSES = {"economy": "M", "premium_economy": "W", "business": "C", "first": "F"}
 AT_MOST = 15  # what one answer holds
+# The tool has no pages, but it filters by price: each further answer asks for the cheapest from the dearest of
+# the last one up (`price_from`), so a route reads up to PAGES answers.
+PAGES = 4
 
 
 def each(total, seats: int) -> int | None:
@@ -50,7 +53,7 @@ class Source:
         self.server = Server(self.name, URL, handshake=False)  # Kiwi keeps no session
 
     def max_requests(self, query: FlightQuery) -> int:
-        return len(query.origins) * len(query.destinations)
+        return len(query.origins) * len(query.destinations) * PAGES
 
     async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
         if query.cabin not in CLASSES:
@@ -77,6 +80,15 @@ class Source:
             if not isinstance(payload, dict):
                 raise ParseError("kiwi answered without a search result")
             raws.append(json.dumps(payload).encode())
+            for _ in range(PAGES - 1):
+                found = payload.get("itineraries") or []
+                prices = [item["price"] for item in found if isinstance(item.get("price"), (int, float))]
+                if len(found) < AT_MOST or not prices:
+                    break
+                payload = await self.server.call(ctx, "search-flight", dict(arguments, price_from=max(prices)))
+                if not isinstance(payload, dict):
+                    break
+                raws.append(json.dumps(payload).encode())
         return raws
 
     def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed:
@@ -84,7 +96,7 @@ class Source:
             [],
             ["at most one stop each way was asked", "the price is for the whole party, as Kiwi states it"],
         )
-        joined = False
+        joined, seen, full = False, set(), 0
         for raw in raws:
             try:
                 payload = json.loads(raw)
@@ -101,9 +113,12 @@ class Source:
                 ):
                     raise ValueError("answer is for another party than was asked")
                 currency = payload.get("currency") or "EUR"
-                if len(found) >= AT_MOST:
-                    notes.append(f"results truncated: the {AT_MOST} cheapest itineraries of a route, total unknown")
+                full += len(found) >= AT_MOST
                 for item in found:
+                    key = item.get("bookingUrl")
+                    if key and key in seen:
+                        continue  # the dearest of one answer is the cheapest of the next
+                    seen.add(key)
                     legs = []
                     for name in ("outbound", "inbound"):
                         leg = item.get(name)
@@ -153,6 +168,11 @@ class Source:
                     )
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 raise ParseError(f"invalid Kiwi result: {exc}") from exc
+        if full:
+            notes.append(
+                f"{len(offers)} itineraries from {len(raws)} answers of up to {AT_MOST}, read cheapest first; where "
+                f"the last of a route was full ({full} full answers), dearer itineraries were not read"
+            )
         if joined:
             notes.append(
                 "some connections join airlines that do not sell together: several tickets under Kiwi's own guarantee"

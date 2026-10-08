@@ -28,16 +28,20 @@ CLASSES = {"economy": "Y", "premium_economy": "S", "business": "C", "first": "F"
 CITIES = {"MOW": "Moscow", "LED": "Saint Petersburg"}
 
 
+# 30 offers a page, by price; a search reads up to PAGES of them while Tutu says there are more.
+PAGES = 4
+
+
 class Source:
     name = "tutu"
 
     def max_requests(self, query: FlightQuery) -> int:
-        return 2 + len(query.origins) * len(query.destinations)
+        return 2 + len(query.origins) * len(query.destinations) * PAGES
 
     def typical_requests(self, query: FlightQuery) -> int:
-        # What waits in the line of searches: one request per route. The handshake is made once for a whole
-        # search and waits in a short line of its own.
-        return len(query.origins) * len(query.destinations)
+        # What waits in the line of searches: every page of every route, since a busy route has more than one.
+        # The handshake is made once for a whole search and waits in a short line of its own.
+        return len(query.origins) * len(query.destinations) * PAGES
 
     def __init__(self) -> None:
         # One handshake serves every route and date of a search: they are runs of this same object.
@@ -66,6 +70,14 @@ class Source:
             payload = await self.server.call(ctx, "search_avia", arguments, timeout=None)
             if not isinstance(payload, dict) or "offers" not in payload:
                 raise ParseError("Tutu search result has no offers field")
+            # Further pages of the same search, while it says there are more: one answer per route.
+            for page in range(2, PAGES + 1):
+                if not (payload.get("meta") or {}).get("has_more"):
+                    break
+                more = await self.server.call(ctx, "search_avia", dict(arguments, page=page), timeout=None)
+                if not isinstance(more, dict) or not isinstance(more.get("offers"), list) or not more["offers"]:
+                    break
+                payload = dict(more, offers=payload["offers"] + more["offers"])
             raws.append(json.dumps(payload).encode())
         return raws
 

@@ -22,7 +22,10 @@ LIST = "https://www.trip.com/hotels/list"
 DETAIL = "https://www.trip.com/hotels/detail/"
 FIELD = "input#destinationInput"
 KEYWORDS = r"/restapi/soa2/\d+/getHotelKeywords"
-PAGE = r"trip\.com/hotels/list\?"
+PAGE = r"trip\.com/hotels/list\?|/restapi/soa2/\d+/fetchHotelList"
+# The results page carries ten or so hotels; each scroll to its end makes the page ask for the next ones
+# (`fetchHotelList`, signed by the page). SCROLLS is how far one search goes.
+SCROLLS = 12
 CITY_DAYS = 30
 
 
@@ -97,7 +100,14 @@ def detail_url(query: StayQuery, hotel_id: str) -> str:
 
 
 def list_data(html: bytes) -> dict | None:
-    """`initListData` from the page's own data, which Next.js writes as chunks of a string in script tags."""
+    """`initListData` from the page's own data, which Next.js writes as chunks of a string in script tags; or a
+    later page of the list, which the page fetches as JSON in the same shape."""
+    if html.lstrip().startswith(b"{"):
+        try:
+            data = json.loads(html).get("data")
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) and isinstance(data.get("hotelList"), list) else None
     text = html.decode("utf-8", "replace")
     chunks = []
     for match in re.finditer(r"self\.__next_f\.push\((\[.*?\])\)</script>", text, re.S):
@@ -135,7 +145,7 @@ class Source:
     name = "tripcom"
 
     def max_requests(self, query):
-        return 2
+        return 2  # the typing and the page; the page's own requests as it scrolls are one visit
 
     async def _keywords(self, text: str, ctx) -> list[dict]:
         bodies = await ctx.browser.search(self.name, HOME, KEYWORDS, typed=(FIELD, text), queue="lookup")
@@ -159,7 +169,7 @@ class Source:
     async def fetch(self, query, ctx):
         self._check(query)
         city = await self._city(query.place, ctx)
-        return await ctx.browser.search(self.name, list_url(query, city), PAGE)
+        return await ctx.browser.search(self.name, list_url(query, city), PAGE, scrolls=SCROLLS)
 
     async def lookup(self, query, name, ctx, seen_at):
         """One property by its name: the search box names it, and the list for that one hotel shows it first."""
@@ -178,7 +188,7 @@ class Source:
         raise NotConfigured("Trip.com property pages are not read yet")
 
     def parse(self, raws, query, seen_at):
-        offers, sold_out, pages = [], 0, 0
+        offers, sold_out, pages, seen = [], 0, 0, set()
         try:
             for raw in raws:
                 data = list_data(raw)
@@ -192,6 +202,9 @@ class Source:
                         continue
                     room = rooms[0]
                     hotel_id = str(hotel["summary"]["hotelId"])
+                    if hotel_id in seen:
+                        continue
+                    seen.add(hotel_id)
                     names = hotel.get("nameInfo") or {}
                     where = hotel.get("positionInfo") or {}
                     spot = next(
@@ -251,7 +264,8 @@ class Source:
         if raws and not pages:
             raise ParseError("Trip.com results page without its hotel list")
         notes = [
-            f"first page: {len(offers)} stays; Trip.com ranks them its own way and shows ten or so per page",
+            f"{len(offers)} stays from {pages} pages of the list as Trip.com ranks it (it gives no total); a search "
+            f"scrolls {SCROLLS} times at most",
             "one room per stay, the one the list shows; price with the taxes and fees Trip.com states",
         ]
         if sold_out:

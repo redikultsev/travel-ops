@@ -70,7 +70,13 @@ Capturer = Callable[..., Awaitable[list[bytes]]]
 
 
 async def capture(
-    engine: str, url: str, pattern: str, proxy: str | None, headless: bool, typed: tuple[str, str] | None = None
+    engine: str,
+    url: str,
+    pattern: str,
+    proxy: str | None,
+    headless: bool,
+    typed: tuple[str, str] | None = None,
+    scrolls: int = 0,
 ) -> list[bytes]:
     """Open a page as a person would and keep the bodies of the answers it receives from URLs matching `pattern`,
     once the page has had one. For a site whose requests the page signs itself: the browser makes the search, and
@@ -110,6 +116,24 @@ async def capture(
         except TimeoutError:
             raise Blocked("the page did not search: an anti-bot check may have stopped it") from None
         await page.wait_for_timeout(2000)  # a streamed answer may still be finishing
+        # A list that grows as a person scrolls: scroll to its end until it stops growing or `scrolls` is spent.
+        # A wheel alone stops short of the end, where the next page is asked for (Trip.com, 2026-10-08).
+        if scrolls:
+            try:
+                await page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:  # a page that never falls quiet: scroll anyway
+                pass
+        for _ in range(scrolls):
+            before = len(bodies)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.mouse.wheel(0, 3000)
+            for _ in range(16):
+                await page.wait_for_timeout(500)
+                if len(bodies) > before:
+                    break
+            if len(bodies) == before:
+                break
+            await page.wait_for_timeout(1500)
     return bodies
 
 
@@ -193,6 +217,7 @@ class BrowserSessions:
         headless: bool = True,
         typed: tuple[str, str] | None = None,
         queue: str | None = None,
+        scrolls: int = 0,
     ) -> list[bytes]:
         """A search the page makes itself: open `url` in a browser and return the answers it got from URLs
         matching `pattern`. One page is one request of the source, spaced and quarantined like any other; `queue`
@@ -205,7 +230,7 @@ class BrowserSessions:
             await self.limiter.acquire(bucket)
         count(self.counts, source)
         try:
-            extra = {"typed": typed} if typed else {}
+            extra = {**({"typed": typed} if typed else {}), **({"scrolls": scrolls} if scrolls else {})}
             bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless, **extra)
         except Blocked:
             if self.limiter is not None:

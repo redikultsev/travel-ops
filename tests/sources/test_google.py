@@ -36,7 +36,7 @@ def test_a_round_trip_pairs_each_tried_outbound_with_its_returns():
     cheapest = min(parsed.offers, key=lambda o: o.fare.price.amount)
     assert str(cheapest.fare.price.amount) == "149"
     assert cheapest.itinerary.inbound[0].origin == "IST" and cheapest.itinerary.inbound[-1].destination == "BEG"
-    assert "returns were looked up for the 3 cheapest outbound flights of each route" in parsed.notes
+    assert any(n.startswith("returns were looked up for the 3 cheapest outbound flights of each route") for n in parsed.notes)
 
 
 def test_the_query_is_one_protobuf_in_the_url_and_a_pinned_outbound_changes_it():
@@ -49,7 +49,8 @@ def test_the_query_is_one_protobuf_in_the_url_and_a_pinned_outbound_changes_it()
     assert party != google.tfs(ONE_WAY, "BEG", "IST")
 
 
-async def test_fetch_reads_the_result_block_of_each_page_and_pins_the_cheapest_outbounds():
+async def test_fetch_reads_the_result_block_of_each_page_and_pins_the_cheapest_outbounds(monkeypatch):
+    monkeypatch.setattr(google, "OUTBOUNDS_TRIED", 3)  # the recording pinned three
     pages = json.loads(raw("beg-ist-2026-11-14-17.json"))["pages"]
 
     def html(payload):

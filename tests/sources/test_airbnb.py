@@ -11,20 +11,43 @@ QUERY = StayQuery("Belgrade", date(2026, 11, 14), date(2026, 11, 16))
 NOW = datetime(2026, 10, 5, tzinfo=timezone.utc)
 
 
-async def test_single_ssr_get_without_browser_or_details():
+async def test_ssr_pages_follow_the_cursors_without_a_browser():
+    page = b'<html>"paginationInfo":{"pageCursors":["c0","c1","c2"]}</html>'
+
     class Net:
         calls = []
 
         async def request(self, *args, **kw):
             self.calls.append((args, kw))
-            return Response(200, b"<html></html>")
+            return Response(200, page)
 
     net = Net()
-    await Source().fetch(QUERY, Context(net, None, lambda: NOW))
-    assert len(net.calls) == Source().max_requests(QUERY) == 1
+    raws = await Source().fetch(QUERY, Context(net, None, lambda: NOW))
+    assert len(raws) == len(net.calls) == 3 and Source().max_requests(QUERY) == 6
     args, kw = net.calls[0]
-    assert args[1] == "GET" and args[2] == "https://www.airbnb.com/s/Belgrade/homes"
+    assert args[1] == "GET" and args[2] == "https://www.airbnb.com/s/Belgrade/homes" and "cursor" not in kw["params"]
     assert kw["params"]["checkin"] == "2026-11-14" and kw["params"]["adults"] == 2
+    assert [kw["params"].get("cursor") for _, kw in net.calls[1:]] == ["c1", "c2"], "the first cursor is page one"
+
+
+def test_a_monthly_price_is_not_taken_for_the_stays_total():
+    import json
+
+    card = {
+        "__typename": "StaySearchResult",
+        "demandStayListing": {"id": "RGVtYW5kU3RheUxpc3Rpbmc6MTIz", "description": {"name": {
+            "localizedStringWithTranslationPreference": "Flat"}}},
+        "structuredDisplayPrice": {
+            "primaryLine": {"discountedPrice": "€5,075", "qualifier": "monthly"},
+            "displayPriceStyle": "MONTHLY",
+        },
+    }
+    data = {"niobeClientData": [["k", {"data": {"presentation": {"staysSearch": {"results": {
+        "searchResults": [card], "paginationInfo": {}}}}}}]]}
+    page = ('<html><script id="data-deferred-state-0" type="application/json">' + json.dumps(data)
+            + "</script></html>").encode()
+    result = Source().parse([page], QUERY, NOW)
+    assert result.offers == [] and "monthly price" in result.notes[0]
 
 
 async def test_multiple_rooms_are_not_representable():
@@ -53,7 +76,7 @@ def test_recorded_total_discount_coordinates_rating_and_links():
     assert first.stay.photos[0] == "https://a0.muscache.com/im/pictures/54f8b7b4-d492-43ca-a6be-dca2d52bb590.jpg"
     assert first.rate.total == Money(80, "EUR")
     assert first.rate.link.kind == "property" and "check_in=2026-11-14" in first.rate.link.url
-    assert any("first SSR page: 18" in n for n in result.notes)
+    assert any(n.startswith("18 listings from 1 pages of 18") for n in result.notes)
 
 
 def test_empty_missing_state_domain_handoff_and_nightly_only():

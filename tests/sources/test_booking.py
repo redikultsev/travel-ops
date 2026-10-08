@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime, timezone
 import pytest
 from travelops.core.stays import StayQuery
@@ -10,29 +11,57 @@ QUERY = StayQuery("Belgrade", date(2026, 11, 14), date(2026, 11, 16))
 NOW = datetime(2026, 10, 5, tzinfo=timezone.utc)
 
 
-async def test_bounded_price_ranges_and_same_session():
-    class Browser:
-        async def get(self, *args, **kw):
-            assert kw["engine"] == "chromium" and kw["ready_cookie"] == "aws-waf-token"
-            return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
+def walk_page(prices, counted):
+    """A results page Booking would send: `counted` is its "properties found", one card per nightly price."""
+    cards = "".join(
+        f'<div data-testid="property-card"><div data-testid="title">Stay {p}</div>'
+        f'<a href="https://www.booking.com/hotel/rs/s{p}.html">x</a>'
+        f'<span data-testid="price-and-discounted-price">€ {p * 2}</span></div>'
+        for p in prices
+    )
+    return f'<html><div data-testid="search-results"><h1>Belgrade: {counted:,} properties found</h1>{cards}</div></html>'.encode()
+
+
+class Browser:
+    async def get(self, *args, **kw):
+        assert kw["engine"] == "chromium" and kw["ready_cookie"] == "aws-waf-token"
+        return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
+
+
+async def test_the_search_walks_up_the_price_until_what_passes_is_seen():
+    pages = iter([walk_page(range(10, 35), 60), walk_page(range(33, 58), 37), walk_page(range(58, 70), 12)])
 
     class Net:
         calls = []
 
         async def request(self, *args, **kw):
-            self.calls.append(kw)
-            return Response(200, b"<html>searchresults</html>")
+            self.calls.append(kw["params"])
+            return Response(200, next(pages))
 
-    net = Net()
-    raws = await Source().fetch(QUERY, Context(net, Browser(), lambda: NOW))
-    assert len(raws) == len(net.calls) == 4 and Source().max_requests(QUERY) == 5
-    assert [c["params"].get("nflt") for c in net.calls] == [
-        None,
-        "price=EUR-0-100-1",
-        "price=EUR-100-250-1",
-        "price=EUR-250-2000-1",
-    ]
-    assert all(c["cookies"] == {"aws-waf-token": "test"} and c["impersonate"] == "chrome" for c in net.calls)
+    query = StayQuery("Belgrade", date(2026, 11, 14), date(2026, 11, 16), min_rating=8.4)
+    raws = await Source().fetch(query, Context(Net(), Browser(), lambda: NOW))
+    assert len(raws) == 3 and Source().max_requests(query) == 11
+    assert [c["nflt"] for c in Net.calls] == [
+        "review_score=80;price=EUR-0-10000-1",
+        "review_score=80;price=EUR-33-10000-1",
+        "review_score=80;price=EUR-55-10000-1",
+    ], "each page starts a little below the dearest night of the last; a rating of 8.4 asks Booking for 8+"
+    assert all(c["order"] == "price" for c in Net.calls)
+    result = Source().parse(raws, query, NOW)
+    assert len(result.offers) == 60 and "deduplicated: 60 properties of 60 Booking counts for these filters" in result.notes
+
+
+async def test_a_ceiling_and_a_short_list_take_one_page():
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"])
+            return Response(200, walk_page(range(10, 20), 10))
+
+    query = replace(QUERY, max_night_eur=60.4)
+    await Source().fetch(query, Context(Net(), Browser(), lambda: NOW))
+    assert [c["nflt"] for c in Net.calls] == ["price=EUR-0-61-1"]
 
 
 async def test_children_need_actual_ages():
@@ -53,7 +82,7 @@ async def test_children_are_sent_with_one_age_each():
 
         async def request(self, *args, **kw):
             self.calls.append(kw["params"])
-            return Response(200, b"<html>searchresults</html>")
+            return Response(200, walk_page(range(10, 12), 2))
 
     family = StayQuery(QUERY.place, QUERY.checkin, QUERY.checkout, adults=2, children=2, children_ages=(3, 9))
     await Source().fetch(family, Context(Net(), Browser(), lambda: NOW))
@@ -107,11 +136,11 @@ def test_known_empty_and_invalid_html():
         Source().parse([recorded().replace(b"price-and-discounted-price", b"no-price")], QUERY, NOW)
 
 
-def test_one_stray_page_loses_a_band_not_the_search():
+def test_one_stray_page_loses_its_properties_not_the_search():
     home = b"<html><head><title>Booking.com | Official site</title></head><body>home</body></html>"
-    result = Source().parse([recorded(), home, recorded(), recorded()], QUERY, NOW)
+    result = Source().parse([recorded(), home], QUERY, NOW)
     assert len(result.offers) == 6
-    assert "EUR 0-100 nightly: not a results page, this band is missing" in result.notes
+    assert "page 2: not a results page, its properties are missing" in result.notes
     with pytest.raises(ParseError, match="no page"):
         Source().parse([home, home], QUERY, NOW)
 
@@ -124,25 +153,22 @@ async def test_live_search():
     assert offers[0].rate.link.kind == "property"
 
 
-async def test_a_server_fault_on_one_page_loses_a_band_not_the_search():
-    class Browser:
-        async def get(self, *args, **kw):
-            return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
-
+async def test_a_server_fault_stops_the_walk_and_is_said():
     class Net:
         def __init__(self, statuses):
             self.statuses = iter(statuses)
 
         async def request(self, *args, **kw):
             status = next(self.statuses)
-            return Response(status, recorded() if status == 200 else b"<html><title>Booking.com</title>fault</html>")
+            return Response(status, walk_page(range(10, 35), 80) if status == 200 else b"<html>fault</html>")
 
-    raws = await Source().fetch(QUERY, Context(Net([200, 502, 200, 200]), Browser(), lambda: NOW))
+    raws = await Source().fetch(QUERY, Context(Net([200, 502]), Browser(), lambda: NOW))
     result = Source().parse(raws, QUERY, NOW)
-    assert len(result.offers) == 6
-    assert "EUR 0-100 nightly: not a results page, this band is missing" in result.notes
+    assert len(result.offers) == 25
+    assert any("HTTP 5xx" in note for note in result.notes)
+    assert any(note.startswith("the 55 not seen are dearer") for note in result.notes)
     with pytest.raises(SourceFault, match="HTTP 502"):
-        await Source().fetch(QUERY, Context(Net([502] * 4), Browser(), lambda: NOW))
+        await Source().fetch(QUERY, Context(Net([502]), Browser(), lambda: NOW))
 
 
 def test_a_property_page_gives_amenities_place_rules_and_scores():

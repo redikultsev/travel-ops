@@ -16,20 +16,50 @@ def challenge(response):
     return None
 
 
+# A results page holds 18 listings; its `paginationInfo.pageCursors` lead to the next ones (`cursor=`, verified
+# 2026-10-08). PAGES is how far one search goes.
+PAGES = 6
+
+
+def cursors_of(body: bytes) -> list[str]:
+    import json
+    import re
+
+    match = re.search(rb'"pageCursors":(\[[^\]]*\])', body)
+    try:
+        return [c for c in json.loads(match[1]) if isinstance(c, str)] if match else []
+    except ValueError:
+        return []
+
+
 class Source:
     name = "airbnb"
 
     def max_requests(self, query):
-        return 1
+        return PAGES
 
     async def fetch(self, query, ctx):
         if query.rooms != 1:
             raise NotConfigured("Airbnb SSR searches do not represent multiple rooms")
+        first = await self._page(query, ctx, None)
+        raws = [first]
+        for cursor in cursors_of(first)[1:PAGES]:
+            try:
+                raws.append(await self._page(query, ctx, cursor))
+            except Exception as exc:  # a later page lost costs its listings, not the search
+                from ...net.client import Blocked
+
+                if isinstance(exc, Blocked):
+                    raise
+                break
+        return raws
+
+    async def _page(self, query, ctx, cursor):
         response = await ctx.net.request(
             self.name,
             "GET",
             "https://www.airbnb.com/s/" + quote(query.place, safe="") + "/homes",
-            params={
+            params={**({"cursor": cursor} if cursor else {}),
                 "checkin": query.checkin.isoformat(),
                 "checkout": query.checkout.isoformat(),
                 "adults": query.adults,
@@ -48,7 +78,7 @@ class Source:
             from ..base import ParseError
 
             raise ParseError(f"Airbnb search returned HTTP {response.status}")
-        return [response.body]
+        return response.body
 
     def parse(self, raws, query, seen_at):
         import base64
@@ -98,7 +128,7 @@ class Source:
             raise ParseError("full-stay total missing; nightly rates cannot establish fees")
 
         offers = {}
-        total_count, unpriced = None, 0
+        total_count, unpriced, monthly = None, 0, 0
         try:
             for raw in raws:
                 tree = Tree(raw).root
@@ -140,6 +170,11 @@ class Source:
                                 and p["picture"].startswith(("http://", "https://"))
                             )
                         )
+                        shown = item.get("structuredDisplayPrice") or {}
+                        if shown.get("displayPriceStyle") == "MONTHLY":
+                            # From 28 nights Airbnb shows a price a month, not the stay's total; it is not one.
+                            monthly += 1
+                            continue
                         try:
                             total = total_price(item["structuredDisplayPrice"])
                         except ParseError:
@@ -193,12 +228,20 @@ class Source:
                         )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             raise ParseError(f"Airbnb search fields: {exc}") from exc
+        month_note = (
+            [
+                f"{monthly} listings showed a monthly price, which Airbnb shows from 28 nights instead of the "
+                "stay's total, and were left out: open the search on Airbnb for their totals"
+            ]
+            if monthly
+            else []
+        )
         if not offers:
-            if unpriced:
+            if unpriced and not monthly:
                 raise ParseError("full-stay total missing on every card; nightly rates cannot establish fees")
-            return Parsed()
-        coverage = f"first SSR page: {len(offers)} listings; " + (
-            f"total {total_count}" if total_count is not None else "total count not provided"
+            return Parsed([], month_note)
+        coverage = f"{len(offers)} listings from {len(raws)} pages of 18; " + (
+            f"total {total_count}" if total_count is not None else "Airbnb gives no exact total"
         )
         return Parsed(
             list(offers.values()),
@@ -207,6 +250,7 @@ class Source:
                 "amenities are not in search cards; stay_details reads them from the listing page",
                 "taxes and fees inside or on top of the total are not stated",
                 *([f"{unpriced} listings showed a nightly rate only and were left out"] if unpriced else []),
+                *month_note,
             ],
         )
 

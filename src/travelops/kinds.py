@@ -76,7 +76,7 @@ def flight_query(
     )
 
 
-def stay_query(profile, place, checkin, checkout, adults=None, children_ages=None):
+def stay_query(profile, place, checkin, checkout, adults=None, children_ages=None, min_rating=None, max_total=None):
     checkin = date.fromisoformat(checkin) if isinstance(checkin, str) else checkin
     checkout = date.fromisoformat(checkout) if isinstance(checkout, str) else checkout
     if checkout <= checkin:
@@ -91,7 +91,17 @@ def stay_query(profile, place, checkin, checkout, adults=None, children_ages=Non
         _positive(profile.stays.adults if adults is None else adults, "adults"),
         profile.travellers.children if ages is None else len(ages),
         children_ages=ages or (),
+        min_rating=_bar(profile.stays.min_rating if min_rating is None else min_rating, "min_rating", 10),
+        max_total=_bar(max_total, "max_total"),
     )
+
+
+def _bar(value, name, top=None):
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0 or (top and value > top):
+        raise ValueError(f"{name} must be a positive number" + (f" up to {top}" if top else ""))
+    return float(value)
 
 
 def ground_query(profile, origin, destination, depart, adults=None, children_ages=None, modes=None):

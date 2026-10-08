@@ -19,7 +19,8 @@ as a limit, so the agent checks the place.
 
 ## Request
 
-`origin`, `destination`, `departure_date`, `page_size: 30`, `sort: price_asc`.
+`origin`, `destination`, `departure_date`, `page_size: 30`, `sort: price_asc`; further `page`s, up to three,
+while `meta.has_more` is true.
 Rail takes `passengers` (adults only); bus takes `adults` and `children`.
 
 ## Answer

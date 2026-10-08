@@ -44,7 +44,7 @@ def test_shortlist_says_what_it_left_out():
 
     flights = {"currency": "EUR", "cards": [{"groups": [{"fares": list(range(8))}]} for _ in range(30)]}
     cut = shortlist(flights, 10, 5)
-    assert len(cut["cards"]) == 10 and cut["shown"] == {"cards": 10, "of": 30, "offers_per_group_at_most": 5}
+    assert len(cut["cards"]) == 10 and cut["shown"] == {"cards": 10, "rest": 20, "of": 30, "offers_per_group_at_most": 5}
     assert cut["cards"][0]["groups"][0]["fares"] == [0, 1, 2, 3, 4] and cut["cards"][0]["groups"][0]["fares_total"] == 8
     stays = shortlist({"currency": "EUR", "cards": [{"rates": [1, 2, 3]}]}, 10, 2)
     assert stays["cards"][0]["rates"] == [1, 2] and stays["cards"][0]["rates_total"] == 3 and stays["shown"]["of"] == 1

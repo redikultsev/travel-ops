@@ -76,3 +76,13 @@ The recorded test HTML retains only the actual search-results fields consumed
 by the parser; unrelated page scripts, logging identifiers, wishlist state and
 pagination cursors were removed before committing. The 18 listing records and
 quoted prices are preserved, with the fixture scrubber applied again to JSON.
+
+## Pages and long stays (2026-10-08)
+
+- A results page holds 18 listings. Its `paginationInfo.pageCursors` (base64 of `section_offset` and
+  `items_offset`) lead to the next pages with `cursor=<cursor>` on the same URL: the second cursor gave 17 new
+  listings for Shanghai. A search reads up to six pages. The page says "1,000+ places", not an exact total.
+- With `price_max` and `room_types[]` added, the page came back without listings: filters are not passed.
+- From 28 nights a card shows a monthly price (`displayPriceStyle: MONTHLY`, "€5,075 monthly", "Average monthly
+  price"), not the stay's total, and the listing page's own HTML carries no price. Such cards are left out and
+  counted: a month in Shanghai found no Airbnb total to quote.

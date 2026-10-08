@@ -95,6 +95,7 @@ async def test_trains_and_buses_through_the_tools(app):
     found = await tools.search_ground("Belgrade", "Vienna", "2026-11-14", limit=2)
     assert found["search_id"].startswith("g") and found["shown"] == {
         "cards": 2,
+        "rest": 2,
         "of": 4,
         "offers_per_group_at_most": 5,
         "sorted_by": "price",

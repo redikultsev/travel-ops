@@ -26,6 +26,11 @@ class StayQuery:
     children: int = 0
     rooms: int = 1
     children_ages: tuple[int, ...] = ()  # sites price a child by age; a count alone is not enough for some
+    # Bars a source may apply itself, so that its pages hold what passes them rather than what it ranks first.
+    # The view applies them again: a source that cannot is not trusted to have.
+    min_rating: float | None = None  # 0–10
+    max_total: float | None = None  # the whole stay, in the currency of the search
+    max_night_eur: float | None = None  # `max_total` per night in EUR, set by the search for the sources
 
     @property
     def nights(self) -> int:

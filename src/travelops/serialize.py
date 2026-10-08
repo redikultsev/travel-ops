@@ -147,6 +147,9 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
             "adults": query.adults,
             "children": query.children,
             "rooms": query.rooms,
+            # What the sources were asked to keep to: a view with looser bars cannot show what they left out.
+            "min_rating": query.min_rating,
+            "max_total": query.max_total,
         },
         "currency": search.currency,
         "rates_day": rates.day,
@@ -291,10 +294,70 @@ def leg_options(result: dict, limit: int = 8) -> dict:
     return result
 
 
+REST_AT_MOST = 300
+
+
+def _price_row(card: dict, currency: str) -> list | None:
+    from .cards import cheapest
+
+    found = cheapest(card, currency)
+    if found is None:
+        offer = next(iter(offers_of(card)), None)
+        money = offer and (offer.get("all_in") or offer.get("price") or offer.get("total"))
+        return [money["amount"], money["currency"], offer.get("seller")] if money else None
+    value, offer = found
+    return [round(value, 2), currency, offer.get("seller")]
+
+
+def offers_of(card: dict) -> list[dict]:
+    from .cards import offers
+
+    return offers(card)
+
+
+def row(card: dict, currency: str) -> dict:
+    """A card in one short line, for the cards past the detailed ones: enough to choose which to look at."""
+    try:
+        price = _price_row(card, currency)
+    except (AttributeError, KeyError, TypeError):
+        price = None
+    if "stay" in card:
+        stay = card["stay"]
+        return {
+            "name": stay["name"],
+            "sources": [entry["source"] for entry in card.get("listed_on") or [stay]],
+            "price": price,
+            "rating": stay.get("rating"),
+            "reviews": stay.get("reviews"),
+            "km": stay.get("center_km"),
+            "kind": stay.get("kind"),
+        }
+    if "outbound" in card:
+        legs = [card["outbound"], card.get("inbound") or []]
+        return {
+            "flights": [" ".join(s["flight"] for s in leg) for leg in legs if leg],
+            "departs": [leg[0]["departs"][:16] for leg in legs if leg],
+            "stops": card.get("stops"),
+            "hours": round(card["duration_min"] / 60, 1) if card.get("duration_min") is not None else None,
+            "price": price,
+        }
+    rides = card.get("rides") or []
+    return {
+        "modes": card.get("modes"),
+        "departs": rides[0]["departs"][:16] if rides else None,
+        "arrives": rides[-1]["arrives"][:16] if rides else None,
+        "changes": card.get("changes"),
+        "price": price,
+    }
+
+
 def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3, varied: bool = True) -> dict:
     """Cut a result to its first cards and sellers, saying how much was left out. Cards arrive sorted; `varied`
-    is for an order by price, where near-copies of one round trip would otherwise fill the list."""
+    is for an order by price, where near-copies of one round trip would otherwise fill the list. The cards past
+    the first ones come along as one short line each (`rest`), in the same order, so that a choice is made from
+    all that passed the filters and not from the first page."""
     total = len(result["cards"])
+    every = list(result["cards"])
     by_source: dict[str, int] = {}
     for card in result["cards"]:
         if "stay" in card:
@@ -308,7 +371,17 @@ def shortlist(result: dict, cards: int, offers: int = 5, photos: int = 3, varied
         if "stay" in card:
             card["stay"]["photos_total"] = len(card["stay"]["photos"])
             card["stay"]["photos"] = card["stay"]["photos"][:photos]
-    result["shown"] = {"cards": len(result["cards"]), "of": total, "offers_per_group_at_most": offers}
+    detailed = {id(card) for card in result["cards"]}
+    rest = [card for card in every if id(card) not in detailed]
+    result["rest"] = [row(card, result["currency"]) for card in rest[:REST_AT_MOST]]
+    result["shown"] = {
+        "cards": len(result["cards"]),
+        "rest": len(result["rest"]),
+        "of": total,
+        "offers_per_group_at_most": offers,
+    }
+    if len(rest) > REST_AT_MOST:
+        result["shown"]["rest_cut"] = f"{len(rest) - REST_AT_MOST} more passed the filters: narrow them to see"
     if "filtered" in result:
         result["shown"]["of_counts"] = "cards left after `filtered`"
     if by_source:

@@ -9,10 +9,11 @@ import math
 import time
 from collections import Counter
 from dataclasses import dataclass, replace
+from decimal import Decimal
 
 from .core.flights import FlightQuery, on_route
 from .core.ground import GroundOffer, GroundQuery
-from .core.money import Rates
+from .core.money import Money, Rates, UnknownCurrency
 from .core.report import SourceReport, Status, combine, narrows
 from .core.stays import StayQuery
 from .merge.flights import FlightCard, merge_flights
@@ -173,11 +174,23 @@ async def search_flights(
     return FlightSearch(query, currency, merge_flights(offers, rates, currency), reports)
 
 
+def night_cap_eur(query: StayQuery, rates: Rates, currency: str) -> float | None:
+    """`max_total` as a nightly price in EUR, the unit the sites filter by; None when it cannot be converted."""
+    if query.max_total is None:
+        return None
+    try:
+        whole = rates.convert(Money(Decimal(str(query.max_total)), currency), "EUR").amount
+    except UnknownCurrency:
+        return None
+    return float(whole) / query.nights
+
+
 async def search_stays(
     query: StayQuery, sources: list, ctx: Context, rates: Rates, currency: str, timeout: float = 120, sharing: int = 1
 ) -> StaySearch:
+    asked = replace(query, max_night_eur=night_cap_eur(query, rates, currency))
     results = await asyncio.gather(
-        *(run_source(s, query, ctx, deadline(s, query, ctx, timeout, sharing)) for s in sources)
+        *(run_source(s, asked, ctx, deadline(s, asked, ctx, timeout, sharing)) for s in sources)
     )
     offers = [o for found, _ in results for o in found]
     return StaySearch(query, currency, list_stays(offers, rates, currency, query.place), [rep for _, rep in results])

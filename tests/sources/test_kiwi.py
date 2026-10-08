@@ -31,7 +31,7 @@ async def test_one_call_per_route_with_no_handshake():
 
     query = FlightQuery(("BEG",), ("TGD", "TIV"), date(2026, 10, 22), date(2026, 10, 23), adults=2, children=1)
     raws = await Source().fetch(query, Context(Net(), None, lambda: NOW))
-    assert len(raws) == len(Net.calls) == 2 == Source().max_requests(query)
+    assert len(raws) == len(Net.calls) == 2 and Source().max_requests(query) == 8, "a short answer is the last"
     sent = Net.calls[1]["params"]
     assert sent["name"] == "search-flight" and sent["arguments"] == {
         "flyFrom": "BEG",
@@ -89,7 +89,7 @@ def test_answers_that_do_not_fit_the_question_are_refused():
     with pytest.raises(ParseError, match="legs do not match"):
         Source().parse([json.dumps(payload).encode()], FlightQuery(("BEG",), ("TGD",), ROUND.depart), NOW)
     full = dict(payload, itineraries=payload["itineraries"] * 4)
-    assert any("truncated: the 15 cheapest" in n for n in Source().parse([json.dumps(full).encode()], ROUND, NOW).notes)
+    assert any("dearer itineraries were not read" in n for n in Source().parse([json.dumps(full).encode()], ROUND, NOW).notes)
     assert Source().parse([b'{"itineraries": []}'], ROUND, NOW).offers == []
 
 
@@ -105,3 +105,19 @@ def test_bags_of_a_party_are_counted_per_traveller():
     family = FlightQuery(("BEG",), ("TGD",), ROUND.depart, ROUND.return_, adults=2, children=1)
     bags = Source().parse([json.dumps(payload).encode()], family, NOW).offers[0].fare.baggage
     assert (bags.checked, bags.carry_on) == (1, True), "three bags for three travellers is one each"
+
+
+async def test_full_answers_lead_to_the_next_ones_up_the_price():
+    def answer(low):
+        return {"itineraries": [{"price": low + n, "bookingUrl": f"https://kiwi.example/{low + n}"} for n in range(15)]}
+
+    class Net:
+        calls = []
+
+        async def request(self, source, method, url, **kw):
+            self.calls.append(kw["json"]["params"]["arguments"])
+            low = kw["json"]["params"]["arguments"].get("price_from", 100)
+            return Response(200, stream(answer(low) if len(self.calls) < 3 else {"itineraries": []}))
+
+    raws = await Source().fetch(ONE_WAY, Context(Net(), None, lambda: NOW))
+    assert [c.get("price_from") for c in Net.calls] == [None, 114, 128] and len(raws) == 3

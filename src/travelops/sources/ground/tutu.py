@@ -16,6 +16,7 @@ from ...geo import locate
 URL = "https://mcp.tutu.ru/mcp"
 TOOLS = {"train": "search_rail", "bus": "search_bus"}
 PAGE = 30
+PAGES = 3  # read while Tutu says there are more
 META = ("pricing", "from", "to", "has_more", "total_matched")
 # Tutu's seat categories, by the names a traveller uses.
 CLASSES = {
@@ -61,10 +62,10 @@ class Source:
         self.server = Server(self.name, URL, queue="handshake")
 
     def max_requests(self, query: GroundQuery) -> int:
-        return 2 + sum(mode in TOOLS for mode in query.modes)
+        return 2 + sum(mode in TOOLS for mode in query.modes) * PAGES
 
     def typical_requests(self, query: GroundQuery) -> int:
-        return sum(mode in TOOLS for mode in query.modes)
+        return sum(mode in TOOLS for mode in query.modes)  # a day's trains or buses on one route seldom fill a page
 
     async def fetch(self, query: GroundQuery, ctx: Context) -> list[bytes]:
         modes = [mode for mode in query.modes if mode in TOOLS]
@@ -97,6 +98,13 @@ class Source:
                 continue
             if not isinstance(payload, dict) or "offers" not in payload:
                 raise ParseError(f"Tutu {TOOLS[mode]} answered without offers")
+            for page in range(2, PAGES + 1):
+                if not (payload.get("meta") or {}).get("has_more"):
+                    break
+                more = await self.server.call(ctx, TOOLS[mode], dict(arguments, page=page))
+                if not isinstance(more, dict) or not isinstance(more.get("offers"), list) or not more["offers"]:
+                    break
+                payload = dict(more, offers=payload["offers"] + more["offers"])
             # Only what is read: the rest of `meta` includes text the server addresses to a model.
             meta = {k: v for k, v in (payload.get("meta") or {}).items() if k in META}
             raws.append(json.dumps({"mode": mode, "offers": payload["offers"], "meta": meta}).encode())

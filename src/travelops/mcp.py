@@ -28,7 +28,10 @@ DESCRIPTION = (
     "on a 0-10 scale. Never present a price absent from this result. "
     "Report the sources block and every limitation to the user. No booking, checkout, passenger data or login. "
     "If needs_confirmation is true, ask the human before calling again with confirm=True. "
-    "Results are the cheapest `limit` cards; `shown` says how many exist. The same search within 30 minutes is "
+    "The first `limit` cards come in full; every other card that passed the filters follows as one short line in "
+    "`rest` (name or flights, price, rating, distance), in the same order: choose from all of them, and use the "
+    "refine tool to see any of them in full. A source's own notes say how far it read (pages, totals it counts); "
+    "say when a source read only part of what it holds. The same search within 30 minutes is "
     "answered from memory (`from_memory`, `age_minutes`); pass refresh=True only when the human wants new prices. "
     "For more cards, other times or another filter, do not search again: call the refine tool with `search_id`."
 )
@@ -131,14 +134,19 @@ class Tools:
         limit: int = 10,
         min_rating: float | None = None,
         max_center_km: float | None = None,
+        max_total: float | None = None,
         refresh: bool = False,
     ) -> dict[str, Any]:
         self._limit(limit)
-        query = stay_query(self.app.profile, place, checkin, checkout, adults, children_ages)
+        query = stay_query(
+            self.app.profile, place, checkin, checkout, adults, children_ages, min_rating=min_rating, max_total=max_total
+        )
         (stored,) = await self.searches.run(
             "stays", [query], sources=sources, currency=currency, refresh=refresh, confirm=confirm
         )
-        return self.searches.view("stays", stored, limit, min_rating=min_rating, max_center_km=max_center_km)
+        return self.searches.view(
+            "stays", stored, limit, min_rating=min_rating, max_center_km=max_center_km, max_total=max_total
+        )
 
     @answers("ground search")
     async def search_ground(
@@ -506,7 +514,17 @@ def create_server(
     server.add_tool(
         traced(tools.search_flights, trace), description=DESCRIPTION + " " + SEPARATE + PARTY, annotations=READ_ONLY
     )
-    server.add_tool(traced(tools.search_stays, trace), description=DESCRIPTION + " " + PARTY, annotations=READ_ONLY)
+    server.add_tool(
+        traced(tools.search_stays, trace),
+        description=DESCRIPTION
+        + " "
+        + PARTY
+        + " `min_rating` and `max_total` (the whole stay, in the result's currency) are also passed to the sources "
+        "that can filter by them, so their pages hold what passes rather than what they rank first: give them when "
+        "the human states a bar or a budget. `searched_with` in a view says when it is looser than what the sources "
+        "were asked for.",
+        annotations=READ_ONLY,
+    )
     server.add_tool(traced(tools.search_ground, trace), description=GROUND + DESCRIPTION, annotations=READ_ONLY)
     server.add_tool(
         traced(tools.refine_ground, trace),

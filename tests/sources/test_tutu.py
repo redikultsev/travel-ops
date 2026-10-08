@@ -36,7 +36,7 @@ async def test_fetch_calls_only_search_and_keeps_session():
     net = FakeNet()
     raws = await Source().fetch(QUERY, Context(net, None, lambda: NOW))
     assert json.loads(raws[0]) == {"offers": []}
-    assert len(net.calls) == Source().max_requests(QUERY) == 3
+    assert len(net.calls) == 3 and Source().max_requests(QUERY) == 2 + 4, "no further page when it has no more"
     call = net.calls[-1]
     assert call["headers"]["mcp-session-id"] == "test-session"
     assert call["json"]["params"]["name"] == "search_avia"
@@ -54,7 +54,7 @@ async def test_one_handshake_serves_every_route_of_a_search():
     await asyncio.gather(*(source.fetch(route, Context(net, None, lambda: NOW)) for route in routes))
     methods = [c["json"].get("method") for c in net.calls]
     assert methods.count("initialize") == 1 and methods.count("tools/call") == 3
-    assert source.typical_requests(QUERY) == 1
+    assert source.typical_requests(QUERY) == 4, "a busy route reads every page"
 
 
 def recorded():
@@ -96,3 +96,24 @@ async def test_live_search():
     assert all(
         segment.departs.tzinfo and segment.arrives.tzinfo for offer in offers for segment in offer.itinerary.segments()
     )
+
+
+async def test_further_pages_are_read_while_it_has_more():
+    pages = iter([
+        {"offers": [{"n": 1}], "meta": {"has_more": True, "total_matched": 70}},
+        {"offers": [{"n": 2}], "meta": {"has_more": True, "total_matched": 70}},
+        {"offers": [{"n": 3}], "meta": {"has_more": False, "total_matched": 70}},
+    ])
+
+    class Pages(FakeNet):
+        async def request(self, *args, **kwargs):
+            if kwargs["json"]["method"] != "tools/call":
+                return await super().request(*args, **kwargs)
+            self.calls.append(kwargs)
+            text = json.dumps(next(pages))
+            return Response(200, json.dumps({"jsonrpc": "2.0", "id": 2, "result": {"content": [{"type": "text", "text": text}]}}).encode())
+
+    net = Pages()
+    (raw,) = await Source().fetch(QUERY, Context(net, None, lambda: NOW))
+    assert [o["n"] for o in json.loads(raw)["offers"]] == [1, 2, 3]
+    assert [c["json"]["params"]["arguments"]["page"] for c in net.calls if c["json"].get("method") == "tools/call"] == [1, 2, 3]

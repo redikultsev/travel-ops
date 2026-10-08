@@ -4,7 +4,12 @@
    profile's stays.adults when omitted. Ask once for missing place/dates or any
    condition the query model cannot express. Keep the requested nights and
    party fixed.
-2. Call `search_stays` once for the approved query and respect confirmation. The
+2. Call `search_stays` once for the approved query and respect confirmation. Pass
+   the human's rating bar as `min_rating` and budget as `max_total`: the sources
+   then read deeper into what passes them. Booking walks up the price page by
+   page and says how many of the properties it counts were seen; trivago is
+   asked once per star class; Airbnb and Trip.com read several pages. Choose
+   from the detailed cards and the `rest` rows together. The
    engine applies the profile's `min_rating` itself and says in `filtered` what it
    hid: stays below the bar, and separately stays with no rating at all.
 3. Read a card before you offer it:

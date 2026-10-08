@@ -19,13 +19,18 @@ is `https://www.booking.com/searchresults.html`; parameters are `ss` (place),
 Children go as `group_children` plus one `age` parameter per child. Booking prices a
 child by age, so a query with children but without every age is not configured.
 
-Booking ignores offset in the observed recipe. Bounded depth uses nightly price
-bands via `nflt=price=EUR-<low>-<high>-1`; all bands use the same stay query and
-are deduplicated by property link. For implementation use at most four HTTP
-requests: one unsliced request plus three ranges 0–100, 100–250, 250–2000 EUR.
-This is a bounded search, not complete inventory: disclose the exact number
-of cards received per range, deduplicated count, and the bounded range coverage.
-Never claim that missing cards prove no accommodation outside those ranges.
+Booking ignores `offset` over HTTP (verified again 2026-10-08: offsets 25 and 50 returned the same 25
+properties). A search therefore walks up the price: with `order=price` and `nflt=price=EUR-<low>-<high>-1`
+(nightly, EUR), each page asks for the cheapest at or above a little under the dearest night of the page before
+(98%: the filter may round; a property seen twice is merged). It stops when a page has fewer than 25 cards, when
+Booking counts 25 or fewer for the filters, or after ten pages. `<high>` is the search's `max_total` per night
+when one is given, else 10000.
+
+Each page says how many properties pass its filters ("604 properties found"); the first page's count is the
+total for the search, so the result says how many of them were seen and that the rest are dearer. A
+`min_rating` becomes `review_score=90|80|70|60`, rounded down (8.4 asks for 8+). Shanghai, 1–30 December, one
+adult, 2026-10-08: rating 8+ hotels, 604; rating 8+ under EUR 60 a night, 293. A `distance=` filter was answered
+with HTTP 502 twice and is not used: the view filters by distance.
 
 ## HTML fields
 
@@ -56,7 +61,7 @@ after the first refusal during implementation. A genuine 200 search page with
 no property cards is empty; an unrelated HTML shell is unparsed.
 
 Use at least 10 seconds plus up to 3 seconds positive jitter per physical
-request, at most 12 in 600 seconds, and quarantine 24 hours after a WAF refusal.
+request, at most 12 in 600 seconds (one search can use eleven of them), and quarantine 24 hours after a WAF refusal.
 Browser readiness is bounded; a browser that cannot obtain a session is blocked.
 
 ## Browser and request identity

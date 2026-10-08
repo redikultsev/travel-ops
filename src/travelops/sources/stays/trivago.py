@@ -14,6 +14,10 @@ from ..base import NotConfigured, Parsed, ParseError
 from ._html import money
 
 URL = "https://mcp.trivago.com/mcp"
+# One answer holds 25 stays and the tool has no pages. Asking once as is and once per star class reaches more of
+# them: each star class has its own first 25. Stays without stars (flats) come only in the first answer.
+STARS = ("1star", "2star", "3star", "4star", "5star")
+RATINGS = ((8.5, "rating85"), (8.0, "rating80"), (7.5, "rating75"), (7.0, "rating70"))
 
 
 class Source:
@@ -23,9 +27,9 @@ class Source:
         self.server = Server(self.name, URL)
 
     def max_requests(self, query):
-        return 3
+        return 2 + len(STARS) + 1
 
-    async def fetch(self, query, ctx):
+    async def fetch(self, query, ctx, every_star: bool = True):
         if query.children and len(query.children_ages) != query.children:
             raise NotConfigured("trivago prices a child by age: pass children_ages")
         arguments = {
@@ -40,22 +44,34 @@ class Source:
         if query.children_ages:
             arguments["children"] = query.children
             arguments["children_ages"] = "-".join(map(str, query.children_ages))
-        payload = await self.server.call(ctx, "trivago-accommodation-search", arguments)
-        if not isinstance(payload, dict):
-            raise ParseError("trivago answered without a search result")
-        # Only the list of stays is kept: `system_message` is the server talking to a model.
-        return [json.dumps({"accommodations": payload.get("accommodations")}).encode()]
+        rating = next((name for bar, name in RATINGS if query.min_rating and query.min_rating >= bar), None)
+        if rating:
+            arguments["review_rating"] = {rating: True}
+        raws = []
+        for star in (None, *(STARS if every_star else ())):
+            asked = dict(arguments, hotel_rating={star: True}) if star else arguments
+            try:
+                payload = await self.server.call(ctx, "trivago-accommodation-search", asked)
+            except ParseError:
+                if star is None:
+                    raise
+                continue  # a star class it will not answer for costs that class only
+            if not isinstance(payload, dict):
+                raise ParseError("trivago answered without a search result")
+            # Only the list of stays is kept: `system_message` is the server talking to a model.
+            raws.append(json.dumps({"accommodations": payload.get("accommodations")}).encode())
+        return raws
 
     async def lookup(self, query, name, ctx, seen_at):
         """One property by its name, at the dates of `query`: trivago's search takes a hotel's name as well as a
         place's, and answers with that hotel alone (Okura Garden Hotel Shanghai, 2026-10-08)."""
         from dataclasses import replace
 
-        raws = await self.fetch(replace(query, place=name), ctx)
+        raws = await self.fetch(replace(query, place=name, min_rating=None), ctx, every_star=False)
         return self.parse(raws, query, seen_at).offers
 
     def parse(self, raws, query, seen_at):
-        offers = []
+        offers, seen = [], set()
         try:
             for raw in raws:
                 found = json.loads(raw)["accommodations"]
@@ -64,6 +80,9 @@ class Source:
                 if not isinstance(found, list):
                     raise ValueError("accommodations must be a list")
                 for item in found:
+                    if str(item.get("accommodation_id")) in seen:
+                        continue  # the same stay in the plain list and in its star class's
+                    seen.add(str(item.get("accommodation_id")))
                     if (item.get("arrival"), item.get("departure")) != (
                         query.checkin.isoformat(),
                         query.checkout.isoformat(),
@@ -123,7 +142,8 @@ class Source:
         return Parsed(
             offers,
             [
-                f"first page: {len(offers)} stays; total count not provided",
+                f"{len(offers)} stays from {len(raws)} lists of up to 25 (as ranked, then one per star class); "
+                "trivago gives no total and no further pages",
                 "one advertiser's price per stay; other advertisers may differ",
                 "amenities are the stay's top ones, not the whole list",
                 "taxes and fees inside or on top of the total are not stated",

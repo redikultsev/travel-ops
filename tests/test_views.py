@@ -120,6 +120,7 @@ def test_other_orders_and_leg_options_follow_the_filters():
     early = flights_view(flights(), sort="departure", limit=1)
     assert early["cards"][0]["outbound"][0]["flight"] == "TK1" and early["shown"] == {
         "cards": 1,
+        "rest": 3,
         "of": 4,
         "offers_per_group_at_most": 5,
         "sorted_by": "departure",
@@ -270,3 +271,28 @@ def test_bedrooms_are_read_from_the_room_name():
     view = stays_view(data, min_bedrooms=2)
     assert [c["stay"]["name"] for c in view["cards"]] == ["room"]
     assert view["filtered"]["by"] == [{"filter": "min_bedrooms", "value": 2, "hidden": 1, "hidden_unknown": 2}]
+
+
+def test_cards_past_the_detailed_ones_come_as_short_rows():
+    shown = stays_view(stays(), limit=1)
+    assert shown["shown"]["cards"] == 1 and shown["shown"]["rest"] == len(shown["rest"]) >= 2
+    row = shown["rest"][0]
+    assert set(row) == {"name", "sources", "price", "rating", "reviews", "km", "kind"}
+    assert row["price"][1] == "EUR"
+    flight = flights_view(flights(), limit=1)["rest"][0]
+    assert {"flights", "departs", "stops", "hours", "price"} <= set(flight)
+
+
+def test_a_view_looser_than_what_the_sources_were_asked_says_so():
+    result = stays()
+    result["query"] = dict(result.get("query", {}), min_rating=8.5, max_total=None)
+    assert "searched_with" in stays_view(result, min_rating=7.0)
+    assert "searched_with" not in stays_view(stays(), min_rating=7.0)
+
+
+def test_a_source_that_answered_for_another_place_is_named():
+    result = stays()
+    far = [dict(c, stay=dict(c["stay"], source="airbnb", center_km=8400.0 + n)) for n, c in enumerate(result["cards"])]
+    result["cards"] = far
+    shown = stays_view(result, max_center_km=15)
+    assert shown["cards"] == [] and any(l.startswith("airbnb: all") for l in shown["report"]["limits"])

@@ -228,6 +228,7 @@ def stays_view(
     if sort not in STAY_SORTS:
         raise ValueError(f"sort must be one of: {', '.join(STAY_SORTS)}")
     cards, hidden = result["cards"], Hidden()
+    every_card = list(cards)
     center = result.get("center")
     for card in cards:
         stay = card["stay"]
@@ -370,10 +371,45 @@ def stays_view(
     result["cards"] = cards
     if hidden.by:
         result["filtered"] = hidden.report()
+    elsewhere = _elsewhere(every_card)
+    asked = result.get("query", {})
+    looser = [
+        f"{name} {asked[name]}"
+        for name, now, looser_than in (
+            ("min_rating", min_rating, lambda a, b: b is None or b < a),
+            ("max_total", max_total, lambda a, b: b is None or b > a),
+        )
+        if asked.get(name) is not None and looser_than(asked[name], now)
+    ]
+    if looser:
+        result["searched_with"] = (
+            f"the sources were asked only for stays within {', '.join(looser)}: this view cannot show what they "
+            "left out; search again with the looser bar"
+        )
     shortlist(result, limit)
     result["shown"]["sorted_by"] = sort
     result["report"] = brief(result.get("sources", []))
+    result["report"]["limits"] += elsewhere
     return result
+
+
+FAR_KM = 100
+
+
+def _elsewhere(cards: list[dict]) -> list[str]:
+    """A source whose every placed stay is far from the place answered for another one (Airbnb sent Vancouver for
+    "Shanghai, China", 2026-10-08). The distance filter hides them; this says why that source has nothing."""
+    by_source: dict[str, list[float]] = {}
+    for card in cards:
+        km = card["stay"].get("center_km")
+        if km is not None:
+            by_source.setdefault(card["stay"]["source"], []).append(km)
+    return [
+        f"{source}: all {len(kms)} of its stays are {round(min(kms))} km or more from the place: it answered for "
+        "another place, so it has nothing here"
+        for source, kms in by_source.items()
+        if len(kms) >= 3 and min(kms) > FAR_KM
+    ]
 
 
 GROUND_SORTS = ("price", "duration", "departure")

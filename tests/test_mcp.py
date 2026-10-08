@@ -50,6 +50,7 @@ async def test_results_are_a_shortlist_and_limit_is_validated(app):
     flights = await tools.search_flights(origin="BEG", destination="MOW", depart="2026-11-14", limit=3)
     assert flights["shown"] == {
         "cards": 0,
+        "rest": 0,
         "of": 0,
         "offers_per_group_at_most": 5,
         "of_counts": "cards left after `filtered`",
