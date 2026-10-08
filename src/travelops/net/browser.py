@@ -77,11 +77,14 @@ async def capture(
     headless: bool,
     typed: tuple[str, str] | None = None,
     scrolls: int = 0,
+    until=None,
+    patience: float = 0,
 ) -> list[bytes]:
     """Open a page as a person would and keep the bodies of the answers it receives from URLs matching `pattern`,
     once the page has had one. For a site whose requests the page signs itself: the browser makes the search, and
     nothing it sends is forged. `typed` is a field and the text a person would type into it, for an answer that
-    comes only while one types, such as a search box's suggestions. Camoufox only."""
+    comes only while one types, such as a search box's suggestions. `until(bodies)` says when a search the page
+    keeps polling has finished; the page is watched for up to `patience` seconds for it. Camoufox only."""
     from camoufox.async_api import AsyncCamoufox
 
     wanted, bodies, arrived = re.compile(pattern), [], asyncio.Event()
@@ -116,6 +119,11 @@ async def capture(
         except TimeoutError:
             raise Blocked("the page did not search: an anti-bot check may have stopped it") from None
         await page.wait_for_timeout(2000)  # a streamed answer may still be finishing
+        if until is not None:
+            for _ in range(int(patience * 2)):
+                if until(bodies):
+                    break
+                await page.wait_for_timeout(500)
         # A list that grows as a person scrolls: scroll to its end until it stops growing or `scrolls` is spent.
         # A wheel alone stops short of the end, where the next page is asked for (Trip.com, 2026-10-08).
         if scrolls:
@@ -218,6 +226,8 @@ class BrowserSessions:
         typed: tuple[str, str] | None = None,
         queue: str | None = None,
         scrolls: int = 0,
+        until=None,
+        patience: float = 0,
     ) -> list[bytes]:
         """A search the page makes itself: open `url` in a browser and return the answers it got from URLs
         matching `pattern`. One page is one request of the source, spaced and quarantined like any other; `queue`
@@ -225,12 +235,16 @@ class BrowserSessions:
         bucket = Limiter.bucket(f"{source}/{queue}" if queue else source, self.exit)
         if self.limiter is not None:
             main = Limiter.bucket(source, self.exit)
-            if queue and (until := self.limiter.state(main).quarantined_until) > self.limiter.clock():
-                raise Quarantined(main, until)
+            if queue and (rest := self.limiter.state(main).quarantined_until) > self.limiter.clock():
+                raise Quarantined(main, rest)
             await self.limiter.acquire(bucket)
         count(self.counts, source)
         try:
-            extra = {**({"typed": typed} if typed else {}), **({"scrolls": scrolls} if scrolls else {})}
+            extra = {
+                **({"typed": typed} if typed else {}),
+                **({"scrolls": scrolls} if scrolls else {}),
+                **({"until": until, "patience": patience} if until else {}),
+            }
             bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless, **extra)
         except Blocked:
             if self.limiter is not None:

@@ -2,13 +2,16 @@
 opens the results page as a person would, and the list the page receives (`FlightListSearchSSE`) is read. No
 key, no captcha, nothing forged; about half a minute per route. Not a published API: see docs/sources/tripcom.md.
 
-One way only. On a round trip the list shows the outbound flights at the price of the cheapest round trip, and
-the returns appear only once one is chosen; separate tickets search each way one way and do include Trip.com."""
+On a round trip the list shows the outbound flights at the price of a round trip, and lists the returns only once
+one is chosen. Each fare's `shortPolicyId` names the return flights it is priced with and when the first leaves
+(prior art: daghlny/flight-price-skill), but not where a connection changes planes or when the way back lands: such
+an itinerary is a chain that another source's itinerary of the same flights completes (`search.completed`)."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+import re
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from itertools import product
 from urllib.parse import urlencode
@@ -30,7 +33,8 @@ def page_url(query: FlightQuery, origin: str, destination: str) -> str:
             "dcity": origin.lower(),
             "acity": destination.lower(),
             "ddate": query.depart.isoformat(),
-            "triptype": "ow",
+            **({"rdate": query.return_.isoformat()} if query.return_ else {}),
+            "triptype": "rt" if query.return_ else "ow",
             "class": CLASSES[query.cabin],
             "quantity": query.adults,
             "locale": "en-XX",
@@ -54,6 +58,39 @@ def lists_of(body: bytes) -> list[dict]:
     return found
 
 
+# One flight in the tail of a fare's `shortPolicyId`: leg, segment, days after the first departure, a code, from, to,
+# the same days again, a code, the flight number's length and the number: `0201040RS ISTBEG 040RD 5 JU423`.
+PACKED = re.compile(r"(0[12])(\d\d)(\d\d)\d(\w\w)([A-Z]{3})([A-Z]{3})\d\d\d(\w\w)(\d)")
+
+
+def way_back(policy_id: str) -> list[tuple[str, str, str, int]]:
+    """The return flights a round-trip fare is priced with: number, from, to and days after the first departure
+    (checked against BEG–IST fares, 2026-10-08: JU426 out on the 14th, JU423 back on the 18th)."""
+    tail = policy_id.rsplit("^", 1)[-1]
+    found, at = [], 0
+    while match := PACKED.search(tail, at):
+        size = int(match[8])
+        number = tail[match.end() : match.end() + size]
+        if len(number) != size or not re.fullmatch(r"[A-Z0-9]{2}\d{1,4}[A-Z]?", number):
+            at = match.start() + 1
+            continue
+        if match[1] == "02":
+            found.append((number, match[5], match[6], int(match[3])))
+        at = match.end() + size
+    return found
+
+
+def back_leg(flights: list[tuple[str, str, str, int]], first: date) -> tuple[Segment, ...]:
+    """A return chain: its flights, airports and days; the times are not known, so each stands at noon of its day
+    and the itinerary is partial, to be completed by another source's same flights."""
+    chain = []
+    for number, origin, destination, days in flights:
+        carrier = number[:2]
+        noon = at_airport(datetime.combine(first + timedelta(days=days), time(12)), origin)
+        chain.append(Segment(carrier, flight_number(carrier, number[2:]), origin, destination, noon, noon))
+    return tuple(chain)
+
+
 class Source:
     name = "tripcom"
 
@@ -61,8 +98,6 @@ class Source:
         return len(query.origins) * len(query.destinations)
 
     async def fetch(self, query: FlightQuery, ctx: Context) -> list[bytes]:
-        if query.return_:
-            raise NotConfigured("Trip.com is searched one way: its round trips list the returns only once chosen")
         if query.children or query.infants:
             raise NotConfigured("Trip.com children's fares are not verified")
         if query.cabin not in CLASSES:
@@ -92,7 +127,7 @@ class Source:
         return raws
 
     def parse(self, raws: list[bytes], query: FlightQuery, seen_at: datetime) -> Parsed:
-        offers, notes, skipped = [], [], 0
+        offers, notes, skipped, skipped_back = [], [], 0, 0
         for raw in raws:
             try:
                 answer = json.loads(raw)
@@ -115,6 +150,13 @@ class Source:
                         for s in sections
                     )
                     for policy in item["policies"]:
+                        itinerary = Itinerary(segments)
+                        if query.return_:
+                            back = way_back(str(policy.get("shortPolicyId") or ""))
+                            if not back:
+                                skipped_back += 1
+                                continue
+                            itinerary = Itinerary(segments, back_leg(back, query.depart), partial=True)
                         price = policy["price"]
                         # One adult's ticket with taxes, times the adults: `totalPrice` is the same sum, rounded.
                         each = Decimal(str(price["adult"]["totalPrice"]))
@@ -122,7 +164,7 @@ class Source:
                         grades = {GRADES.get(g.get("grade")) for g in policy.get("gradeInfoList") or []}
                         offers.append(
                             FlightOffer(
-                                Itinerary(segments),
+                                itinerary,
                                 Fare(
                                     Money(each * query.adults, currency),
                                     self.name,
@@ -141,6 +183,13 @@ class Source:
                 raise ParseError(f"Trip.com itinerary fields: {exc}") from exc
         if skipped:
             notes.append(f"{skipped} journeys with a train or bus part left out")
+        if skipped_back:
+            notes.append(f"{skipped_back} round-trip fares without their return flights left out")
         if offers:
-            notes.append("one way only; a checked bag is stated only when included, otherwise unknown")
+            notes.append("a checked bag is stated only when included, otherwise unknown")
+        if offers and query.return_:
+            notes.append(
+                "a round trip comes with the return flights it is priced with; Trip.com lists other returns only "
+                "once an outbound is chosen"
+            )
         return Parsed(offers, notes)

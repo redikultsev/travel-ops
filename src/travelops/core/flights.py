@@ -129,9 +129,12 @@ class Itinerary:
         return self.outbound + self.inbound
 
     def chain(self) -> tuple:
-        """The flights of each leg and when each leg leaves: what even a partial itinerary says for sure."""
+        """The flights of each leg and the day each leg leaves: what even a partial itinerary says for sure. A flight
+        number flies once a day, so the day is enough."""
         return tuple(
-            (tuple(s.flight for s in leg), leg[0].departs.isoformat()) for leg in (self.outbound, self.inbound) if leg
+            (tuple(s.flight for s in leg), leg[0].departs.date().isoformat())
+            for leg in (self.outbound, self.inbound)
+            if leg
         )
 
     def key(self) -> tuple:

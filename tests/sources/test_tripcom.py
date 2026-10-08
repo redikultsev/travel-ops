@@ -54,9 +54,24 @@ async def test_the_page_makes_the_search_and_only_its_list_is_kept():
     assert set(json.loads(raw)) == {"route", "link", "currency", "count", "itineraries"}
 
 
-async def test_round_trips_and_children_are_not_guessed():
-    with pytest.raises(NotConfigured, match="one way"):
-        await Source().fetch(FlightQuery(("BEG",), ("IST",), date(2026, 11, 14), date(2026, 11, 17)), None)
+def test_a_round_trip_fare_names_its_return_flights_and_their_days():
+    from travelops.sources.flights.tripcom import way_back
+
+    raw = (Path(__file__).parents[1] / "fixtures/tripcom/beg-ist-2026-11-14-18-rt.json").read_bytes()
+    query = FlightQuery(("BEG",), ("IST",), date(2026, 11, 14), date(2026, 11, 18))
+    parsed = Source().parse([raw], query, datetime(2026, 10, 8, tzinfo=timezone.utc))
+    direct, via_nis, via_warsaw = parsed.offers
+    assert [s.flight for s in direct.itinerary.inbound] == ["JU423"] and direct.itinerary.partial
+    assert direct.itinerary.chain()[1] == (("JU423",), "2026-11-18"), "four days after the way out"
+    assert [s.flight for s in via_nis.itinerary.outbound] == ["JU1106", "JU1424"]
+    assert [(s.flight, s.origin, s.departs.date().isoformat()) for s in via_warsaw.itinerary.inbound] == [
+        ("LO134", "IST", "2026-11-18"),
+        ("LO571", "WAW", "2026-11-19"),
+    ], "the night in Warsaw"
+    assert way_back("no tail") == []
+
+
+async def test_children_are_not_guessed():
     with pytest.raises(NotConfigured, match="children"):
         await Source().fetch(FlightQuery(("BEG",), ("IST",), date(2026, 11, 14), children=1), None)
 

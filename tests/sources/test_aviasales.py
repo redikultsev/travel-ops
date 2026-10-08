@@ -13,6 +13,8 @@ from travelops.sources.flights.aviasales import Source, challenge, results_link
 
 NOW = datetime(2026, 10, 5, tzinfo=timezone.utc)
 QUERY = FlightQuery(("BEG",), ("MOW",), date(2026, 11, 14))
+# A search whose results page form was not observed goes over HTTP with the page's token.
+HTTP_QUERY = FlightQuery(("BEG",), ("MOW",), date(2026, 11, 14), cabin="business")
 
 
 class FakeNet:
@@ -43,7 +45,7 @@ FINAL = [{"tickets": [], "flight_legs": [], "last_update_timestamp": 0}]
 async def test_fetch_warms_on_the_results_page_and_sends_the_waf_token():
     net = FakeNet([{"search_id": "test-id", "results_url": "results.aviasales.ru"}, FINAL])
     browser = FakeBrowser()
-    raw = await Source().fetch(QUERY, Context(net, browser, lambda: NOW))
+    raw = await Source().fetch(HTTP_QUERY, Context(net, browser, lambda: NOW))
     assert len(raw) == 1 and len(net.calls) == 2
     url, kwargs = browser.calls[0]
     assert url == "https://www.aviasales.ru/search/BEG1411MOW1"
@@ -57,13 +59,13 @@ async def test_fetch_warms_on_the_results_page_and_sends_the_waf_token():
     assert poll["price_per_person"] is False and poll["last_update_timestamp"] == 0
     wrapped = json.loads(raw[0])
     assert wrapped["complete"] is True and (wrapped["origin"], wrapped["destination"]) == ("BEG", "MOW")
-    assert Source().max_requests(QUERY) >= len(net.calls) + 1
+    assert Source().max_requests(HTTP_QUERY) >= len(net.calls) + 1
 
 
 async def test_fetch_keeps_every_answer_and_polls_from_the_last_stamp():
     partial = [{"tickets": [], "flight_legs": [], "last_update_timestamp": 77}]
     net = FakeNet([{"search_id": "test-id", "results_url": "results.aviasales.ru"}, partial, FINAL])
-    raw = await Source().fetch(QUERY, Context(net, FakeBrowser(), lambda: NOW))
+    raw = await Source().fetch(HTTP_QUERY, Context(net, FakeBrowser(), lambda: NOW))
     assert net.calls[2][3]["json"]["last_update_timestamp"] == 77
     assert len(json.loads(raw[0])["responses"]) == 2
 
@@ -71,7 +73,7 @@ async def test_fetch_keeps_every_answer_and_polls_from_the_last_stamp():
 async def test_fetch_rejects_an_unrelated_results_host():
     net = FakeNet([{"search_id": "test-id", "results_url": "example.com"}])
     with pytest.raises(ParseError, match="host"):
-        await Source().fetch(QUERY, Context(net, FakeBrowser(), lambda: NOW))
+        await Source().fetch(HTTP_QUERY, Context(net, FakeBrowser(), lambda: NOW))
     assert len(net.calls) == 1
 
 
@@ -82,8 +84,30 @@ async def test_a_refusal_drops_the_stale_session():
 
     browser = FakeBrowser()
     with pytest.raises(Blocked):
-        await Source().fetch(QUERY, Context(Refusing([]), browser, lambda: NOW))
+        await Source().fetch(HTTP_QUERY, Context(Refusing([]), browser, lambda: NOW))
     assert browser.dropped == ["aviasales"]
+
+
+async def test_an_economy_search_is_read_from_the_results_pages_own_answers():
+    asked = []
+
+    class Browser:
+        async def search(self, source, url, pattern, **kwargs):
+            asked.append((url, pattern, kwargs))
+            partial = [{"tickets": [], "flight_legs": [], "last_update_timestamp": 77}]
+            bodies = [json.dumps(partial).encode(), b"", json.dumps(FINAL).encode()]
+            assert kwargs["until"](bodies) and not kwargs["until"](bodies[:2]), "done at the final stamp"
+            return bodies
+
+    class NoNet:
+        async def request(self, *args, **kwargs):
+            raise AssertionError("nothing leaves the browser")
+
+    raw = await Source().fetch(QUERY, Context(NoNet(), Browser(), lambda: NOW))
+    url, pattern, kwargs = asked[0]
+    assert url == "https://www.aviasales.ru/search/BEG1411MOW1" and "v3\\.2/results" in pattern
+    wrapped = json.loads(raw[0])
+    assert wrapped["complete"] is True and len(wrapped["responses"]) == 2, "a 304's empty body is no answer"
 
 
 def test_json_mentioning_a_captcha_is_not_a_block_but_html_is():

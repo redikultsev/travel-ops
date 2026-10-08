@@ -1,0 +1,653 @@
+{
+ "route": [
+  "BEG",
+  "IST"
+ ],
+ "link": "https://www.trip.com/flights/showfarefirst?dcity=beg&acity=ist&ddate=2026-11-14&rdate=2026-11-18&triptype=rt&class=y&quantity=1&locale=en-XX&curr=EUR",
+ "currency": "EUR",
+ "count": 25,
+ "itineraries": [
+  {
+   "journeyList": [
+    {
+     "journeyNo": 1,
+     "transSectionList": [
+      {
+       "segmentNo": 1,
+       "transportType": "FLIGHT",
+       "departDateTime": "2026-11-14 00:50:00",
+       "arriveDateTime": "2026-11-14 04:40:00",
+       "duration": 110,
+       "departPoint": {
+        "cityCode": "BEG",
+        "cityName": "Belgrade",
+        "airportCode": "BEG",
+        "terminal": "T2",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "arrivePoint": {
+        "cityCode": "IST",
+        "cityName": "Istanbul",
+        "airportCode": "IST",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "flightInfo": {
+        "flightNo": "JU426",
+        "airlineCode": "JU",
+        "stopList": [],
+        "craftInfo": {
+         "craftType": "E90",
+         "name": "Embraer 190",
+         "widthLevel": "N",
+         "minSeats": 90,
+         "maxSeats": 96,
+         "level": 2,
+         "levelName": "Midsize aircraft",
+         "shortName": "Embraer 190"
+        },
+        "operatingSupplierName": "Bulgaria Air For Air Serbia"
+       },
+       "sectionFlags": [
+        "VISA",
+        "SHARE_FLIGHT"
+       ],
+       "dayCount": 0,
+       "puIndex": 0,
+       "transportNoteList": [
+        {
+         "noteType": "TRIP_COMFORT"
+        }
+       ],
+       "transSplit": false
+      }
+     ],
+     "duration": 110,
+     "dayCount": 0,
+     "journeyFlags": [
+      "SHARE_FLIGHT",
+      "LUGGAGE_DIRECT",
+      "DIRECT",
+      "ALL_SHARE_FLIGHT"
+     ],
+     "uniqueId": "ae0982b704f723fba4fdce4d4fb8dfbb"
+    }
+   ],
+   "policies": [
+    {
+     "price": {
+      "totalPrice": 156,
+      "averagePrice": 156,
+      "totalTax": 66.67,
+      "morePrice": {
+       "discountAverage": 156
+      },
+      "adult": {
+       "salePrice": 89.04,
+       "tax": 66.67,
+       "discount": 0,
+       "totalPrice": 155.71,
+       "morePrice": {
+        "ticketTotalPrice": 155.71,
+        "flightHotelDiscount": 0.0
+       }
+      },
+      "crossOutAveragePriceList": [],
+      "priceNoteList": []
+     },
+     "tagList": [
+      {
+       "key": "FREE_CARRY_ON_BAGGAGE",
+       "pattern": 0,
+       "content": "Carry-on baggage included",
+       "desc": "{\"detailList\":[{\"contentList\":[\"1\"],\"subject\":\"Count\"},{\"contentList\":[\"Carry-on baggage included\"],\"merge\":false,\"subject\":\"DetailContent\"}]}",
+       "extendInfo": [
+        {
+         "extendKey": "bagFormat",
+         "extendValue": "Carry-on baggage: 8 kg"
+        },
+        {
+         "extendKey": "checkedCarryIncludeText",
+         "extendValue": "Carry-on baggage included"
+        }
+       ],
+       "subKey": "FREE_CARRY_ON_BAGGAGE"
+      },
+      {
+       "key": "PRODUCT_CATEGORY",
+       "pattern": 0,
+       "content": "CombinedProduct",
+       "subKey": "PRODUCT_CATEGORY"
+      },
+      {
+       "key": "PRODUCT_DESCRIPTION",
+       "pattern": 0,
+       "content": "To help you get a better deal, your flights will be split into separate bookings. After tickets are issued, any cancellations and changes will need to be dealt with separately according to corresponding supplier policies.",
+       "subKey": "PRODUCT_DESCRIPTION"
+      },
+      {
+       "key": "PRODUCT_NAME",
+       "pattern": 0,
+       "content": "Multi-booking",
+       "subKey": "PRODUCT_NAME"
+      },
+      {
+       "key": "PACKAGE_FLAG_ICON",
+       "pattern": 0,
+       "content": "CombinedProduct",
+       "subKey": "PACKAGE_FLAG_ICON"
+      },
+      {
+       "key": "PACKAGE_FLAG",
+       "pattern": 0,
+       "content": "Multi-booking",
+       "subKey": "PACKAGE_FLAG"
+      },
+      {
+       "key": "TICKET_DESCRIPTION",
+       "pattern": 0,
+       "content": "Belgrade - Istanbul: Once payment is confirmed, tickets will be issued within 12 hours\nIstanbul - Belgrade: Once payment is confirmed, tickets will be issued within 12 hours",
+       "subKey": "TICKET_DESCRIPTION"
+      },
+      {
+       "key": "SHOW_NOTICE",
+       "pattern": 0,
+       "content": "{\"cabinClassLabel\":\"Economy class\",\"mainSegmentCabinClass\":\"ECONOMY\"}",
+       "subKey": "SHOW_NOTICE"
+      },
+      {
+       "key": "BI_RECOMMEND_REC_TAG",
+       "pattern": 0,
+       "content": "Fastest",
+       "subKey": "fast_arvl"
+      }
+     ],
+     "gradeInfoList": [
+      {
+       "segmentNo": 1,
+       "grade": 1,
+       "journeyNo": 1,
+       "mainSegment": true,
+       "subClass": "O",
+       "gradeMultilingual": "Economy class"
+      }
+     ],
+     "shortPolicyId": "x^211000G0Z2BEGIST00ISTBEG04201010001EBEGIST0007S5JU4260201040RSISTBEG040RD5JU423"
+    }
+   ]
+  },
+  {
+   "journeyList": [
+    {
+     "journeyNo": 1,
+     "transSectionList": [
+      {
+       "segmentNo": 1,
+       "transportType": "FLIGHT",
+       "departDateTime": "2026-11-14 00:40:00",
+       "arriveDateTime": "2026-11-14 01:25:00",
+       "duration": 45,
+       "departPoint": {
+        "cityCode": "BEG",
+        "cityName": "Belgrade",
+        "airportCode": "BEG",
+        "terminal": "T2",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "arrivePoint": {
+        "cityCode": "INI",
+        "cityName": "Nis",
+        "airportCode": "INI",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "flightInfo": {
+        "flightNo": "JU1106",
+        "airlineCode": "JU",
+        "stopList": [],
+        "craftInfo": {
+         "craftType": "319",
+         "name": "Airbus A319",
+         "widthLevel": "N",
+         "minSeats": 112,
+         "maxSeats": 134,
+         "level": 2,
+         "levelName": "Midsize aircraft",
+         "shortName": "Airbus 319"
+        }
+       },
+       "sectionFlags": [],
+       "dayCount": 0,
+       "puIndex": 0,
+       "transportNoteList": [
+        {
+         "noteType": "TRIP_COMFORT"
+        }
+       ],
+       "transSplit": true
+      },
+      {
+       "segmentNo": 2,
+       "transportType": "FLIGHT",
+       "departDateTime": "2026-11-14 13:10:00",
+       "arriveDateTime": "2026-11-14 16:45:00",
+       "duration": 95,
+       "departPoint": {
+        "cityCode": "INI",
+        "cityName": "Nis",
+        "airportCode": "INI",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "arrivePoint": {
+        "cityCode": "IST",
+        "cityName": "Istanbul",
+        "airportCode": "IST",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "flightInfo": {
+        "flightNo": "JU1424",
+        "airlineCode": "JU",
+        "stopList": [],
+        "craftInfo": {
+         "craftType": "319",
+         "name": "Airbus A319",
+         "widthLevel": "N",
+         "minSeats": 112,
+         "maxSeats": 134,
+         "level": 2,
+         "levelName": "Midsize aircraft",
+         "shortName": "Airbus 319"
+        }
+       },
+       "sectionFlags": [
+        "VISA",
+        "DIFFERENT_TERMINAL_FOR_FILTER"
+       ],
+       "dayCount": 0,
+       "transferDuration": 705,
+       "puIndex": 1,
+       "transportNoteList": [
+        {
+         "noteType": "TRIP_COMFORT"
+        }
+       ],
+       "transSplit": false
+      }
+     ],
+     "duration": 845,
+     "dayCount": 0,
+     "journeyFlags": [
+      "ONE_STOP"
+     ],
+     "uniqueId": "9056767c496edcde3e3c3db4508e858b_613ac2f9a931dfd97f7552c9772af5ce"
+    }
+   ],
+   "policies": [
+    {
+     "price": {
+      "totalPrice": 153,
+      "averagePrice": 153,
+      "totalTax": 58.64,
+      "morePrice": {
+       "discountAverage": 153
+      },
+      "adult": {
+       "salePrice": 93.69,
+       "tax": 58.64,
+       "discount": 0,
+       "totalPrice": 152.33,
+       "morePrice": {
+        "ticketTotalPrice": 152.33,
+        "flightHotelDiscount": 0.0
+       }
+      },
+      "crossOutAveragePriceList": [],
+      "priceNoteList": []
+     },
+     "tagList": [
+      {
+       "key": "TRANSFER_MULTIPLE_TICKET",
+       "pattern": 0,
+       "content": "",
+       "subKey": "TRANSFER_MULTIPLE_TICKET"
+      },
+      {
+       "key": "FREE_CARRY_ON_BAGGAGE",
+       "pattern": 0,
+       "content": "Carry-on baggage included",
+       "desc": "{\"detailList\":[{\"contentList\":[\"1\"],\"subject\":\"Count\"},{\"contentList\":[\"Carry-on baggage included\"],\"merge\":false,\"subject\":\"DetailContent\"}]}",
+       "extendInfo": [
+        {
+         "extendKey": "bagFormat",
+         "extendValue": "Carry-on baggage: 8 kg"
+        },
+        {
+         "extendKey": "checkedCarryIncludeText",
+         "extendValue": "Carry-on baggage included"
+        }
+       ],
+       "subKey": "FREE_CARRY_ON_BAGGAGE"
+      },
+      {
+       "key": "TICKET_DESCRIPTION",
+       "pattern": 0,
+       "content": "Belgrade - Nis: Once payment is confirmed, tickets will be issued within 12 hours\nNis - Istanbul: Once payment is confirmed, tickets will be issued within 12 hours\nIstanbul - Belgrade: Once payment is confirmed, tickets will be issued within 12 hours",
+       "subKey": "TICKET_DESCRIPTION"
+      },
+      {
+       "key": "PRODUCT_CATEGORY",
+       "pattern": 0,
+       "content": "MultiTicket",
+       "subKey": "PRODUCT_CATEGORY"
+      },
+      {
+       "key": "PRODUCT_DESCRIPTION",
+       "pattern": 0,
+       "content": "What is a self-transfer package?A self-transfer package includes several flights combined into one itinerary. After booking, this package will be separated into several bookings and the tickets will be issued individually. Each ticket has different policies.\n1. Change and cancellation policies may vary by ticket. Each ticket must be changed or canceled separately in accordance with its individual airline policies.\n2. Baggage allowances may also vary by ticket. For more details, please check the related policies.\n3. Pay special attention to the transfer process. When transferring in [Nis], you may need to complete the entry/exit procedures, collect your baggage, and check in again. Please ensure you have the necessary travel documents/transit visas for the countries/regions where you will transfer.",
+       "subKey": "PRODUCT_DESCRIPTION"
+      },
+      {
+       "key": "PRODUCT_NAME",
+       "pattern": 0,
+       "content": "Self-Transfer Package",
+       "subKey": "PRODUCT_NAME"
+      },
+      {
+       "key": "PACKAGE_FLAG_ICON",
+       "pattern": 0,
+       "content": "MultiTicket",
+       "subKey": "PACKAGE_FLAG_ICON"
+      },
+      {
+       "key": "PACKAGE_FLAG",
+       "pattern": 0,
+       "content": "Self-Transfer Package",
+       "subKey": "PACKAGE_FLAG"
+      },
+      {
+       "key": "SHOW_NOTICE",
+       "pattern": 0,
+       "content": "{\"cabinClassLabel\":\"Economy class\",\"mainSegmentCabinClass\":\"ECONOMY\"}",
+       "subKey": "SHOW_NOTICE"
+      },
+      {
+       "key": "ELABORATELY_SELECT",
+       "pattern": 0,
+       "content": "Cheapest",
+       "subKey": "MINPRICE"
+      }
+     ],
+     "gradeInfoList": [
+      {
+       "segmentNo": 1,
+       "grade": 1,
+       "journeyNo": 1,
+       "mainSegment": false,
+       "subClass": "O",
+       "gradeMultilingual": "Economy class"
+      },
+      {
+       "segmentNo": 2,
+       "grade": 1,
+       "journeyNo": 1,
+       "mainSegment": true,
+       "subClass": "O",
+       "gradeMultilingual": "Economy class"
+      }
+     ],
+     "shortPolicyId": "x^211000G0Z2BEGIST00ISTBEG043010100014BEGINI0002D6JU11060102000LYINIIST000RX6JU14240201040RSISTBEG040RD5JU423"
+    }
+   ]
+  },
+  {
+   "journeyList": [
+    {
+     "journeyNo": 1,
+     "transSectionList": [
+      {
+       "segmentNo": 1,
+       "transportType": "FLIGHT",
+       "departDateTime": "2026-11-14 17:15:00",
+       "arriveDateTime": "2026-11-14 18:50:00",
+       "duration": 95,
+       "departPoint": {
+        "cityCode": "BEG",
+        "cityName": "Belgrade",
+        "airportCode": "BEG",
+        "terminal": "T2",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "arrivePoint": {
+        "cityCode": "WAW",
+        "cityName": "Warsaw",
+        "airportCode": "WAW",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "flightInfo": {
+        "flightNo": "LO574",
+        "airlineCode": "LO",
+        "stopList": [],
+        "craftInfo": {
+         "craftType": "E95",
+         "name": "Embraer 195",
+         "widthLevel": "N",
+         "minSeats": 106,
+         "maxSeats": 116,
+         "level": 2,
+         "levelName": "Midsize aircraft",
+         "shortName": "Embraer 195"
+        }
+       },
+       "sectionFlags": [
+        "VISA"
+       ],
+       "dayCount": 0,
+       "puIndex": 0,
+       "transportNoteList": [
+        {
+         "noteType": "TRIP_COMFORT"
+        }
+       ],
+       "transSplit": false
+      },
+      {
+       "segmentNo": 2,
+       "transportType": "FLIGHT",
+       "departDateTime": "2026-11-15 09:10:00",
+       "arriveDateTime": "2026-11-15 14:00:00",
+       "duration": 170,
+       "departPoint": {
+        "cityCode": "WAW",
+        "cityName": "Warsaw",
+        "airportCode": "WAW",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "arrivePoint": {
+        "cityCode": "IST",
+        "cityName": "Istanbul",
+        "airportCode": "IST",
+        "terminal": "",
+        "stationName": "",
+        "highlight": false,
+        "showCityName": false
+       },
+       "flightInfo": {
+        "flightNo": "LO133",
+        "airlineCode": "LO",
+        "stopList": [],
+        "craftInfo": {
+         "craftType": "7M8",
+         "name": "Boeing 737 MAX 8",
+         "widthLevel": "N",
+         "minSeats": 162,
+         "maxSeats": 178,
+         "level": 2,
+         "levelName": "Midsize aircraft",
+         "shortName": "Boeing 737 MAX 8"
+        }
+       },
+       "sectionFlags": [
+        "VISA",
+        "DIFFERENT_TERMINAL_FOR_FILTER"
+       ],
+       "dayCount": 0,
+       "transferDuration": 860,
+       "puIndex": 0,
+       "transportNoteList": [
+        {
+         "noteType": "TRIP_COMFORT"
+        }
+       ],
+       "transSplit": false
+      }
+     ],
+     "duration": 1125,
+     "dayCount": 1,
+     "journeyFlags": [
+      "LUGGAGE_DIRECT",
+      "ONE_STOP"
+     ],
+     "uniqueId": "2de861fa349aea857485c66531fe6652_486bf175100b45936124b5a98c6bb87c"
+    }
+   ],
+   "policies": [
+    {
+     "price": {
+      "totalPrice": 259,
+      "averagePrice": 259,
+      "totalTax": 171.1,
+      "morePrice": {
+       "discountAverage": 259
+      },
+      "adult": {
+       "salePrice": 87.13,
+       "tax": 171.1,
+       "discount": 0,
+       "totalPrice": 258.23,
+       "morePrice": {
+        "ticketTotalPrice": 258.23,
+        "flightHotelDiscount": 0.0
+       }
+      },
+      "crossOutAveragePriceList": [],
+      "priceNoteList": []
+     },
+     "tagList": [
+      {
+       "key": "STUDENT_MORE_BAGGAGE",
+       "pattern": 0,
+       "content": "Student ticket with more baggage",
+       "subKey": "STUDENT_MORE_BAGGAGE"
+      },
+      {
+       "key": "FREE_CARRY_ON_BAGGAGE",
+       "pattern": 0,
+       "content": "Carry-on baggage included",
+       "desc": "{\"detailList\":[{\"contentList\":[\"1\"],\"subject\":\"Count\"},{\"contentList\":[\"Carry-on baggage included\"],\"merge\":false,\"subject\":\"DetailContent\"}]}",
+       "extendInfo": [
+        {
+         "extendKey": "bagFormat",
+         "extendValue": "Carry-on baggage: 8 kg"
+        },
+        {
+         "extendKey": "checkedCarryIncludeText",
+         "extendValue": "Carry-on baggage included"
+        }
+       ],
+       "subKey": "FREE_CARRY_ON_BAGGAGE"
+      },
+      {
+       "key": "STUDENT",
+       "pattern": 0,
+       "content": "Student tickets available",
+       "subKey": "STUDENT"
+      },
+      {
+       "key": "LOW_SEAT_COUNT",
+       "pattern": 0,
+       "content": "<9 left",
+       "subKey": "LOW_SEAT_COUNT"
+      },
+      {
+       "key": "TICKET_DESCRIPTION",
+       "pattern": 0,
+       "content": "Once payment is confirmed, tickets will be issued within 45 minutes",
+       "subKey": "TICKET_DESCRIPTION"
+      },
+      {
+       "key": "PRODUCT_CATEGORY",
+       "pattern": 0,
+       "content": "None",
+       "subKey": "PRODUCT_CATEGORY"
+      },
+      {
+       "key": "PRODUCT_NAME",
+       "pattern": 0,
+       "content": "Recommended",
+       "subKey": "PRODUCT_NAME"
+      },
+      {
+       "key": "PACKAGE_FLAG_ICON",
+       "pattern": 0,
+       "content": "Recommended",
+       "subKey": "PACKAGE_FLAG_ICON"
+      },
+      {
+       "key": "PACKAGE_FLAG",
+       "pattern": 0,
+       "content": "Recommended",
+       "subKey": "PACKAGE_FLAG"
+      },
+      {
+       "key": "SHOW_NOTICE",
+       "pattern": 0,
+       "content": "{\"cabinClassLabel\":\"Economy class\",\"mainSegmentCabinClass\":\"ECONOMY\"}",
+       "subKey": "SHOW_NOTICE"
+      }
+     ],
+     "gradeInfoList": [
+      {
+       "segmentNo": 1,
+       "grade": 1,
+       "journeyNo": 1,
+       "mainSegment": false,
+       "subClass": "L",
+       "gradeMultilingual": "Economy class"
+      },
+      {
+       "segmentNo": 2,
+       "grade": 1,
+       "journeyNo": 1,
+       "mainSegment": true,
+       "subClass": "L",
+       "gradeMultilingual": "Economy class"
+      }
+     ],
+     "shortPolicyId": "x^211000G0Z2BEGIST00ISTBEG0440101000SRBEGWAW000VE5LO5740102010FAWAWIST010NC5LO1330201040P0ISTWAW040PZ5LO1340202050JBWAWBEG050M35LO571"
+    }
+   ]
+  }
+ ]
+}

@@ -29,6 +29,9 @@ START = "https://tickets-api.aviasales.ru/search/v2/start"
 SITE = "https://www.aviasales.ru"
 CLASSES = {"economy": "Y", "premium_economy": "W", "business": "C", "first": "F"}
 MAX_POLLS = 12
+RESULTS = r"/search/v3\.2/results"
+# How long the results page is watched for its own search to finish: it polls until the final stamp.
+PAGE_PATIENCE = 90
 WAF_COOKIE = "aws-waf-token"
 
 
@@ -53,6 +56,20 @@ def results_link(query: FlightQuery, origin: str, destination: str) -> Link | No
     return Link(results_page(query, origin, destination), "results")
 
 
+def answers(body: bytes) -> list[dict]:
+    """The result objects of one answer the page received; a 304 or anything else is none."""
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return []
+    return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+
+def finished(bodies: list[bytes]) -> bool:
+    """Whether the search has reached its final stamp: an answer whose `last_update_timestamp` is 0."""
+    return any(items and items[0].get("last_update_timestamp") == 0 for items in map(answers, bodies))
+
+
 class Source:
     name = "aviasales"
 
@@ -67,6 +84,10 @@ class Source:
         if query.cabin not in CLASSES:
             raise ValueError(f"unsupported cabin: {query.cabin}")
         pairs = list(product(query.origins, query.destinations))
+        if results_link(query, *pairs[0]) is not None:
+            # The results page searches by itself and polls until done; its own answers are read, so nothing
+            # carries its token out of the browser (a token replayed over HTTP drew a 403 on 2026-10-08).
+            return [await self._page(query, origin, destination, ctx) for origin, destination in pairs]
         # The site's own results page is where the anti-bot issues its token; the token is short-lived.
         session = await ctx.browser.get(
             self.name, results_page(query, *pairs[0]), engine="camoufox", ready_cookie=WAF_COOKIE, max_age=240
@@ -94,6 +115,17 @@ class Source:
             ctx.browser.drop(self.name)
             raise
         return raws
+
+    async def _page(self, query: FlightQuery, origin: str, destination: str, ctx: Context) -> bytes:
+        bodies = await ctx.browser.search(
+            self.name, results_page(query, origin, destination), RESULTS, until=finished, patience=PAGE_PATIENCE
+        )
+        responses = [item for body in bodies for item in answers(body)]
+        if not responses:
+            raise ParseError("the Aviasales results page received no results")
+        return json.dumps(
+            {"origin": origin, "destination": destination, "complete": finished(bodies), "responses": responses}
+        ).encode()
 
     async def _search(self, query: FlightQuery, origin: str, destination: str, ctx: Context, common: dict) -> bytes:
         directions = [

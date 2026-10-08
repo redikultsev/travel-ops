@@ -140,7 +140,7 @@ search, every source must be reported. See `evals/README.md`.
 | Kiwi.com | Flights | Kiwi's public MCP server; prices in EUR, sold outside Russia |
 | Skiplagged | Flights | Skiplagged's public MCP server; up to 200 itineraries a route, hidden-city fares left out |
 | Google Flights | Flights | Google's public search page, no API (see its terms); worldwide |
-| Trip.com | Flights | A browser opens its results page; one way only; Asia and worldwide |
+| Trip.com | Flights | A browser opens its results page; round trips with the return each fare is priced with; Asia and worldwide |
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |

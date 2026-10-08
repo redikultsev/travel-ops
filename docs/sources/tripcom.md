@@ -23,8 +23,13 @@ names the visitor's session and the server's logs.
 
 ## Prices and limits
 
-- One way only. A round trip lists the outbound flights at the price of the cheapest round trip, and the returns
-  appear only once one is chosen on the page. Separate tickets search each way one way and include Trip.com.
+- Round trips: the page (`triptype=rt&rdate=…`) lists the outbound flights at a round-trip price, and the returns
+  appear only once one is chosen. Each fare's `shortPolicyId` names the flights it is priced with in its tail
+  after the last `^`: per flight `{leg:2}{segment:2}{days:2}{digit}{code:2}{from}{to}{3 digits}{code:2}{length}
+  {number}`, e.g. `0201040RS ISTBEG 040RD 5 JU423` — leg 2 (back), four days after the first departure, IST to
+  BEG, JU423. Times are not in it, so the itinerary is partial: it is completed from another source's same
+  flights on the same days, and left out and counted otherwise. BEG–IST 14 to 18 November (2026-10-08): 18 of
+  25 fares completed; JU1106 JU1424 out and JU423 back 152.33 EUR, where Kupibilet's cheapest was 202.14.
 - The price is one adult's ticket with taxes times the adults: two adults cost 311.84 EUR where one ticket is
   155.92 (round trip page, 2026-10-07). Children's fares are not verified: a party with children is not
   configured.

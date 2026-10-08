@@ -92,3 +92,8 @@ quoted prices are preserved, with the fixture scrubber applied again to JSON.
 - From 28 nights a card shows a monthly price (`displayPriceStyle: MONTHLY`, "€5,075 monthly", "Average monthly
   price"), not the stay's total, and the listing page's own HTML carries no price. Such cards are left out and
   counted: a month in Shanghai found no Airbnb total to quote.
+- The listing's own price call (`/api/v3/StaysPdpSections/<hash>`, `BOOK_IT_SIDEBAR`, with the public
+  `api_config.key` of the search page) answers the same for a long stay: 29 nights in Istanbul gave "Average
+  monthly price €1,647.00", "Airbnb monthly stay savings -€51.06", "Price after discount €1,595.94" and no total
+  (2026-10-08). The total is shown only at checkout, which this tool does not open. Long-stay totals stay
+  unknown.
