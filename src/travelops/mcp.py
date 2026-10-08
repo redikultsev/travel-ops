@@ -568,11 +568,15 @@ def create_server(
     server.add_tool(
         traced(tools.compare_stays, trace),
         description="Compare the price of up to five stays of a search across sources: each stay is looked up by "
-        "name on the stay sources that did not list it (Booking.com, trivago, Trip.com), at the same dates and "
+        "name on the stay sources that did not list it (Booking.com, trivago, Trip.com, Google Hotels), at the same "
+        "dates and "
         "party, and the rates found join its card, so `refine_stays` shows them too. A search lists each source's own first "
         "page, so the same hotel is seldom on two of them: ask this for the stays you are about to recommend. A "
         "request or two per source and stay; a source that does not have the stay says `not_found`. "
-        "`listed_on[].matched` is `similar_name_same_spot` when the names differ by a word: say so.",
+        "`listed_on[].matched` is `similar_name_same_spot` when the names differ by a word: say so. Google Hotels "
+        "adds one rate per seller it lists for the stay (`googlehotels:Booking.com`, `googlehotels:Agoda`): that is "
+        "how a seller's price reaches the comparison when its own site refused us; Google does not state whether its "
+        "totals include taxes.",
         annotations=READ_ONLY,
     )
     server.add_tool(

@@ -22,7 +22,7 @@ from .details import listings, pick
 AT_MOST = 5
 # Sources that can find one property by its name. Airbnb is not among them: a home there has a name no other site
 # uses.
-COMPARED = ("booking", "trivago", "tripcom")
+COMPARED = ("booking", "trivago", "tripcom", "googlehotels")
 
 
 def _stay(listing: dict, card: dict) -> Stay:

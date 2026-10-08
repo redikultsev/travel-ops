@@ -111,7 +111,7 @@ class Trivago:
 
 
 async def test_a_stay_is_looked_up_by_name_and_its_prices_join_the_card(app, monkeypatch):
-    monkeypatch.setattr(compare, "STAY_SOURCES", {"booking": Booking, "trivago": Trivago, "tripcom": Nowhere})
+    monkeypatch.setattr(compare, "STAY_SOURCES", {"booking": Booking, "trivago": Trivago, "tripcom": Nowhere, "googlehotels": Nowhere})
     tools = api.Tools(app, fake_searches(app))
     stored = app.results.put("stays", "k", result())
 
@@ -119,7 +119,12 @@ async def test_a_stay_is_looked_up_by_name_and_its_prices_join_the_card(app, mon
 
     (stay,) = found["stays"]
     assert Booking.asked == ["Okura Garden Hotel Shanghai"], "the place is in the name already"
-    assert stay["checked"] == {"booking": "ok", "trivago": "in the search already", "tripcom": "not_found"}
+    assert stay["checked"] == {
+        "booking": "ok",
+        "trivago": "in the search already",
+        "tripcom": "not_found",
+        "googlehotels": "not_found",
+    }
     assert [entry["source"] for entry in stay["listed_on"]] == ["trivago", "booking"]
     assert stay["listed_on"][1]["matched"] == "same_name"
     assert [(r["source"], r["total"]["amount"]) for r in stay["rates"]] == [("trivago", "2858"), ("booking", "4829")]

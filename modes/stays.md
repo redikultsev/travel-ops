@@ -8,7 +8,8 @@
    the human's rating bar as `min_rating` and budget as `max_total`: the sources
    then read deeper into what passes them. Booking walks up the price page by
    page and says how many of the properties it counts were seen; trivago is
-   asked once per star class; Airbnb and Trip.com read several pages. Choose
+   asked once per star class, Google Hotels once by price and once per hotel class; Airbnb and Trip.com read
+   several pages. Choose
    from the detailed cards and the `rest` rows together. The
    engine applies the profile's `min_rating` itself and says in `filtered` what it
    hid: stays below the bar, and separately stays with no rating at all.
@@ -42,7 +43,7 @@
    pets, a late check-in) or the profile lists `must_have`, call `stay_details`
    for the two to five stays you would recommend, then `refine_stays` with
    `must_have`. A stay whose page was not read counts as unknown, never as
-   lacking. trivago and Trip.com stays have no page read here (`not_configured`):
+   lacking. trivago, Trip.com and Google Hotels stays have no page read here (`not_configured`):
    only what their card says is known, so for a must-have prefer a Booking or
    Airbnb stay, or say that the human must check the advertiser's page. Do not claim an amenity absent unless the page lists it under
    `not_available`.
@@ -51,7 +52,8 @@
    not list it and adds their rates to the card. Give each stay's price per
    source side by side, with the room, meals and cancellation of each: a gap is
    often a different room or taxes stated by one source only, so name the cause
-   before calling one cheaper. A `matched: similar_name_same_spot` listing has a
+   before calling one cheaper. Google Hotels gives one rate per seller it lists
+   (`googlehotels:Booking.com`): name the seller and say it came through Google. A `matched: similar_name_same_spot` listing has a
    slightly different name at the same address: say so. `not_found` means that
    source did not have the stay at these dates, not that it is sold out
    everywhere.

@@ -33,6 +33,7 @@ RULES: dict[str, Rule] = {
     "tripcom/lookup": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # Google's search page, read without an API: slow and few, and a refusal rests it for an hour.
     "google": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
+    "googlehotels": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # A public routing service that asks for one request a second at most.
     "routing": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
     # Photo CDNs, not the travel sites themselves.
@@ -88,6 +89,10 @@ STAY_SOURCES["trivago"] = Trivago
 from .stays.tripcom import Source as TripComStays
 
 STAY_SOURCES["tripcom"] = TripComStays
+
+from .stays.googlehotels import Source as GoogleHotels
+
+STAY_SOURCES["googlehotels"] = GoogleHotels
 
 from .ground.tutu import Source as TutuGround
 

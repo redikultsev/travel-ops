@@ -145,6 +145,7 @@ search, every source must be reported. See `evals/README.md`.
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |
 | Trip.com | Stays | A browser opens its results page; first page, one room per hotel; Asia and worldwide |
+| Google Hotels | Stays | The call its own page makes; about 70 hotels a search; every seller's price for a hotel in `compare_stays` |
 | Tutu | Trains and buses | Tutu MCP search; Russia and the CIS, some international buses |
 | 12Go | Trains, buses, ferries | 12Go's public MCP server; Turkey, south-east Asia, parts of the Balkans |
 | FlixBus | Buses and trains | FlixBus shop JSON; Europe and North America, partner carriers included |
