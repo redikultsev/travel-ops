@@ -204,7 +204,7 @@ def test_once_done_the_page_asks_for_every_ticket_on_its_own_results_host_only()
 
     start = json.dumps({"search_id": "sid-1", "results_url": "tickets-api.eu-north-1.aviasales.ru"}).encode()
     script = everything([start, json.dumps(FINAL).encode()])
-    assert '"limit": 1000' in script and "sid-1" in script and "credentials: \"include\"" in script
+    assert 'limit\\": 1000' in script and "sid-1" in script and 'credentials: "include"' in script
     assert "https://tickets-api.eu-north-1.aviasales.ru/search/v3.2/results" in script
     elsewhere = json.dumps({"search_id": "sid-1", "results_url": "example.com"}).encode()
     assert everything([elsewhere]) is None and everything([b"[]"]) is None
