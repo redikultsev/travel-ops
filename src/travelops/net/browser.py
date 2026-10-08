@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Awaitable, Callable, Literal
 
 from .client import Blocked
-from .limiter import Limiter
+from .limiter import Limiter, Quarantined
 from .tally import count
 
 Engine = Literal["chromium", "camoufox"]
@@ -66,13 +66,16 @@ async def launch(engine: str, url: str, ready_cookie: str | None, proxy: str | N
         return await _harvest(browser, engine, url, ready_cookie)
 
 
-Capturer = Callable[[str, str, str, str | None, bool], Awaitable[list[bytes]]]
+Capturer = Callable[..., Awaitable[list[bytes]]]
 
 
-async def capture(engine: str, url: str, pattern: str, proxy: str | None, headless: bool) -> list[bytes]:
+async def capture(
+    engine: str, url: str, pattern: str, proxy: str | None, headless: bool, typed: tuple[str, str] | None = None
+) -> list[bytes]:
     """Open a page as a person would and keep the bodies of the answers it receives from URLs matching `pattern`,
     once the page has had one. For a site whose requests the page signs itself: the browser makes the search, and
-    nothing it sends is forged. Camoufox only."""
+    nothing it sends is forged. `typed` is a field and the text a person would type into it, for an answer that
+    comes only while one types, such as a search box's suggestions. Camoufox only."""
     from camoufox.async_api import AsyncCamoufox
 
     wanted, bodies, arrived = re.compile(pattern), [], asyncio.Event()
@@ -92,6 +95,16 @@ async def capture(engine: str, url: str, pattern: str, proxy: str | None, headle
         first = await page.goto(url, wait_until="domcontentloaded")
         if first is not None and first.status in (403, 429, 451):
             raise Blocked(f"browser navigation refused with HTTP {first.status}")
+        if typed:
+            # A field typed into before the page's scripts are ready takes the text and asks nothing.
+            try:
+                await page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:  # a page that never falls quiet: type anyway
+                pass
+            field = page.locator(typed[0]).first
+            await field.click(timeout=READY_TIMEOUT_S * 1000)
+            await page.wait_for_timeout(1500)
+            await field.type(typed[1], delay=120)
         try:
             await asyncio.wait_for(arrived.wait(), READY_TIMEOUT_S)
         except TimeoutError:
@@ -171,18 +184,34 @@ class BrowserSessions:
             path.write_text(json.dumps(asdict(session)))
             return session
 
-    async def search(self, source: str, url: str, pattern: str, *, headless: bool = True) -> list[bytes]:
+    async def search(
+        self,
+        source: str,
+        url: str,
+        pattern: str,
+        *,
+        headless: bool = True,
+        typed: tuple[str, str] | None = None,
+        queue: str | None = None,
+    ) -> list[bytes]:
         """A search the page makes itself: open `url` in a browser and return the answers it got from URLs
-        matching `pattern`. One page is one request of the source, spaced and quarantined like any other."""
-        bucket = Limiter.bucket(source, self.exit)
+        matching `pattern`. One page is one request of the source, spaced and quarantined like any other; `queue`
+        is a line of its own, as for HTTP requests."""
+        bucket = Limiter.bucket(f"{source}/{queue}" if queue else source, self.exit)
         if self.limiter is not None:
+            main = Limiter.bucket(source, self.exit)
+            if queue and (until := self.limiter.state(main).quarantined_until) > self.limiter.clock():
+                raise Quarantined(main, until)
             await self.limiter.acquire(bucket)
         count(self.counts, source)
         try:
-            bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless)
+            extra = {"typed": typed} if typed else {}
+            bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless, **extra)
         except Blocked:
             if self.limiter is not None:
                 self.limiter.blocked(bucket)
+                if queue:  # a refusal on any line rests the whole site
+                    self.limiter.blocked(Limiter.bucket(source, self.exit))
             raise
         if self.limiter is not None:
             self.limiter.succeeded(bucket)

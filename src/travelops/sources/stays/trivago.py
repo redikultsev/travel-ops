@@ -46,6 +46,14 @@ class Source:
         # Only the list of stays is kept: `system_message` is the server talking to a model.
         return [json.dumps({"accommodations": payload.get("accommodations")}).encode()]
 
+    async def lookup(self, query, name, ctx, seen_at):
+        """One property by its name, at the dates of `query`: trivago's search takes a hotel's name as well as a
+        place's, and answers with that hotel alone (Okura Garden Hotel Shanghai, 2026-10-08)."""
+        from dataclasses import replace
+
+        raws = await self.fetch(replace(query, place=name), ctx)
+        return self.parse(raws, query, seen_at).offers
+
     def parse(self, raws, query, seen_at):
         offers = []
         try:

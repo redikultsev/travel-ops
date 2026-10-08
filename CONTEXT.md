@@ -21,7 +21,9 @@ never goes to the network. It starts from the profile's **bars** (max stops, lon
 from the centre) unless the caller sets them. `refine_*` tools are views.
 
 **Card** — one thing to choose in a result: a flight itinerary with its fare groups, a stay with its rates, a ride
-with its fare. **Offer** — one price for a card, from one seller, with its link and `seen_at`.
+with its fare. **Offer** — one price for a card, from one seller, with its link and `seen_at`. A stay's card
+holds every source's **listing** of one property (`listed_on`): merged by name and place, or added by
+`compare_stays`, which looks the property up by name on the other sources.
 
 **Trip** — flights to the airports near a place and back, and stays there, searched side by side (`trip.py`).
 

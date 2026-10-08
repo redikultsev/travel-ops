@@ -293,7 +293,15 @@ def stays_view(
         cards = hidden.apply(cards, "no_hostels", True, lambda c: not c["stay"].get("hostel"))
     if sources is not None:
         chosen = {s.lower() for s in _codes(sources, "sources")}
-        cards = hidden.apply(cards, "sources", sorted(chosen), lambda c: c["stay"]["source"] in chosen)
+
+        def listed(card):
+            # A property several sources list stays, with only the chosen sources' rates.
+            rates = [r for r in card["rates"] if r.get("source", card["stay"]["source"]) in chosen]
+            if rates:
+                card["rates"] = rates
+            return bool(rates)
+
+        cards = hidden.apply(cards, "sources", sorted(chosen), listed)
     if max_total is not None:
         if not isinstance(max_total, (int, float)) or isinstance(max_total, bool) or max_total <= 0:
             raise ValueError("max_total must be a positive number in the currency of the result")

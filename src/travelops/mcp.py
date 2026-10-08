@@ -15,6 +15,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from .app import App, build
 from .combine import separate_tickets as pair_tickets
+from .compare import compare_stays as compare_prices
 from .details import read_details, read_photos
 from .geo import airports_near, locate, place_json, with_roads
 from .kinds import flight_query, ground_query, stay_query
@@ -229,6 +230,18 @@ class Tools:
             "stays": found,
             "note": "Amenities, rules and scores are the property page's own lists. `not_available` is what the "
             "page marks as absent; anything in neither list is not stated. Prices are from the search.",
+        }
+
+    @answers("price comparison")
+    async def compare_stays(self, search_id: str, stays: list[str]) -> dict[str, Any]:
+        stored = self.searches.stored("stays", search_id)
+        found = await compare_prices(self.app, stored, stays, await self.searches.rates(self.app.net))
+        return {
+            "search_id": stored.id,
+            "stays": found,
+            "note": "Each source's price is its own: a different room, meals or cancellation terms can explain a gap, "
+            "so compare `room`, `meals` and `free_cancellation` before calling one cheaper. `all_in` includes the "
+            "taxes a source states; a price without it may end higher. `checked` says what each source answered.",
         }
 
     @answers("photo request")
@@ -531,6 +544,16 @@ def create_server(
         "names or source ids from that search. One request to a property page per stay, about ten seconds apart, "
         "so ask only for the stays you are about to recommend; a page already read is answered from memory. Each "
         "stay has its own `status`. No booking, no login. After it, `refine_stays` can filter by `must_have`.",
+        annotations=READ_ONLY,
+    )
+    server.add_tool(
+        traced(tools.compare_stays, trace),
+        description="Compare the price of up to five stays of a search across sources: each stay is looked up by "
+        "name on the stay sources that did not list it (Booking.com, trivago, Trip.com), at the same dates and "
+        "party, and the rates found join its card, so `refine_stays` shows them too. A search lists each source's own first "
+        "page, so the same hotel is seldom on two of them: ask this for the stays you are about to recommend. A "
+        "request or two per source and stay; a source that does not have the stay says `not_found`. "
+        "`listed_on[].matched` is `similar_name_same_spot` when the names differ by a word: say so.",
         annotations=READ_ONLY,
     )
     server.add_tool(

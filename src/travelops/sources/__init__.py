@@ -9,6 +9,7 @@ from ..net.limiter import Rule
 RULES: dict[str, Rule] = {
     "airbnb": Rule(interval=10, jitter=3, window=12, per=600, quarantine=1800),
     "booking": Rule(interval=10, jitter=3, window=12, per=600, quarantine=86400),
+    "booking/lookup": Rule(interval=3, jitter=1, window=20, per=600, quarantine=86400),
     "wildberries": Rule(interval=8, jitter=2.4, window=20, per=600, quarantine=1800),
     "kupibilet": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "onetwotrip": Rule(interval=10, jitter=3, window=15, per=600, quarantine=1800),
@@ -27,6 +28,8 @@ RULES: dict[str, Rule] = {
     "flixbus/lookup": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
     # Trip.com: each search is a browser opening the results page, so few and far apart.
     "tripcom": Rule(interval=20, jitter=6, window=10, per=600, quarantine=3600),
+    # Typing a place or a hotel into its search box, to learn its id; a city's id is kept for a month.
+    "tripcom/lookup": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # Google's search page, read without an API: slow and few, and a refusal rests it for an hour.
     "google": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # A public routing service that asks for one request a second at most.
@@ -78,6 +81,10 @@ STAY_SOURCES["airbnb"] = Airbnb
 from .stays.trivago import Source as Trivago
 
 STAY_SOURCES["trivago"] = Trivago
+
+from .stays.tripcom import Source as TripComStays
+
+STAY_SOURCES["tripcom"] = TripComStays
 
 from .ground.tutu import Source as TutuGround
 

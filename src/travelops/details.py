@@ -23,11 +23,22 @@ def pick(stored: Stored, asked: list[str]) -> list[tuple[str, dict | None]]:
     found = []
     for name in asked:
         key = str(name).strip().casefold()
-        exact = [c for c in cards if key in (c["stay"]["source_id"].casefold(), c["stay"]["name"].casefold())]
-        partial = [c for c in cards if key and key in c["stay"]["name"].casefold()]
+        exact = [c for c in cards if any(key in (s["source_id"].casefold(), s["name"].casefold()) for s in listings(c))]
+        partial = [c for c in cards if key and any(key in s["name"].casefold() for s in listings(c))]
         match = exact or (partial if len(partial) == 1 else [])
         found.append((name, match[0] if match else None))
     return found
+
+
+def listings(card: dict) -> list[dict]:
+    """The property as each source lists it; a search stored before sources were merged has one."""
+    return card.get("listed_on") or [card["stay"]]
+
+
+def own_link(card: dict) -> str:
+    """The property page on the card's own source: the cheapest rate may be another source's."""
+    source = card["stay"]["source"]
+    return next((rate for rate in card["rates"] if rate.get("source", source) == source), card["rates"][0])["link"]["url"]
 
 
 def summary(card: dict) -> dict:
@@ -58,7 +69,7 @@ async def read_details(app, stored: Stored, asked: list[str], refresh: bool = Fa
             source = STAY_SOURCES[stay["source"]]()
             try:
                 raw = await asyncio.wait_for(
-                    source.fetch_details(card["rates"][0]["link"]["url"], place, app.ctx), timeout=150
+                    source.fetch_details(own_link(card), place, app.ctx), timeout=150
                 )
                 known = app.results.put_details(stay["source"], stay["source_id"], source.parse_details(raw))
             except (Blocked, Quarantined) as exc:

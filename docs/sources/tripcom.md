@@ -36,6 +36,30 @@ names the visitor's session and the server's logs.
 
 Belgrade to Istanbul, 14 November, one adult: 25 itineraries from 82.64 EUR (Air Serbia), one page.
 
+## Stays
+
+The same rule: nothing signed is sent from here.
+
+- **Where.** A place or a hotel becomes Trip.com's id through the page's own search box: the browser types the
+  text into `input#destinationInput` on `https://www.trip.com/hotels/`, and the page asks
+  `/restapi/soa2/34951/getHotelKeywords` (signed by the page). Each suggestion has `keyword.hotelInfo.hotelId` for
+  a hotel and `controlInfo.regionInfo.basicCityModel.cityId` for its city. A city's id is kept for a month; the
+  typing waits in its own line (`tripcom/lookup`).
+- **Request.** `https://www.trip.com/hotels/list?city=2&checkin=2026-12-01&checkout=2026-12-30&adult=1&crn=1&children=0&curr=EUR&locale=en-XX`
+  — `adult` the adults and `crn` the rooms; the page reports them back as filter `29` (`rooms|adults`). Adding
+  `optionId=<hotelId>&optionType=Hotel&optionName=<name>` shows that one hotel. `searchWord=`, `keyword=` and
+  `cityName=` were ignored on 2026-10-08 (the page showed Shanghai), so a place needs its id.
+- **Answer.** The results page carries its list itself: Next.js writes it as string chunks
+  (`self.__next_f.push([1, "..."])`), and `initListData.hotelList` holds about ten hotels. Each has `nameInfo`,
+  `hotelCategory`, `commentInfo` (score out of `fullRating`, review count as text), `positionInfo.mapCoordinate`
+  (BD09, GCJ-02 and WGS84 — only WGS84 is kept: in China the others are shifted by hundreds of metres) and one
+  room, `roomInfo[0]`, with `priceInfoLayer.payInfo`: the rooms and nights before taxes, `payTax` and the total.
+  A room priced per bed says `1 bed ×` and is a dormitory.
+- **Limits.** First page only, ranked Trip.com's way; one room per hotel, the one the list shows. Children are
+  not verified.
+- **Verified, 2026-10-08.** Shanghai, 1–30 December, one adult: Orange Hotel (Shanghai Bund South Zhongshan
+  Road) €1,777.14 + €106.61 taxes = €1,883.75. Okura Garden Hotel Shanghai by its id: €3,053 with taxes.
+
 ## Not possible: Skyscanner
 
 Probed the same way on 2026-10-07: the first answer held two itineraries at 699 EUR, and the next request of the

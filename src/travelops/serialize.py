@@ -166,6 +166,11 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
                     "photos": list(card.stay.photos),
                     "amenities": list(card.stay.amenities),
                 },
+                # The same property as each source lists it: its rates below come from all of them.
+                "listed_on": [
+                    {k: getattr(s, k) for k in ("source", "source_id", "name", "rating", "reviews")}
+                    for s in card.listed or [card.stay]
+                ],
                 "nights": query.nights,
                 "rates": [rate_json(rate, query.nights, rates, search.currency) for rate in card.rates],
             }

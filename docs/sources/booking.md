@@ -75,3 +75,16 @@ One Belgrade search for two adults, 2026-11-14 to 2026-11-16, returned 25 cards 
 unfiltered page and 61 distinct properties over the four price bands. The fixture keeps the
 first six cards of the unfiltered page, without tracking query strings. The first is
 Rooms for rent "SARA": EUR 45 for the stay, scored 9.0 from 252 reviews, Twin Room.
+
+## One property by name
+
+Typing a hotel's name as `ss` does not find it: the page shows the whole city by price
+(Okura Garden Hotel Shanghai was not among 28 cards, 2026-10-08). The search box's own
+suggestions do: `POST https://accommodations.booking.com/autocomplete.json` with
+`{"query": <name, city>, "language": "en-gb", "size": 5}` and the session's cookies answers
+`results[]` with `dest_id`, `dest_type` (`hotel` for a property), `label`, `label1`,
+`latitude` and `longitude`. The search page with `dest_id` and `dest_type=hotel` then shows
+that property's card first, followed by others nearby; its card is read as any other. The
+suggestion waits in its own line (`booking/lookup`), the page in Booking's. `compare_stays`
+uses it. Verified 2026-10-08: Okura Garden Hotel Shanghai, 1–30 December, one adult —
+EUR 4,829 plus EUR 802 taxes, Executive Room with breakfast.

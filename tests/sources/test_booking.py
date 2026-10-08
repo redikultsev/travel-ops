@@ -161,3 +161,49 @@ def test_a_property_page_gives_amenities_place_rules_and_scores():
     assert "description" not in details, "the property's own prose is not passed on"
     with pytest.raises(ParseError):
         Source().parse_details(b"<html>unrelated</html>")
+
+
+async def test_one_property_is_found_through_the_search_box():
+    from pathlib import Path
+
+    page = (Path(__file__).parents[1] / "fixtures" / "booking" / "belgrade-2026-11-14.html").read_bytes()
+
+    class Browser:
+        async def get(self, *args, **kw):
+            return Session({"aws-waf-token": "test"}, "test-agent", "chromium", 0)
+
+    class Net:
+        calls = []
+
+        async def request(self, source, method, url, **kw):
+            self.calls.append((method, url, kw))
+            if url.endswith("autocomplete.json"):
+                hits = [
+                    {"dest_type": "city", "dest_id": "-74897", "label": "Belgrade, Serbia"},
+                    {"dest_type": "hotel", "dest_id": "42", "label": 'Rooms for rent "SARA", Belgrade, Serbia',
+                     "label1": 'Rooms for rent "SARA"', "latitude": 44.8, "longitude": 20.46},
+                ]
+                return Response(200, __import__("json").dumps({"results": hits}).encode())
+            return Response(200, page)
+
+    net = Net()
+    offers = await Source().lookup(QUERY, 'Rooms for rent "SARA", Belgrade', Context(net, Browser(), lambda: NOW), NOW)
+    (suggest, results) = net.calls
+    assert suggest[2]["queue"] == "lookup" and suggest[2]["json"]["query"] == 'Rooms for rent "SARA", Belgrade'
+    assert results[2]["params"]["dest_id"] == "42" and results[2]["params"]["dest_type"] == "hotel"
+    assert "order" not in results[2]["params"] and "nflt" not in results[2]["params"]
+    first = offers[0].stay
+    assert first.name == 'Rooms for rent "SARA"' and (first.lat, first.lon) == (44.8, 20.46)
+    assert all(o.stay.lat is None for o in offers if o.stay.source_id != first.source_id), "only the one named"
+
+
+async def test_a_name_the_search_box_does_not_know_finds_nothing():
+    class Browser:
+        async def get(self, *args, **kw):
+            return Session({}, "test-agent", "chromium", 0)
+
+    class Net:
+        async def request(self, source, method, url, **kw):
+            return Response(200, b'{"results": [{"dest_type": "city", "dest_id": "1"}]}')
+
+    assert await Source().lookup(QUERY, "Nowhere Inn", Context(Net(), Browser(), lambda: NOW), NOW) == []

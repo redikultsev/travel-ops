@@ -85,7 +85,7 @@ Claude Code. Client configuration formats differ, but all clients call the same 
 search engine.
 
 The MCP tools are `search_trip`, `search_flights`, `search_stays`, `search_ground`, `refine_flights`,
-`refine_stays`, `refine_ground`, `stay_details`, `stay_photos`, `airports_near`, `sources`, and the price watch
+`refine_stays`, `refine_ground`, `stay_details`, `compare_stays`, `stay_photos`, `airports_near`, `sources`, and the price watch
 tools `watch_price`, `watches`, `watch_alerts` and `stop_watch`. `search_trip` answers a request such as "Montenegro, 22 to 23 October, staying in Kotor" in one
 call: it finds the place, picks the airports that serve it, and searches flights there and back and stays for the
 same dates.
@@ -143,6 +143,7 @@ search, every source must be reported. See `evals/README.md`.
 | Booking.com | Stays | Browser session and HTTP requests |
 | Airbnb | Stays | HTTP requests |
 | trivago | Stays | trivago's public MCP server; one advertiser's price per stay |
+| Trip.com | Stays | A browser opens its results page; first page, one room per hotel; Asia and worldwide |
 | Tutu | Trains and buses | Tutu MCP search; Russia and the CIS, some international buses |
 | 12Go | Trains, buses, ferries | 12Go's public MCP server; Turkey, south-east Asia, parts of the Balkans |
 | FlixBus | Buses and trains | FlixBus shop JSON; Europe and North America, partner carriers included |

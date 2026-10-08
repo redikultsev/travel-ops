@@ -76,6 +76,7 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, mode):
             "refine_stays",
             "stay_details",
             "stay_photos",
+            "compare_stays",
             "airports_near",
             "sources",
             "watch_price",

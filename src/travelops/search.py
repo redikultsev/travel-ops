@@ -180,7 +180,7 @@ async def search_stays(
         *(run_source(s, query, ctx, deadline(s, query, ctx, timeout, sharing)) for s in sources)
     )
     offers = [o for found, _ in results for o in found]
-    return StaySearch(query, currency, list_stays(offers, rates, currency), [rep for _, rep in results])
+    return StaySearch(query, currency, list_stays(offers, rates, currency, query.place), [rep for _, rep in results])
 
 
 async def search_ground(

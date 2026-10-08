@@ -18,8 +18,8 @@ a profile.
 A follow-up inside a trip about its flights or its stays is shown the way that part's mode shows cards.
 
 Tools: `search_trip`, `search_flights`, `search_stays`, `search_ground` search; `refine_flights`, `refine_stays`,
-`refine_ground` look again at a search already made; `stay_details` reads the property pages of a few stays and `stay_photos` shows you their
-photos; `airports_near`, `sources`. Never guess which airport serves a town: `search_trip` resolves it, and
+`refine_ground` look again at a search already made; `stay_details` reads the property pages of a few stays, `compare_stays` finds their prices on the
+other sources, and `stay_photos` shows you their photos; `airports_near`, `sources`. Never guess which airport serves a town: `search_trip` resolves it, and
 `airports_near` answers the question alone.
 
 ## Prices and evidence

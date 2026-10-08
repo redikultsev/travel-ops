@@ -82,6 +82,13 @@ class Results:
         )
         self.db.commit()
 
+    def rewrite(self, ident: str, result: dict) -> None:
+        """Keep more found about a search, such as other sources' prices for its stays, under its id and time."""
+        self.db.execute(
+            "UPDATE results SET body = ? WHERE id = ?", (zlib.compress(json.dumps(result).encode()), ident)
+        )
+        self.db.commit()
+
     def touch(self, ident: str, at: float) -> None:
         self.db.execute("UPDATE results SET at = ? WHERE id = ?", (at, ident))
         self.db.commit()

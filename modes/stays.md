@@ -37,19 +37,30 @@
    pets, a late check-in) or the profile lists `must_have`, call `stay_details`
    for the two to five stays you would recommend, then `refine_stays` with
    `must_have`. A stay whose page was not read counts as unknown, never as
-   lacking. trivago stays have no page to read (`not_configured`): only the top
-   amenities on their card are known, so for a must-have prefer a Booking or
+   lacking. trivago and Trip.com stays have no page read here (`not_configured`):
+   only what their card says is known, so for a must-have prefer a Booking or
    Airbnb stay, or say that the human must check the advertiser's page. Do not claim an amenity absent unless the page lists it under
    `not_available`.
-6. When the human asks how a place looks, or wants one "bright", "with a view",
+6. Compare prices before you recommend: call `compare_stays` for the two to five
+   stays you would offer. It looks each one up by name on the sources that did
+   not list it and adds their rates to the card. Give each stay's price per
+   source side by side, with the room, meals and cancellation of each: a gap is
+   often a different room or taxes stated by one source only, so name the cause
+   before calling one cheaper. A `matched: similar_name_same_spot` listing has a
+   slightly different name at the same address: say so. `not_found` means that
+   source did not have the stay at these dates, not that it is sold out
+   everywhere.
+7. When the human asks how a place looks, or wants one "bright", "with a view",
    "not shabby", call `stay_photos` and look. Say only what the photos show, name
    what they do not show, and give the links: the human cannot see what you were
    sent.
-7. Show a short set of cards: the price as in step 3 and per night when more than
+8. Show a short set of cards: the price as in step 3 and per night when more than
    one night, the seller, the name, the kind and room, rating out of 10 with its
    review count, distance from the centre, free cancellation and meals when
    stated, and the property link carrying the requested dates. Keep unknowns in
    one line for the whole answer rather than under every card.
-8. End with what the filters hid and the source report as AGENTS.md describes it.
-   Booking and Airbnb are not deduplicated: the same property can appear under
-   both, with different names and ratings.
+9. End with what the filters hid and the source report as AGENTS.md describes it.
+   A property that several sources list under the same name is one card:
+   `listed_on` names each listing, with its own rating, and its rates come from
+   all of them. A name that differs between sites (an Airbnb home, a hotel
+   renamed) is not merged, so two cards can still be one place.

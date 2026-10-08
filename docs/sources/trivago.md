@@ -29,8 +29,10 @@ trivago page of that deal).
 - First page only; the total is not given.
 - `top_amenities` is a short list: an amenity it names is there, one it does not
   name is unknown.
-- The same property can also come from Booking.com directly. Sources are not
-  deduplicated.
+- The same property can also come from Booking.com directly. A listing with the
+  same name at the same place joins Booking's card (`merge/stays.py`).
+- A hotel's name works as `query` too: the answer is that hotel alone (Okura
+  Garden Hotel Shanghai, 2026-10-08). `compare_stays` uses it.
 - The answer carries `system_message`, text addressed to a model, and inline
   images. Neither is kept: the adapter stores the list of stays only.
 - trivago does not cover Russia.
