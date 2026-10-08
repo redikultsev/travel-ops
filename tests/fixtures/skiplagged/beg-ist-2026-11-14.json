@@ -1,0 +1,204 @@
+{
+ "searchUrl": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp",
+ "flights": [
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU426",
+   "airlines": "AirSERBIA",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T00:50:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-14T04:40:00+03:00"
+   },
+   "duration": "1h 50m",
+   "layovers": 0,
+   "price": {
+    "amount": 88,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU426",
+   "attributes": [
+    "standard",
+    "nonstop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU422",
+   "airlines": "AirSERBIA",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T13:10:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-14T17:00:00+03:00"
+   },
+   "duration": "1h 50m",
+   "layovers": 0,
+   "price": {
+    "amount": 88,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU422",
+   "attributes": [
+    "standard",
+    "nonstop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU1106-JU1424",
+   "airlines": "AirSERBIA",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T00:40:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-14T16:45:00+03:00"
+   },
+   "duration": "14h 5m",
+   "layovers": 1,
+   "price": {
+    "amount": 89,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU1106-JU1424",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU142-W62429",
+   "airlines": "AirSERBIA, Wizz Air",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T13:30:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-15T09:15:00+03:00"
+   },
+   "duration": "17h 45m",
+   "layovers": 1,
+   "price": {
+    "amount": 95,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU142-W62429",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=W64123-W43936-H7421",
+   "airlines": "Wizz Air, Wizz Air Malta, HiSky",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T20:25:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-15T18:40:00+03:00"
+   },
+   "duration": "20h 15m",
+   "layovers": 2,
+   "price": {
+    "amount": 112,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=W64123-W43936-H7421",
+   "attributes": [
+    "virtual-interline",
+    "multi-stop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU102-TK1046",
+   "airlines": "AirSERBIA, Turkish Airlines",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T13:10:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-15T00:05:00+03:00"
+   },
+   "duration": "8h 55m",
+   "layovers": 1,
+   "price": {
+    "amount": 118,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU102-TK1046",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=JU106-TK1042",
+   "airlines": "AirSERBIA, Turkish Airlines",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T00:45:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-14T15:20:00+03:00"
+   },
+   "duration": "12h 35m",
+   "layovers": 1,
+   "price": {
+    "amount": 118,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU106-TK1042",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ]
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-IST-2026-11-14-trip=W64123-W43932-H7421",
+   "airlines": "Wizz Air, Wizz Air Malta, HiSky",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-14T20:25:00+01:00"
+   },
+   "arrival": {
+    "airport": "IST",
+    "dateTime": "2026-11-15T18:40:00+03:00"
+   },
+   "duration": "20h 15m",
+   "layovers": 2,
+   "price": {
+    "amount": 120,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/IST/2026-11-14?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=W64123-W43932-H7421",
+   "attributes": [
+    "virtual-interline",
+    "multi-stop"
+   ]
+  }
+ ],
+ "pagination": {
+  "totalAvailable": 151,
+  "currentlyShowing": 100,
+  "offset": 0,
+  "limit": 100,
+  "hasMoreResults": false
+ }
+}

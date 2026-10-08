@@ -20,6 +20,7 @@ RULES: dict[str, Rule] = {
     "aviasales": Rule(interval=12, jitter=3.6, window=40, per=600, quarantine=1800),
     # Public MCP servers made for agents.
     "kiwi": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
+    "skiplagged": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "trivago": Rule(interval=3, jitter=1, window=30, per=600, quarantine=1800),
     "12go": Rule(interval=5, jitter=1.5, window=30, per=600, quarantine=1800),
     "12go/handshake": Rule(interval=1, jitter=0.5, window=30, per=600, quarantine=1800),
@@ -59,8 +60,10 @@ from .flights.wildberries import Source as Wildberries
 FLIGHT_SOURCES["wildberries"] = Wildberries
 
 from .flights.kiwi import Source as Kiwi
+from .flights.skiplagged import Source as Skiplagged
 
 FLIGHT_SOURCES["kiwi"] = Kiwi
+FLIGHT_SOURCES["skiplagged"] = Skiplagged
 
 from .flights.google import Source as Google
 

@@ -121,9 +121,18 @@ class Segment:
 class Itinerary:
     outbound: tuple[Segment, ...]
     inbound: tuple[Segment, ...] = ()
+    # A source that names a connection's flights but not where and when it changes planes gives a chain only: the
+    # search completes it from another source's itinerary of the same flights, or leaves it out (`completed`).
+    partial: bool = False
 
     def segments(self) -> tuple[Segment, ...]:
         return self.outbound + self.inbound
+
+    def chain(self) -> tuple:
+        """The flights of each leg and when each leg leaves: what even a partial itinerary says for sure."""
+        return tuple(
+            (tuple(s.flight for s in leg), leg[0].departs.isoformat()) for leg in (self.outbound, self.inbound) if leg
+        )
 
     def key(self) -> tuple:
         """The whole chain of flights with dates: one key, one physical trip."""

@@ -141,6 +141,21 @@ def on_the_route(offers: list, query: FlightQuery) -> tuple[list, list[str]]:
     ]
 
 
+def completed(offers: list) -> tuple[list, Counter]:
+    """Partial itineraries given the stops of another source's itinerary of the same flights; those no other source
+    listed are left out and counted by source: a connection without its stops cannot be shown or filtered."""
+    full = {o.itinerary.chain(): o.itinerary for o in offers if not o.itinerary.partial}
+    kept, dropped = [], Counter()
+    for o in offers:
+        if not o.itinerary.partial:
+            kept.append(o)
+        elif (match := full.get(o.itinerary.chain())) is not None:
+            kept.append(replace(o, itinerary=match))
+        else:
+            dropped[o.fare.source] += 1
+    return kept, dropped
+
+
 def deadline(source, query, ctx: Context, timeout: float, runs: int = 1) -> float:
     """`timeout` is what the site may take to answer. Our own request spacing is added on top: every run of a
     source waits in one queue, so without this a search over several dates would time out on its own politeness."""
@@ -177,8 +192,14 @@ async def search_flights(
     results = await asyncio.gather(
         *(run_source(s, q, ctx, deadline(s, q, ctx, timeout, runs), label, on_the_route) for s, q, label in jobs)
     )
-    offers = [o for found, _ in results for o in found]
+    offers, dropped = completed([o for found, _ in results for o in found])
     reports = [combine([rep for (s, _, _), (_, rep) in zip(jobs, results) if s is src]) for src in sources]
+    for report in reports:
+        if dropped[report.source]:
+            report.notes.append(
+                f"{dropped[report.source]} connections only {report.source} listed were left out: it names their "
+                "flights but not where they change planes"
+            )
     return FlightSearch(query, currency, merge_flights(offers, rates, currency), reports)
 
 

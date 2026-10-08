@@ -1,0 +1,176 @@
+{
+ "searchUrl": "https://skiplagged.com/flights/BEG/LIS/2026-11-20/2026-11-24?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp",
+ "flights": [
+  {
+   "type": "FlightCard",
+   "id": "BEG-LIS-2026-11-20-2026-11-24-trip=W64123-FR820,JU563",
+   "airlines": "Wizz Air, Ryanair",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-20T20:25:00+01:00"
+   },
+   "arrival": {
+    "airport": "LIS",
+    "dateTime": "2026-11-21T18:45:00+00:00"
+   },
+   "duration": "23h 20m",
+   "layovers": 1,
+   "price": {
+    "amount": 179,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/LIS/2026-11-20/2026-11-24?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=W64123-FR820,JU563",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ],
+   "returnFlight": {
+    "airlines": "AirSERBIA",
+    "departure": {
+     "airport": "LIS",
+     "dateTime": "2026-11-24T17:20:00+00:00"
+    },
+    "arrival": {
+     "airport": "BEG",
+     "dateTime": "2026-11-24T22:05:00+01:00"
+    },
+    "duration": "3h 45m",
+    "layovers": 0,
+    "attributes": [
+     "standard",
+     "nonstop"
+    ]
+   }
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-LIS-2026-11-20-2026-11-24-trip=JU144-FR8859,JU563",
+   "airlines": "AirSERBIA, Ryanair",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-20T17:05:00+01:00"
+   },
+   "arrival": {
+    "airport": "LIS",
+    "dateTime": "2026-11-21T14:35:00+00:00"
+   },
+   "duration": "22h 30m",
+   "layovers": 1,
+   "price": {
+    "amount": 185,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/LIS/2026-11-20/2026-11-24?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=JU144-FR8859,JU563",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ],
+   "returnFlight": {
+    "airlines": "AirSERBIA",
+    "departure": {
+     "airport": "LIS",
+     "dateTime": "2026-11-24T17:20:00+00:00"
+    },
+    "arrival": {
+     "airport": "BEG",
+     "dateTime": "2026-11-24T22:05:00+01:00"
+    },
+    "duration": "3h 45m",
+    "layovers": 0,
+    "attributes": [
+     "standard",
+     "nonstop"
+    ]
+   }
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-LIS-2026-11-20-2026-11-24-trip=W94001-U22459,JU563",
+   "airlines": "Wizz Air UK, easyJet",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-20T20:25:00+01:00"
+   },
+   "arrival": {
+    "airport": "LIS",
+    "dateTime": "2026-11-21T10:30:00+00:00"
+   },
+   "duration": "15h 5m",
+   "layovers": 1,
+   "price": {
+    "amount": 201,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/LIS/2026-11-20/2026-11-24?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=W94001-U22459,JU563",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ],
+   "returnFlight": {
+    "airlines": "AirSERBIA",
+    "departure": {
+     "airport": "LIS",
+     "dateTime": "2026-11-24T17:20:00+00:00"
+    },
+    "arrival": {
+     "airport": "BEG",
+     "dateTime": "2026-11-24T22:05:00+01:00"
+    },
+    "duration": "3h 45m",
+    "layovers": 0,
+    "attributes": [
+     "standard",
+     "nonstop"
+    ]
+   }
+  },
+  {
+   "type": "FlightCard",
+   "id": "BEG-LIS-2026-11-20-2026-11-24-trip=U24658-FR1084,JU563",
+   "airlines": "easyJet, Ryanair",
+   "departure": {
+    "airport": "BEG",
+    "dateTime": "2026-11-20T20:30:00+01:00"
+   },
+   "arrival": {
+    "airport": "LIS",
+    "dateTime": "2026-11-21T21:55:00+00:00"
+   },
+   "duration": "26h 25m",
+   "layovers": 1,
+   "price": {
+    "amount": 202,
+    "currency": "USD"
+   },
+   "deepLink": "https://skiplagged.com/flights/BEG/LIS/2026-11-20/2026-11-24?utm_source=mcp&utm_medium=ai&utm_campaign=skiplagged_mcp#trip=U24658-FR1084,JU563",
+   "attributes": [
+    "virtual-interline",
+    "one-stop"
+   ],
+   "returnFlight": {
+    "airlines": "AirSERBIA",
+    "departure": {
+     "airport": "LIS",
+     "dateTime": "2026-11-24T17:20:00+00:00"
+    },
+    "arrival": {
+     "airport": "BEG",
+     "dateTime": "2026-11-24T22:05:00+01:00"
+    },
+    "duration": "3h 45m",
+    "layovers": 0,
+    "attributes": [
+     "standard",
+     "nonstop"
+    ]
+   }
+  }
+ ],
+ "pagination": {
+  "totalAvailable": 300,
+  "currentlyShowing": 100,
+  "offset": 0,
+  "limit": 100,
+  "hasMoreResults": false
+ }
+}
