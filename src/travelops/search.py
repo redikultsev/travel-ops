@@ -51,6 +51,14 @@ class GroundSearch:
     reports: list[SourceReport]
 
 
+def until(moment: float) -> str:
+    """When a rest ends, as a person reads it: the time today, the day and time later."""
+    when = time.localtime(moment)
+    if time.strftime("%Y-%m-%d", when) == time.strftime("%Y-%m-%d"):
+        return time.strftime("%H:%M", when)
+    return time.strftime("%Y-%m-%d %H:%M", when)
+
+
 async def run_source(
     source, query, ctx: Context, timeout: float, label: str = "", screen=None
 ) -> tuple[list, SourceReport]:
@@ -67,7 +75,7 @@ async def run_source(
             source.name,
             status,
             reason,
-            notes or ([label] if label else []),
+            notes or ([label] if label and status not in (Status.OK, Status.EMPTY) else []),
             offers,
             mine[source.name],
             round(time.monotonic() - started, 1),
@@ -77,9 +85,7 @@ async def run_source(
         raws = await asyncio.wait_for(source.fetch(query, ctx), timeout)
         parsed = source.parse(raws, query, ctx.now())
     except Quarantined as exc:
-        return [], report(
-            Status.BLOCKED, f"resting after a block until {time.strftime('%H:%M', time.localtime(exc.until))}"
-        )
+        return [], report(Status.BLOCKED, f"resting after a block until {until(exc.until)}")
     except Blocked as exc:
         return [], report(Status.BLOCKED, str(exc))
     except (TimeoutError, asyncio.TimeoutError) as exc:
@@ -118,6 +124,8 @@ async def run_source(
         return f"{' '.join(missing)}: {note}" if missing else note
 
     notes = [labelled(note) for note in notes]
+    if label and not offers:
+        notes.append(f"{label}: no offers")
     return offers, report(status, notes=notes, offers=len(offers))
 
 

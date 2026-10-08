@@ -40,12 +40,27 @@ def place_words(place: str) -> frozenset[str]:
     return name_words(place.split(",")[0])
 
 
+SAME_BUILDING_KM = 0.1  # a name with words more ("- Nanjing Road", "Hostel") is the same only at the same spot
+
+
+def _variant(a: Stay, b: Stay, wa: frozenset[str], wb: frozenset[str], km: float, least: int) -> bool:
+    """One name is the other with words more, and both stand within `km`: "Grand Central Shanghai" and "Grand
+    Central Hotel Shanghai - Nanjing Road". Without coordinates a longer name may be another branch."""
+    if not (wa < wb or wb < wa) or min(len(wa), len(wb)) < least:
+        return False
+    if None in (a.lat, a.lon, b.lat, b.lon):
+        return False
+    return distance_km(a.lat, a.lon, b.lat, b.lon) <= km
+
+
 def same_stay(a: Stay, b: Stay, ignore: frozenset[str] = frozenset()) -> bool:
     if a.source == b.source:
         return False  # within one source its own id decides
-    words = name_words(a.name, ignore)
-    if not words or words != name_words(b.name, ignore):
+    wa, wb = name_words(a.name, ignore), name_words(b.name, ignore)
+    if not wa or not wb:
         return False
+    if wa != wb:
+        return _variant(a, b, wa, wb, SAME_BUILDING_KM, 2)
     if None not in (a.lat, a.lon, b.lat, b.lon):
         return distance_km(a.lat, a.lon, b.lat, b.lon) <= SAME_SPOT_KM
     if a.center_km is not None and b.center_km is not None:
@@ -60,14 +75,12 @@ def looked_up(card: Stay, found: Stay, ignore: frozenset[str] = frozenset()) -> 
     """Whether a property another source gave for a name asked by name is the card's own. The same name is
     enough, as in a search; a name with a word more or less ("Okura Garden" and "Okura Garden Shanghai Huaihai")
     passes only at the same spot, within 200 m."""
-    if same_stay(card, found, ignore):
-        return "same_name"
+    if card.source == found.source:
+        return None
     a, b = name_words(card.name, ignore), name_words(found.name, ignore)
-    if card.source == found.source or not a or not b or not (a <= b or b <= a):
-        return None
-    if None in (card.lat, card.lon, found.lat, found.lon):
-        return None
-    if distance_km(card.lat, card.lon, found.lat, found.lon) <= LOOKED_UP_SPOT_KM:
+    if a and a == b and same_stay(card, found, ignore):
+        return "same_name"
+    if a and b and _variant(card, found, a, b, LOOKED_UP_SPOT_KM, 1):
         return "similar_name_same_spot"
     return None
 

@@ -315,6 +315,20 @@ def offers_of(card: dict) -> list[dict]:
     return offers(card)
 
 
+def _by_source(card: dict, currency: str, own: str = "") -> dict:
+    """A card several sources sell: each one's cheapest price, with its stated taxes when stated, so the comparison
+    is in the line itself."""
+    from .cards import amount
+
+    best: dict[str, float] = {}
+    for offer in offers_of(card):
+        value = amount(offer, currency)
+        source = offer.get("source", own)
+        if value is not None and (source not in best or value < best[source]):
+            best[source] = value
+    return {source: round(value, 2) for source, value in best.items()}
+
+
 def row(card: dict, currency: str) -> dict:
     """A card in one short line, for the cards past the detailed ones: enough to choose which to look at."""
     try:
@@ -323,7 +337,7 @@ def row(card: dict, currency: str) -> dict:
         price = None
     if "stay" in card:
         stay = card["stay"]
-        return {
+        line = {
             "name": stay["name"],
             "sources": [entry["source"] for entry in card.get("listed_on") or [stay]],
             "price": price,
@@ -332,15 +346,22 @@ def row(card: dict, currency: str) -> dict:
             "km": stay.get("center_km"),
             "kind": stay.get("kind"),
         }
+        if len(line["sources"]) > 1:
+            line["by_source"] = _by_source(card, currency, stay["source"])
+        return line
     if "outbound" in card:
         legs = [card["outbound"], card.get("inbound") or []]
-        return {
+        line = {
             "flights": [" ".join(s["flight"] for s in leg) for leg in legs if leg],
             "departs": [leg[0]["departs"][:16] for leg in legs if leg],
             "stops": card.get("stops"),
             "hours": round(card["duration_min"] / 60, 1) if card.get("duration_min") is not None else None,
             "price": price,
         }
+        sellers = _by_source(card, currency)
+        if len(sellers) > 1:
+            line["by_source"] = sellers
+        return line
     rides = card.get("rides") or []
     return {
         "modes": card.get("modes"),

@@ -28,7 +28,10 @@ the price and `[1][1]` a protobuf token whose field 3.3 names the currency.
 - A metasearch: the price is the cheapest a seller shows on Google, for the whole party. Google names the seller
   only on its own page, so the seller is `google` and the link opens that page for the same flights.
 - A round trip is the outbound page, then one page per outbound tried with that flight pinned, which lists the
-  returns at the round-trip price. The three cheapest outbounds are tried: four requests per route.
+  returns at the round-trip price. The six cheapest outbounds are tried: seven requests per route.
+- Depth: the page lists its top flights and about ten others (13 rows for Belgrade to Lisbon on 20 November,
+  checked 2026-10-08); the rest it loads behind "more flights", which is not read. `fli` reads the same two
+  lists.
 - Baggage and refund terms are not stated. Children are sent as Google counts them; Google itself lists fewer
   rows for parties with children.
 - Ten seconds between pages; a refusal rests the source for an hour.

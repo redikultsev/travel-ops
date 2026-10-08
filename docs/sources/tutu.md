@@ -49,7 +49,7 @@ plus up to 3.6 seconds of jitter, at most 12 in 600 seconds. The two handshake
 messages of a session (`initialize`, `notifications/initialized`) are not
 searches: they wait about a second in a line of their own, as an MCP client
 sends them. One handshake serves every route and date of a search. A refusal on
-either line rests the whole source. A search reads up to four pages (30 offers each) while `meta.has_more` is true,
+either line rests the whole source. A search reads up to six pages (30 offers each) while `meta.has_more` is true,
 and reports the number received of `total_matched`.
 A timeout can be an address ban; after the first timeout or refusal, record it
 and do not run another live check during implementation. 403, 429, 451 and
@@ -60,7 +60,7 @@ challenge responses are blocks. The transport must never retry calls in a loop.
 One initialization/notification/tools-list sequence succeeded with three
 physical requests spaced by the persistent limiter. The current tool schema
 accepts preferred `origin` and `destination`; `from_city` / `to_city` remain
-aliases. It supports `sort: price_asc` and `view: full`. Read up to four pages of 30 offers
+aliases. It supports `sort: price_asc` and `view: full`. Read up to six pages of 30 offers
 while `meta.has_more` is true (2026-10-08), and report `meta.has_more`, `meta.total_matched`, and `meta.total_matched_exact`.
 The official tool description explicitly states that every price is the whole
 party total (`meta.pricing.basis: party_total`); the earlier uncertainty about

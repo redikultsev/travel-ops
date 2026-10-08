@@ -273,15 +273,19 @@ class Source:
             notes.append(f"{empty} of {len(raws)} search pages carried no results: Google may have changed the page")
         if unpriced:
             notes.append(f"{unpriced} itineraries listed without a price were left out")
-        if query.return_:
-            pinned = max((len(json.loads(raw)["pages"]) - 1 for raw in raws), default=0)
+        pinned = max((len(json.loads(raw)["pages"]) - 1 for raw in raws), default=0) if query.return_ else 0
+        if pinned:
             notes.append(
-                f"returns were looked up for the {pinned} cheapest outbound flights of each route; the dearer "
-                "outbound flights have no round-trip price here"
+                f"returns were looked up for the {pinned} cheapest outbound flights; the dearer outbound flights "
+                "have no round-trip price here"
             )
         if offers:
             notes.append(
                 "a metasearch: the price is the cheapest a seller shows on Google, which names the seller only on "
                 "its own page; baggage is not stated"
+            )
+            notes.append(
+                "Google's page lists its top flights and about ten others; the rest it keeps behind \"more flights\", "
+                "which is not read here: the other sources cover the depth"
             )
         return Parsed(offers, notes)

@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from ...core.common import Link
 from ...core.money import Money
 from ...core.stays import Rate, Stay, StayOffer, StayQuery, kind_of_room, rating_out_of_10
+from ...geo import distance_km, same_country
 from ...net.cache import RawCache
 from ..base import NotConfigured, Parsed, ParseError
 from ._html import money
@@ -27,6 +28,8 @@ PAGE = r"trip\.com/hotels/list\?|/restapi/soa2/\d+/fetchHotelList"
 # (`fetchHotelList`, signed by the page). SCROLLS is how far one search goes.
 SCROLLS = 12
 CITY_DAYS = 30
+# A suggested city this far from the place's centre is another place of the same name.
+CITY_KM = 60
 
 
 def keywords_of(bodies: list[bytes]) -> list[dict]:
@@ -47,15 +50,33 @@ def region(keyword: dict) -> dict:
     return {**info.get("displayCityModel", {}), **info.get("basicCityModel", {})}
 
 
-def city_of(keywords: list[dict], place: str) -> int | None:
-    """The first suggestion that is a city, in the country the place names when it names one."""
-    country = place.split(",", 1)[1].strip().casefold() if "," in place else ""
+def spot_of(keyword: dict) -> tuple[float, float] | None:
+    info = (keyword.get("keyword") or {}).get("keywordContentInfo") or {}
+    for item in info.get("coordinateItemList") or []:
+        if item.get("coordinateType") == "NORMAL":
+            try:
+                return float(item["latitude"]), float(item["longitude"])
+            except (KeyError, TypeError, ValueError):
+                return None
+    return None
+
+
+def city_of(keywords: list[dict], place: str, center: tuple[float, float] | None = None) -> int | None:
+    """The first suggestion that is a city: near the place's centre when it is known, else in the country the place
+    names when it names one ("Turkey" is Trip.com's "Türkiye")."""
+    country = place.split(",", 1)[1].strip() if "," in place else ""
     for keyword in keywords:
         if (keyword.get("keyword") or {}).get("hotelInfo"):
             continue
         where = region(keyword)
-        named = str(where.get("countryName", "")).casefold()
-        if where.get("cityId") and (not country or country in named or named in country):
+        if not where.get("cityId"):
+            continue
+        spot = spot_of(keyword)
+        if center and spot:
+            if distance_km(*center, *spot) <= CITY_KM:
+                return int(where["cityId"])
+            continue
+        if not country or same_country(country, str(where.get("countryName", ""))):
             return int(where["cityId"])
     return None
 
@@ -151,11 +172,11 @@ class Source:
         bodies = await ctx.browser.search(self.name, HOME, KEYWORDS, typed=(FIELD, text), queue="lookup")
         return keywords_of(bodies)
 
-    async def _city(self, place: str, ctx) -> int:
+    async def _city(self, place: str, ctx, center=None) -> int:
         key = RawCache.key("CITY", "tripcom", place.casefold(), None)
         if ctx.net and (hit := ctx.net.cache.get(key, CITY_DAYS * 86400)):
             return int(hit.body)
-        city = city_of(await self._keywords(place.split(",")[0].strip(), ctx), place)
+        city = city_of(await self._keywords(place.split(",")[0].strip(), ctx), place, center)
         if city is None:
             raise ParseError(f"Trip.com suggested no city for {place!r}")
         if ctx.net:
@@ -168,7 +189,7 @@ class Source:
 
     async def fetch(self, query, ctx):
         self._check(query)
-        city = await self._city(query.place, ctx)
+        city = await self._city(query.place, ctx, query.center)
         return await ctx.browser.search(self.name, list_url(query, city), PAGE, scrolls=SCROLLS)
 
     async def lookup(self, query, name, ctx, seen_at):

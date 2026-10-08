@@ -67,3 +67,13 @@ def test_a_refusal_repeated_for_every_route_is_said_once():
     assert out["limits"] == [
         "kupibilet: failed for BEG-LIS: party pricing is verified only for one adult (and 1 more dates or routes like it)"
     ]
+
+
+def test_nothing_found_where_a_run_failed_is_that_failure_not_an_empty_answer():
+    empty = SourceReport("tutu", Status.EMPTY, "", ["BEG-VRL: no offers"], 0, 1, 1.0)
+    hung = SourceReport("tutu", Status.TIMEOUT, "a request got no answer in 30 s", ["BEG-OPO"], 0, 1, 30.0)
+    out = combine([empty, hung])
+    assert out.status is Status.TIMEOUT and out.reason == "a request got no answer in 30 s"
+    assert out.notes == ["BEG-VRL: no offers", "failed for BEG-OPO: a request got no answer in 30 s"]
+    found = SourceReport("tutu", Status.OK, "", [], 5, 1, 1.0)
+    assert combine([found, hung]).status is Status.OK

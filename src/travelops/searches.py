@@ -6,7 +6,7 @@ view that starts from the profile's bars and says how old its prices are. `refre
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict
+from dataclasses import asdict, fields, replace
 
 from .kinds import KINDS, Kind
 from .memory import REUSE_SECONDS, Stored
@@ -15,6 +15,8 @@ from .rates import load_rates
 
 # Fields added after recordings were made: left out of the key while unset, so the recordings still answer.
 UNSET_IF_NONE = frozenset({"min_rating", "max_total", "max_night_eur"})
+# Fields the search derives for its sources from what was asked: never part of the question.
+DERIVED = frozenset({"max_night_eur", "center"})
 
 
 class NeedsConfirmation(Exception):
@@ -57,7 +59,7 @@ class Searches:
         asked = {
             name: value
             for name, value in asdict(query).items()
-            if value != () and not (name in UNSET_IF_NONE and (value is None or bare)) and name != "max_night_eur"
+            if value != () and not (name in UNSET_IF_NONE and (value is None or bare)) and name not in DERIVED
         }
         return self.app.results.key(kind, asked, [s.name for s in sources], currency)
 
@@ -133,6 +135,9 @@ class Searches:
             raise ValueError(f"the replay has no {kind.name} search for {asdict(query)}")
         if context is None and kind.context is not None:
             context = await kind.context(app, query)
+        center = (context or {}).get("center")
+        if center and any(f.name == "center" for f in fields(query)):
+            query = replace(query, center=(center["lat"], center["lon"]))
         # `sharing`: searches of one call wait in the same queues, so each gets that much more time.
         result = kind.to_json(await kind.search(query, sources, app.ctx, rates, currency, sharing=sharing), rates)
         result.update(context or {})

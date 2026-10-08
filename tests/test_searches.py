@@ -118,3 +118,20 @@ async def test_a_ground_watch_alerts_with_the_offer_it_priced(app):
     alert, line = await check(tools, watches, watch)
     assert alert["price"] == 30 and alert["link"] == "https://12go.example/2026-11-14T08:00:00+01:00"
     assert "Belgrade→Vienna 2026-11-14 by train/bus: 30 EUR" in line
+
+
+async def test_a_stay_search_gives_its_sources_the_place_centre_but_does_not_key_on_it(app):
+    seen = []
+
+    async def stays(query, sources, ctx, rates, currency, **kwargs):
+        seen.append(query.center)
+        from travelops.search import StaySearch
+
+        return StaySearch(query, currency, [], [])
+
+    searches = fake_searches(app, stays=stays)
+    query = KINDS["stays"].read(app.profile, ARGUMENTS["stays"])
+    centre = {"center": {"name": "Lisbon, Portugal", "lat": 38.72, "lon": -9.14}}
+    (first,) = await searches.run("stays", [query], context=centre)
+    assert seen == [(38.72, -9.14)] and first.result["center"]["lat"] == 38.72
+    assert searches.remembered("stays", query, KINDS["stays"].sources(None), "EUR").id == first.id

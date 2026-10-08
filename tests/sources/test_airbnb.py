@@ -28,6 +28,24 @@ async def test_ssr_pages_follow_the_cursors_without_a_browser():
     assert args[1] == "GET" and args[2] == "https://www.airbnb.com/s/Belgrade/homes" and "cursor" not in kw["params"]
     assert kw["params"]["checkin"] == "2026-11-14" and kw["params"]["adults"] == 2
     assert [kw["params"].get("cursor") for _, kw in net.calls[1:]] == ["c1", "c2"], "the first cursor is page one"
+    assert "ne_lat" not in kw["params"], "no centre, no box"
+
+
+async def test_with_the_place_centre_known_the_map_box_names_the_place():
+    class Net:
+        params = None
+
+        async def request(self, *args, **kw):
+            self.params = kw["params"]
+            return Response(200, b"<html></html>")
+
+    net = Net()
+    from dataclasses import replace
+
+    await Source().fetch(replace(QUERY, center=(44.8, 20.47)), Context(net, None, lambda: NOW))
+    p = net.params
+    assert p["sw_lat"] < 44.8 < p["ne_lat"] and p["sw_lng"] < 20.47 < p["ne_lng"] and p["search_by_map"] == "true"
+    assert round(p["ne_lat"] - 44.8, 2) == 0.14, "15 km each way"
 
 
 def test_a_monthly_price_is_not_taken_for_the_stays_total():

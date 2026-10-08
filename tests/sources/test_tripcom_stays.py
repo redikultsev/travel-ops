@@ -51,6 +51,20 @@ def test_the_search_box_names_the_hotel_and_its_city():
     assert tripcom.city_of([city], "Shanghai, Peru") is None
 
 
+def test_the_city_is_the_one_near_the_place_or_in_its_country_by_any_of_its_names():
+    def city(cid, country, lat, lon):
+        return {"keyword": {"keywordContentInfo": {"coordinateItemList": [
+            {"coordinateType": "NORMAL", "latitude": str(lat), "longitude": str(lon)}]}},
+            "controlInfo": {"regionInfo": {"displayCityModel": {"countryName": country},
+                                           "basicCityModel": {"cityId": cid}}}}
+
+    istanbul = city(532, "Türkiye", 41.00527, 28.97696)
+    assert tripcom.city_of([istanbul], "Istanbul, Turkey") == 532, "Trip.com writes Türkiye"
+    namesake = city(9, "Türkiye", 41.18, 32.35)
+    assert tripcom.city_of([namesake, istanbul], "Istanbul, Turkey", (41.01, 28.95)) == 532, "the one near"
+    assert tripcom.city_of([namesake], "Istanbul", (41.01, 28.95)) is None
+
+
 def test_the_list_url_carries_the_party_and_the_hotel():
     url = tripcom.list_url(StayQuery("Shanghai", date(2026, 12, 1), date(2026, 12, 30), adults=2, rooms=1), 2,
                            ("369832", "Okura Garden Hotel Shanghai"))

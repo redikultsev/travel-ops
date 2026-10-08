@@ -130,6 +130,28 @@ async def test_a_route_that_fails_costs_only_that_route():
     report = result.reports[0]
     assert report.status is Status.OK and report.offers == 1
     assert "failed for BEG-TGD: a request got no answer in 30 s" in report.notes
+    assert "BEG-MOW" not in report.notes, "a route that answered with no note is not a note"
+
+
+async def test_a_route_with_nothing_says_so():
+    from travelops.search import run_source
+
+    class Nothing(Good):
+        def parse(self, raws, query, seen_at):
+            return Parsed([], [])
+
+    ctx = Context(net=None, browser=None, now=lambda: NOW)
+    _, report = await run_source(Nothing(), FlightQuery(("BEG",), ("VRL",), date(2026, 11, 20)), ctx, 5, "BEG-VRL")
+    assert report.status is Status.EMPTY and report.notes == ["BEG-VRL: no offers"]
+
+
+def test_a_rest_that_ends_another_day_names_the_day():
+    import time
+
+    from travelops.search import until
+
+    assert len(until(time.time() + 60)) in (5, 16)
+    assert until(time.time() + 3 * 86400).count("-") == 2
 
 
 async def test_a_note_that_narrows_the_answer_names_its_route():

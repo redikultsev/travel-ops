@@ -94,6 +94,10 @@ async def test_protocol_json_schemas_errors_and_cleanup(app, mode):
         assert not result.is_error and result.structured_content["query"]["adults"] == 2
         invalid = await client.call_tool("search_flights", {"origin": "BEG", "destination": "MOW", "depart": "bad"})
         assert invalid.is_error and "Invalid" in invalid.content[0].text
+        misnamed = await client.call_tool(
+            "search_flights", {"origin": "BEG", "destination": "MOW", "depart": "2026-11-14", "return": "2026-11-18"}
+        )
+        assert misnamed.is_error and "return" in misnamed.content[0].text, "not a one-way search in silence"
     assert app.closed
 
 

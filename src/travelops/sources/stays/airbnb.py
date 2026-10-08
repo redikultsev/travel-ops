@@ -19,6 +19,25 @@ def challenge(response):
 # A results page holds 18 listings; its `paginationInfo.pageCursors` lead to the next ones (`cursor=`, verified
 # 2026-10-08). PAGES is how far one search goes.
 PAGES = 6
+# Airbnb reads a place's name through a map search that can land on a street of that name in another town
+# ("Istanbul, Turkey" became a street in Zonguldak, "Shanghai, China" Vancouver; 2026-10-08). With the place's
+# centre known, the search names the map's box instead: BOX_KM each way from it (verified 2026-10-08).
+BOX_KM = 15
+
+
+def box(lat: float, lon: float, km: float = BOX_KM) -> dict:
+    import math
+
+    dlat, dlon = km / 111.0, km / (111.0 * max(math.cos(math.radians(lat)), 0.01))
+    return {
+        "ne_lat": round(lat + dlat, 5),
+        "ne_lng": round(lon + dlon, 5),
+        "sw_lat": round(lat - dlat, 5),
+        "sw_lng": round(lon - dlon, 5),
+        "search_by_map": "true",
+        "search_type": "user_map_move",
+        "zoom": 11,
+    }
 
 
 def cursors_of(body: bytes) -> list[str]:
@@ -60,6 +79,7 @@ class Source:
             "GET",
             "https://www.airbnb.com/s/" + quote(query.place, safe="") + "/homes",
             params={**({"cursor": cursor} if cursor else {}),
+                **(box(*query.center) if query.center else {}),
                 "checkin": query.checkin.isoformat(),
                 "checkout": query.checkout.isoformat(),
                 "adults": query.adults,
@@ -239,7 +259,8 @@ class Source:
         if not offers:
             if unpriced and not monthly:
                 raise ParseError("full-stay total missing on every card; nightly rates cannot establish fees")
-            return Parsed([], month_note)
+            where = f"within {BOX_KM} km of the place's centre" if query.center else "for this place"
+            return Parsed([], month_note or [f"Airbnb listed nothing {where} at these dates"])
         coverage = f"{len(offers)} listings from {len(raws)} pages of 18; " + (
             f"total {total_count}" if total_count is not None else "Airbnb gives no exact total"
         )

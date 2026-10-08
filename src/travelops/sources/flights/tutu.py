@@ -29,7 +29,7 @@ CITIES = {"MOW": "Moscow", "LED": "Saint Petersburg"}
 
 
 # 30 offers a page, by price; a search reads up to PAGES of them while Tutu says there are more.
-PAGES = 4
+PAGES = 6
 
 
 class Source:
@@ -67,14 +67,14 @@ class Source:
             }
             if query.return_:
                 arguments["return_date"] = query.return_.isoformat()
-            payload = await self.server.call(ctx, "search_avia", arguments, timeout=None)
+            payload = await self.server.call(ctx, "search_avia", arguments)
             if not isinstance(payload, dict) or "offers" not in payload:
                 raise ParseError("Tutu search result has no offers field")
             # Further pages of the same search, while it says there are more: one answer per route.
             for page in range(2, PAGES + 1):
                 if not (payload.get("meta") or {}).get("has_more"):
                     break
-                more = await self.server.call(ctx, "search_avia", dict(arguments, page=page), timeout=None)
+                more = await self.server.call(ctx, "search_avia", dict(arguments, page=page))
                 if not isinstance(more, dict) or not isinstance(more.get("offers"), list) or not more["offers"]:
                     break
                 payload = dict(more, offers=payload["offers"] + more["offers"])

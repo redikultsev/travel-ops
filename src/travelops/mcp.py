@@ -29,7 +29,8 @@ DESCRIPTION = (
     "Report the sources block and every limitation to the user. No booking, checkout, passenger data or login. "
     "If needs_confirmation is true, ask the human before calling again with confirm=True. "
     "The first `limit` cards come in full; every other card that passed the filters follows as one short line in "
-    "`rest` (name or flights, price, rating, distance), in the same order: choose from all of them, and use the "
+    "`rest` (name or flights, price, rating, distance; a card several sources sell has `by_source`, each one's "
+    "cheapest in the search's currency), in the same order: choose from all of them, and use the "
     "refine tool to see any of them in full. A source's own notes say how far it read (pages, totals it counts); "
     "say when a source read only part of what it holds. The same search within 30 minutes is "
     "answered from memory (`from_memory`, `age_minutes`); pass refresh=True only when the human wants new prices. "
@@ -629,7 +630,20 @@ def create_server(
         description="List known sources, request spacing and remaining quarantine. No network requests.",
         annotations=LOCAL,
     )
+    _strict(server)
     return server
+
+
+def _strict(server: MCPServer) -> None:
+    """An argument no tool takes is an error, not silence: `return` for `return_date` would otherwise spend a
+    one-way search on a round trip."""
+    from pydantic import ConfigDict
+
+    for tool in server._tool_manager.list_tools():
+        loose = tool.fn_metadata.arg_model
+        tool.fn_metadata.arg_model = type(
+            loose.__name__, (loose,), {"model_config": ConfigDict(arbitrary_types_allowed=True, extra="forbid")}
+        )
 
 
 def http_app(server: MCPServer, host: str):

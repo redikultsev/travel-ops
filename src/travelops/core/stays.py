@@ -31,6 +31,9 @@ class StayQuery:
     min_rating: float | None = None  # 0–10
     max_total: float | None = None  # the whole stay, in the currency of the search
     max_night_eur: float | None = None  # `max_total` per night in EUR, set by the search for the sources
+    # Where the place is, (lat, lon) from the geocoder, set by the search for the sources: a site that reads the
+    # name alone can take it for a street of the same name elsewhere.
+    center: tuple[float, float] | None = None
 
     @property
     def nights(self) -> int:

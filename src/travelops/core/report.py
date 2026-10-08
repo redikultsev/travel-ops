@@ -31,8 +31,11 @@ class SourceReport:
 def combine(reports: list[SourceReport]) -> SourceReport:
     """One line per source when it ran for several dates. A failed date keeps its label: "2026-11-16: reason"."""
     good = [r for r in reports if r.status in (Status.OK, Status.EMPTY)]
-    base = good[0] if good else reports[0]
-    status = Status.OK if any(r.status is Status.OK for r in reports) else base.status
+    failed = [r for r in reports if r not in good]
+    found = any(r.status is Status.OK for r in reports)
+    # Nothing found where a run failed is that failure, not an empty answer: the failed run might have had them.
+    base = good[0] if good and (found or not failed) else failed[0]
+    status = Status.OK if found else base.status
     out = SourceReport(
         base.source,
         status,

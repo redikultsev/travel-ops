@@ -36,7 +36,7 @@ def test_a_round_trip_pairs_each_tried_outbound_with_its_returns():
     cheapest = min(parsed.offers, key=lambda o: o.fare.price.amount)
     assert str(cheapest.fare.price.amount) == "149"
     assert cheapest.itinerary.inbound[0].origin == "IST" and cheapest.itinerary.inbound[-1].destination == "BEG"
-    assert any(n.startswith("returns were looked up for the 3 cheapest outbound flights of each route") for n in parsed.notes)
+    assert any(n.startswith("returns were looked up for the 3 cheapest outbound flights;") for n in parsed.notes)
 
 
 def test_the_query_is_one_protobuf_in_the_url_and_a_pinned_outbound_changes_it():

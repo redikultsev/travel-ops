@@ -6,6 +6,7 @@ import pytest
 from travelops.core.flights import FlightQuery
 from travelops.net.client import Response
 from travelops.sources.base import Context, ParseError
+from travelops.sources.flights import tutu
 from travelops.sources.flights.tutu import Source
 
 NOW = datetime(2026, 10, 5, tzinfo=timezone.utc)
@@ -36,7 +37,7 @@ async def test_fetch_calls_only_search_and_keeps_session():
     net = FakeNet()
     raws = await Source().fetch(QUERY, Context(net, None, lambda: NOW))
     assert json.loads(raws[0]) == {"offers": []}
-    assert len(net.calls) == 3 and Source().max_requests(QUERY) == 2 + 4, "no further page when it has no more"
+    assert len(net.calls) == 3 and Source().max_requests(QUERY) == 2 + tutu.PAGES, "no further page when it has no more"
     call = net.calls[-1]
     assert call["headers"]["mcp-session-id"] == "test-session"
     assert call["json"]["params"]["name"] == "search_avia"
@@ -54,7 +55,7 @@ async def test_one_handshake_serves_every_route_of_a_search():
     await asyncio.gather(*(source.fetch(route, Context(net, None, lambda: NOW)) for route in routes))
     methods = [c["json"].get("method") for c in net.calls]
     assert methods.count("initialize") == 1 and methods.count("tools/call") == 3
-    assert source.typical_requests(QUERY) == 4, "a busy route reads every page"
+    assert source.typical_requests(QUERY) == tutu.PAGES, "a busy route reads every page"
 
 
 def recorded():

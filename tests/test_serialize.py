@@ -111,3 +111,23 @@ def test_stay_shortlist_counts_cards_by_source_after_filters():
     cut = stays_view({"currency": "EUR", "cards": cards}, limit=1, min_rating=8.0)
     assert cut["shown"]["of"] == 2 and cut["shown"]["of_by_source"] == {"booking": 1, "airbnb": 1}
     assert cut["shown"]["of_counts"] == "cards left after `filtered`"
+
+
+def test_a_short_line_of_a_stay_on_two_sources_compares_them():
+    from travelops.serialize import row
+
+    card = {
+        "stay": {"source": "trivago", "name": "Serai Hotel", "rating": 8.8, "reviews": 842, "center_km": 0.6},
+        "listed_on": [{"source": "trivago"}, {"source": "tripcom"}],
+        "rates": [
+            {"source": "trivago", "seller": "trivago:Expedia", "total": {"amount": "205", "currency": "EUR"},
+             "converted": {"amount": "205", "currency": "EUR"}},
+            {"source": "tripcom", "seller": "tripcom", "total": {"amount": "200", "currency": "EUR"},
+             "all_in_converted": {"amount": "221.5", "currency": "EUR"}},
+            {"source": "trivago", "seller": "trivago:Agoda", "total": {"amount": "230", "currency": "EUR"},
+             "converted": {"amount": "230", "currency": "EUR"}},
+        ],
+    }
+    assert row(card, "EUR")["by_source"] == {"trivago": 205.0, "tripcom": 221.5}, "in the search's currency"
+    del card["listed_on"][1]
+    assert "by_source" not in row(card, "EUR")

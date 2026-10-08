@@ -59,9 +59,13 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # English names people write that differ from the geocoder's own, by ISO code.
 COUNTRY_NAMES = {
     "turkey": "TR",
+    "turkiye": "TR",
+    "czechia": "CZ",
     "czech republic": "CZ",
     "russia": "RU",
     "usa": "US",
+    "united states": "US",
+    "united kingdom": "GB",
     "united states of america": "US",
     "america": "US",
     "uk": "GB",
@@ -104,6 +108,17 @@ def in_country(place: Place, country: str) -> bool:
         return True
     name = _folded(place.country)
     return wanted == name or (len(wanted) > 3 and (wanted in name.split() or wanted in name or name in wanted))
+
+
+def same_country(asked: str, named: str) -> bool:
+    """Whether a country a person wrote and one a site names are one: "Turkey" and "Türkiye", "UK" and "United
+    Kingdom"."""
+    a, b = _folded(asked), _folded(FORMAL.sub("", named))
+    if not a or not b:
+        return False
+    if a == b or (len(a) > 3 and (a in b or b in a)):
+        return True
+    return bool(COUNTRY_NAMES.get(a)) and COUNTRY_NAMES.get(a) == COUNTRY_NAMES.get(b)
 
 
 def parse_places(payload: dict, country: str | None = None) -> list[Place]:

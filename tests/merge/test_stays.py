@@ -78,3 +78,18 @@ def test_two_listings_of_one_source_are_never_merged():
 
 def test_a_name_that_is_only_the_place_matches_nothing():
     assert len(merged(listing("booking", "b1", "Shanghai Hotel", 1), listing("trivago", "t1", "Hotel Shanghai", 2))) == 2
+
+
+def test_a_name_with_words_more_is_the_same_stay_only_in_the_same_building():
+    from travelops.merge.stays import same_stay
+
+    def stay(source, name, lat, lon):
+        return Stay(source, name, name, "hotel", lat, lon, 8.5, 100)
+
+    ignore = frozenset({"shanghai"})
+    short = stay("trivago", "Grand Central Hotel Shanghai", 31.2380, 121.4800)
+    assert same_stay(short, stay("tripcom", "Grand Central Hotel Shanghai - Nanjing Road", 31.2384, 121.4802), ignore)
+    assert not same_stay(short, stay("tripcom", "Grand Central Hotel Shanghai - Pudong", 31.2300, 121.5200), ignore)
+    assert not same_stay(short, stay("tripcom", "Grand Central Hotel Shanghai - Nanjing Road", None, None), ignore)
+    one_word = stay("trivago", "Taksim Park", 41.0, 28.98)
+    assert not same_stay(one_word, stay("tripcom", "Park Hotel", 41.0, 28.98)), "one word in common is not a name"

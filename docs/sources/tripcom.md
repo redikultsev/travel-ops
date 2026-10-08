@@ -43,8 +43,10 @@ The same rule: nothing signed is sent from here.
 - **Where.** A place or a hotel becomes Trip.com's id through the page's own search box: the browser types the
   text into `input#destinationInput` on `https://www.trip.com/hotels/`, and the page asks
   `/restapi/soa2/34951/getHotelKeywords` (signed by the page). Each suggestion has `keyword.hotelInfo.hotelId` for
-  a hotel and `controlInfo.regionInfo.basicCityModel.cityId` for its city. A city's id is kept for a month; the
-  typing waits in its own line (`tripcom/lookup`).
+  a hotel and `controlInfo.regionInfo.basicCityModel.cityId` for its city. The city taken is the first suggestion
+  within 60 km of the place's centre (`keywordContentInfo.coordinateItemList`, type `NORMAL`); without a centre,
+  the first in the country named, by any of its names (Trip.com writes "Türkiye"). A city's id is kept for a
+  month; the typing waits in its own line (`tripcom/lookup`).
 - **Request.** `https://www.trip.com/hotels/list?city=2&checkin=2026-12-01&checkout=2026-12-30&adult=1&crn=1&children=0&curr=EUR&locale=en-XX`
   — `adult` the adults and `crn` the rooms; the page reports them back as filter `29` (`rooms|adults`). Adding
   `optionId=<hotelId>&optionType=Hotel&optionName=<name>` shows that one hotel. `searchWord=`, `keyword=` and
