@@ -79,12 +79,15 @@ async def capture(
     scrolls: int = 0,
     until=None,
     patience: float = 0,
+    then=None,
 ) -> list[bytes]:
     """Open a page as a person would and keep the bodies of the answers it receives from URLs matching `pattern`,
     once the page has had one. For a site whose requests the page signs itself: the browser makes the search, and
     nothing it sends is forged. `typed` is a field and the text a person would type into it, for an answer that
     comes only while one types, such as a search box's suggestions. `until(bodies)` says when a search the page
-    keeps polling has finished; the page is watched for up to `patience` seconds for it. Camoufox only."""
+    keeps polling has finished; the page is watched for up to `patience` seconds for it. `then(bodies)` may give a
+    script for the page to run once it is done, as the page's own "show more" would: its text answer is kept too.
+    Camoufox only."""
     from camoufox.async_api import AsyncCamoufox
 
     wanted, bodies, arrived = re.compile(pattern), [], asyncio.Event()
@@ -124,6 +127,13 @@ async def capture(
                 if until(bodies):
                     break
                 await page.wait_for_timeout(500)
+        if then is not None and (script := then(bodies)):
+            try:
+                answer = await page.evaluate(script)
+                if isinstance(answer, str) and answer:
+                    bodies.append(answer.encode())
+            except Exception:  # what the page already had stands
+                pass
         # A list that grows as a person scrolls: scroll to its end until it stops growing or `scrolls` is spent.
         # A wheel alone stops short of the end, where the next page is asked for (Trip.com, 2026-10-08).
         if scrolls:
@@ -228,6 +238,7 @@ class BrowserSessions:
         scrolls: int = 0,
         until=None,
         patience: float = 0,
+        then=None,
     ) -> list[bytes]:
         """A search the page makes itself: open `url` in a browser and return the answers it got from URLs
         matching `pattern`. One page is one request of the source, spaced and quarantined like any other; `queue`
@@ -244,6 +255,7 @@ class BrowserSessions:
                 **({"typed": typed} if typed else {}),
                 **({"scrolls": scrolls} if scrolls else {}),
                 **({"until": until, "patience": patience} if until else {}),
+                **({"then": then} if then else {}),
             }
             bodies = await self.capturer("camoufox", url, pattern, self.proxy, headless, **extra)
         except Blocked:

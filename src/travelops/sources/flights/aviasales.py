@@ -29,7 +29,7 @@ START = "https://tickets-api.aviasales.ru/search/v2/start"
 SITE = "https://www.aviasales.ru"
 CLASSES = {"economy": "Y", "premium_economy": "W", "business": "C", "first": "F"}
 MAX_POLLS = 12
-RESULTS = r"/search/v3\.2/results"
+RESULTS = r"/search/(v2/start|v3\.2/results)"
 # How long the results page is watched for its own search to finish: it polls until the final stamp.
 PAGE_PATIENCE = 90
 WAF_COOKIE = "aws-waf-token"
@@ -63,6 +63,38 @@ def answers(body: bytes) -> list[dict]:
     except ValueError:
         return []
     return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+
+def everything(bodies: list[bytes]) -> str | None:
+    """The page shows the first tickets and loads more on request. Once its search is done, the page asks once
+    more for all of them from the start (`limit` 1000, stamp 0), with its own token, as its "show more" does."""
+    for body in bodies:
+        try:
+            start = json.loads(body)
+        except ValueError:
+            continue
+        if isinstance(start, dict) and start.get("search_id") and start.get("results_url"):
+            host = urlsplit(f"https://{start['results_url']}").hostname or ""
+            if not host.endswith(".aviasales.ru"):
+                return None
+            ask = json.dumps(
+                {
+                    "search_id": start["search_id"],
+                    "limit": 1000,
+                    "price_per_person": False,
+                    "search_by_airport": False,
+                    "last_update_timestamp": 0,
+                }
+            )
+            return f"""async () => {{
+                const token = (document.cookie.match(/aws-waf-token=([^;]+)/) || [])[1];
+                const headers = {{"content-type": "application/json", "x-client-type": "web"}};
+                if (token) headers["x-aws-waf-token"] = token;
+                const r = await fetch("https://{host}/search/v3.2/results",
+                    {{method: "POST", credentials: "include", headers, body: {json.dumps(ask)}}});
+                return r.ok ? await r.text() : "";
+            }}"""
+    return None
 
 
 def finished(bodies: list[bytes]) -> bool:
@@ -118,7 +150,12 @@ class Source:
 
     async def _page(self, query: FlightQuery, origin: str, destination: str, ctx: Context) -> bytes:
         bodies = await ctx.browser.search(
-            self.name, results_page(query, origin, destination), RESULTS, until=finished, patience=PAGE_PATIENCE
+            self.name,
+            results_page(query, origin, destination),
+            RESULTS,
+            until=finished,
+            patience=PAGE_PATIENCE,
+            then=everything,
         )
         responses = [item for body in bodies for item in answers(body)]
         if not responses:

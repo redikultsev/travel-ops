@@ -34,6 +34,17 @@ final stamp must be labeled partial.
 Only accept an HTTPS results URL on an aviasales.ru host; do not follow arbitrary
 hosts supplied in responses.
 
+## Through the results page (2026-10-08)
+
+An economy search without children, whose results page form is known, is made by the page itself: a browser
+opens `https://www.aviasales.ru/search/<ORIGIN><DDMM><DESTINATION><adults>`, the page starts the search and polls
+`/search/v3.2/results`, and its own answers are read until one has `last_update_timestamp: 0` (90 seconds at
+most). The page shows the first tickets and loads more on request, so once done it asks once more, with its own
+cookie and `x-aws-waf-token`, for all of them from stamp 0 with `limit: 1000`, on the results host its start
+answer named (an aviasales.ru host only). Nothing leaves the browser. BEG–LIS 20 November: 903 offers, 78 cards
+after the filters, one page visit, 36 seconds; the HTTP path had drawn a 403 twice that day with a fresh token.
+Other searches (business, children) still go over HTTP with the page's token, as below.
+
 ## Response meaning
 
 The results body is a JSON list of objects. Each object contains `tickets` and

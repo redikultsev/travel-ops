@@ -197,3 +197,14 @@ def test_a_ticket_into_another_airport_of_the_city_links_to_its_own_page():
     parsed = Source().parse([json.dumps(payload).encode()], FlightQuery(("BEG",), ("VKO",), date(2026, 11, 14)), NOW)
     to_svo = next(o for o in parsed.offers if o.itinerary.outbound[-1].destination == "SVO")
     assert to_svo.fare.link.url == "https://www.aviasales.ru/search/BEG1411SVO1"
+
+
+def test_once_done_the_page_asks_for_every_ticket_on_its_own_results_host_only():
+    from travelops.sources.flights.aviasales import everything
+
+    start = json.dumps({"search_id": "sid-1", "results_url": "tickets-api.eu-north-1.aviasales.ru"}).encode()
+    script = everything([start, json.dumps(FINAL).encode()])
+    assert '"limit": 1000' in script and "sid-1" in script and "credentials: \"include\"" in script
+    assert "https://tickets-api.eu-north-1.aviasales.ru/search/v3.2/results" in script
+    elsewhere = json.dumps({"search_id": "sid-1", "results_url": "example.com"}).encode()
+    assert everything([elsewhere]) is None and everything([b"[]"]) is None
