@@ -148,6 +148,20 @@ def list_data(html: bytes) -> dict | None:
         return None
 
 
+def stay_total(explained: str, layer: dict) -> Money | None:
+    """What the stay costs in all. The card states it ("Total price: €284 … incl. taxes & fees"), rounded to the
+    euro; the price layer has it to the cent, after the discounts its other lines leave out. The layer's is taken
+    when it agrees with the card's: a stay paid at the hotel can leave the taxes out of it."""
+    stated = money(explained.split("\n")[0]) if "incl. taxes" in explained else None
+    content = (layer.get("total") or {}).get("content")
+    exact = money(content) if content else None
+    if stated is None:
+        return exact
+    if exact is not None and exact.currency == stated.currency and abs(exact.amount - stated.amount) <= 1:
+        return exact
+    return stated
+
+
 def _kind(category: str, room: str, unit: str) -> str:
     if "bed" in unit.split("×")[0].lower():
         return "shared_room"
@@ -237,13 +251,10 @@ class Source:
                     price = room["priceInfo"]
                     explained = str(price.get("priceExplanation") or "")
                     layer = (room.get("priceInfoLayer") or {}).get("payInfo") or {}
-                    if layer.get("roomQuantityDays") and layer.get("payTax"):
-                        total = money(layer["roomQuantityDays"]["content"])
-                        charges = money(layer["payTax"]["content"])
-                    elif "incl. taxes" in explained:
-                        total, charges = money(explained.split("\n")[0]), Money("0", "EUR")
-                    else:
+                    total = stay_total(explained, layer)
+                    if total is None:
                         raise ParseError(f"no total for the stay of hotel {hotel_id}")
+                    paid = str((layer.get("total") or {}).get("title") or "")
                     room_name = str((room.get("summary") or {}).get("physicsName") or "")
                     tags = [t.get("tagTitle", "") for t in (room.get("roomTags") or {}).get("advantageTags") or []]
                     image = str((hotel.get("hotelImages") or {}).get("url") or "")
@@ -275,19 +286,26 @@ class Source:
                                 seen_at,
                                 meals="breakfast included" if any("breakfast" in t.lower() for t in tags) else None,
                                 room=room_name or None,
-                                charges=charges,
+                                charges=Money("0", total.currency),
                                 free_cancellation=True if any("free cancellation" in t.lower() for t in tags) else None,
+                                pay_at_property=True if paid == "Pay at Hotel" else (False if paid else None),
                             ),
                         )
                     )
         except (KeyError, TypeError, ValueError, IndexError) as exc:
             raise ParseError(f"Trip.com hotel list fields: {exc}") from exc
         if raws and not pages:
-            raise ParseError("Trip.com results page without its hotel list")
+            title = re.search(rb"<title>(.*?)</title>", raws[0], re.S)
+            raise ParseError(
+                f"Trip.com results page without its hotel list: {len(raws)} answers of "
+                f"{', '.join(str(len(raw)) for raw in raws[:3])} bytes"
+                + (f", titled {title[1][:80].decode('utf-8', 'replace')!r}" if title else "")
+            )
         notes = [
             f"{len(offers)} stays from {pages} pages of the list as Trip.com ranks it (it gives no total); a search "
             f"scrolls {SCROLLS} times at most",
-            "one room per stay, the one the list shows; price with the taxes and fees Trip.com states",
+            "one room per stay, the one the list shows; the total Trip.com states, with its taxes and fees and after "
+            "its discounts",
         ]
         if sold_out:
             notes.append(f"{sold_out} stays without a price at these dates left out")
