@@ -36,12 +36,21 @@ def test_a_search_card_gives_the_stays_total_rating_out_of_10_and_place():
 
 def test_a_hotels_own_answer_lists_each_sellers_total():
     entry = googlehotels.hotels(googlehotels.answer(DETAIL))[0]
-    assert [(name, int(total.amount)) for name, total in googlehotels.sellers(entry)] == [
-        ("Expedia.dk", 223),
-        ("Agoda", 101),
-        ("TUI.com", 135),
-        ("Vio.com", 120),
+    assert [(name, int(total.amount), room) for name, total, room in googlehotels.sellers(entry)] == [
+        ("Expedia.dk", 223, None),
+        ("Agoda", 101, None),
+        ("TUI.com", 135, None),
+        ("Vio.com", 120, None),
     ]
+
+
+def test_a_seller_names_the_room_its_price_is_for():
+    seller = [["Booking.com", 184, "/aclk"], None, None, None, None, None, None,
+              [["Deluxe Double Room", []]], True, 1, 3, None,
+              [None, None, None, None, ["€54", None, 54], ["€216", None, 216]]]
+    entry = [None] * 6 + [[None, None, [None, None, [seller]]]]
+    ((name, total, room),) = googlehotels.sellers(entry)
+    assert (name, total.amount, room) == ("Booking.com", Decimal("216"), "Deluxe Double Room")
 
 
 def test_the_request_carries_dates_party_bars_and_the_hotel_asked():

@@ -19,7 +19,9 @@ from ..base import NotConfigured, Parsed, ParseError
 from ...merge.stays import name_words, place_words
 from ._html import money
 
-ENDPOINT = "https://www.google.com/_/TravelFrontendUi/data/batchexecute"
+# In English: without `hl` Google answers in the language it guesses, room names included, and on 2026-10-09
+# showed one seller fewer for the same hotel.
+ENDPOINT = "https://www.google.com/_/TravelFrontendUi/data/batchexecute?hl=en"
 RPC = "AtySUc"
 SORT_BY_PRICE = 3
 # An answer holds about 18 hotels and has no pages. Asking once by price and once per hotel class reaches more:
@@ -144,9 +146,11 @@ def stay_total(entry) -> Money | None:
     return None
 
 
-def sellers(entry) -> list[tuple[str, Money]]:
-    """Each seller of a hotel's own answer: its name and its total for the stay. Its link is an ad click through
-    Google, long and not ours to follow: the link given is Google's own search for the hotel."""
+def sellers(entry) -> list[tuple[str, Money, str | None]]:
+    """Each seller of a hotel's own answer: its name, its total for the stay and the room it is for. A seller
+    shows one room, not always its cheapest: Booking.com's Deluxe Double at €216 where Booking itself had a
+    Superior Double at €170. Its link is an ad click through Google, long and not ours to follow: the link given
+    is Google's own search for the hotel."""
     found = []
     for item in at(entry, 6, 2, 2) or []:
         header = at(item, 0)
@@ -159,7 +163,8 @@ def sellers(entry) -> list[tuple[str, Money]]:
         )
         if prices is None:
             continue
-        found.append((header[0], money(prices[5][0])))
+        room = at(item, 7, 0, 0)
+        found.append((header[0], money(prices[5][0]), room if isinstance(room, str) and room else None))
     return found
 
 
@@ -219,8 +224,8 @@ class Source:
         stay = stay_of(entry)
         link = Link(page(stay.name, query), "results")
         return [
-            StayOffer(stay, Rate(total, f"googlehotels:{seller}", self.name, link, seen_at))
-            for seller, total in (sellers(detail[0]) if detail else [])
+            StayOffer(stay, Rate(total, f"googlehotels:{seller}", self.name, link, seen_at, room=room))
+            for seller, total, room in (sellers(detail[0]) if detail else [])
         ]
 
     async def fetch_details(self, url, place, ctx):

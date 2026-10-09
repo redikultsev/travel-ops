@@ -3,10 +3,11 @@
 ## Access
 
 No API. The Google Hotels page fetches its results with one call:
-`POST https://www.google.com/_/TravelFrontendUi/data/batchexecute`, form body `f.req=[[["AtySUc","<json>",null,"1"]]]`.
+`POST https://www.google.com/_/TravelFrontendUi/data/batchexecute?hl=en`, form body `f.req=[[["AtySUc","<json>",null,"1"]]]`.
 A plain POST with a Chrome TLS fingerprint answers; no key, no cookie, no browser. The request and answer slots
 are the open-source `stays` library's (MIT, see NOTICE), whose live tests run daily. The answer is a `wrb.fr`
-frame for `AtySUc` holding JSON.
+frame for `AtySUc` holding JSON. Without `hl=en` Google answers in the language it guesses from the address:
+room names came in Serbian, and the same hotel showed one seller fewer.
 
 **Terms.** Google's terms of service do not allow automated access, as for Google Flights. Leave the source out
 with `sources` where that matters.
@@ -29,7 +30,8 @@ Hotel entries are lists of 20 or more: `[1]` name, `[2][0]` `[lat, lon]`, `[3]` 
 reviews]`, `[9]` map id, `[12]` photos, `[20]` entity key. `[6][2]` holds the price: `[1]` per night
 (`["€25", null, 25.31, null, 25]`) and a last one-item list with the stay's total as shown (`["€101"]`, four
 nights). In a hotel's own answer `[6][2][2]` lists sellers: `[0]` `[name, id, ad-click link, ...]` and a block
-whose `[4]` is per night and `[5]` the total (`["223 €", null, 222.78, null, 223]`).
+whose `[4]` is per night and `[5]` the total (`["223 €", null, 222.78, null, 223]`); `[7][0][0]` names the
+room the price is for, when given.
 
 ## Prices and limits
 
@@ -40,7 +42,10 @@ whose `[4]` is per night and `[5]` the total (`["223 €", null, 222.78, null, 2
   was 126 EUR for four nights).
 - A lookup (`compare_stays`) adds one rate per seller: `googlehotels:Booking.com`, `googlehotels:Agoda`. The
   sellers differ by hotel; Booking.com is among them for some hotels only. Their links are Google ad clicks, so
-  the link given is Google's search for the hotel at the dates.
+  the link given is Google's search for the hotel at the dates. A seller shows one room, named in `room`, and
+  not always its cheapest: Booking.com's Deluxe Double at 216 EUR through Google where Booking itself had a
+  Superior Double at 170 EUR (Zendy Suite Hotel, 2026-10-09). The sellers listed change from one call to the
+  next.
 - Vacation rentals are a separate property type and are not asked for. One room only.
 - Ten seconds between calls, as for Google Flights; a refusal rests the source for an hour.
 
@@ -50,3 +55,8 @@ Istanbul, 14 to 18 November, two adults, from a home address: 70 hotels from fiv
 Guesthouse — Booking.com 140 EUR and Bluepillow 140 EUR through Google, with Booking.com itself refusing us that
 day; Taksim Trust Hotel — Bluepillow 132 EUR and TUI 227 EUR; Santa Sophia Hotel — Agoda 101, Vio.com 120,
 TUI.com 135, Expedia.dk 223 EUR.
+
+## Verified, 2026-10-09
+
+In English (`hl=en`): 84 hotels from five answers; Zendy Suite Hotel — Booking.com 216 EUR (Deluxe Double
+Room), Priceline 155 EUR (Basement Floor Superior Double Room), Bluepillow 125 EUR.
