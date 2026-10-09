@@ -15,6 +15,9 @@ from .serialize import leg_options, shortlist
 FLIGHT_SORTS = ("price", "duration", "departure")
 STAY_SORTS = ("price", "rating", "reviews", "center")
 STAY_KINDS = ("hotel", "apartment", "room", "house", "shared_room", "other")
+# A private room is `room` where a source names the room (Booking) and `hotel` where it names the house (trivago,
+# Trip.com, Google): asking for either asks for both, or a filter would keep one site's hotels and drop another's.
+SAME_KIND = {"hotel": {"room"}, "room": {"hotel"}}
 
 
 class Hidden:
@@ -278,6 +281,7 @@ def stays_view(
             chosen = {k.lower() for k in _codes(value, name)}
             if chosen - set(STAY_KINDS):
                 raise ValueError(f"{name} must be among: {', '.join(STAY_KINDS)}")
+            chosen |= {same for kind in chosen for same in SAME_KIND.get(kind, ())}
             cards = hidden.apply(
                 cards, name, sorted(chosen), lambda c, chosen=chosen, keep=keep: (c["stay"]["kind"] in chosen) is keep
             )

@@ -26,9 +26,10 @@
      coast or the suburbs. A cheap stay eight kilometres out is another
      trip: give the distance with every stay, and prefer `max_center_km` or
      `sort="center"` when the human wants to be in town.
-   - Kind: `shared_room` is a bed in a dormitory; `room` a private room;
-     `apartment` and `house` the whole place; `other` means the source does not
-     say, so do not call it private. `hostel` true is about the house, whatever
+   - Kind: `shared_room` is a bed in a dormitory; `room` a private room, and
+     `hotel` one in a hotel (a source that names the house, not the room): the
+     `kinds` filters take either for both; `apartment` and `house` the whole
+     place; `other` means the source does not say, so do not call it private. `hostel` true is about the house, whatever
      the bed: a hostel also lets private rooms.
    - `free_cancellation` true means the card states it; null means the card is
      silent, not that it is refused.

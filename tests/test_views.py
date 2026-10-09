@@ -186,6 +186,11 @@ def test_stay_filters_and_orders():
     assert [c["stay"]["name"] for c in stays_view(stays(), sources=["airbnb"])["cards"]] == ["flat"]
     with pytest.raises(ValueError, match="kinds"):
         stays_view(stays(), kinds=["castle"])
+    named = stays()
+    named["cards"][1]["stay"]["kind"] = "room"  # Booking names the room, the others the house
+    for asked in ("hotel", "room"):
+        rooms = stays_view(named, kinds=[asked])["cards"]
+        assert [c["stay"]["name"] for c in rooms] == ["room", "hotel"], "a private room either way"
     data = stays()
     data["cards"][1]["stay"]["name"] = "Old Town Hostel"  # a private room, in a hostel
     homes = stays_view(data, no_hostels=True, exclude_kinds=["shared_room"])
