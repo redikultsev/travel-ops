@@ -80,6 +80,24 @@ def way_back(policy_id: str) -> list[tuple[str, str, str, int]]:
     return found
 
 
+def baggage(tags: list[dict]) -> Baggage:
+    """What a fare includes, from its tags: a checked bag's weight is in the tag's own text ("Checked baggage:
+    23 kg")."""
+    keys = {tag.get("key") for tag in tags}
+    weight = None
+    for tag in tags:
+        if tag.get("key") != "FREE_CHECKED_BAGGAGE":
+            continue
+        for extra in tag.get("extendInfo") or []:
+            if found := re.fullmatch(r"Checked baggage: (\d+) ?kg", str(extra.get("extendValue") or "")):
+                weight = int(found[1])
+    return Baggage(
+        checked=1 if "FREE_CHECKED_BAGGAGE" in keys else None,
+        checked_kg=weight,
+        carry_on=True if "FREE_CARRY_ON_BAGGAGE" in keys else None,
+    )
+
+
 def back_leg(flights: list[tuple[str, str, str, int]], first: date) -> tuple[Segment, ...]:
     """A return chain: its flights, airports and days; the times are not known, so each stands at noon of its day
     and the itinerary is partial, to be completed by another source's same flights."""
@@ -160,7 +178,6 @@ class Source:
                         price = policy["price"]
                         # One adult's ticket with taxes, times the adults: `totalPrice` is the same sum, rounded.
                         each = Decimal(str(price["adult"]["totalPrice"]))
-                        tags = {tag["key"] for tag in policy.get("tagList") or []}
                         grades = {GRADES.get(g.get("grade")) for g in policy.get("gradeInfoList") or []}
                         offers.append(
                             FlightOffer(
@@ -170,10 +187,7 @@ class Source:
                                     self.name,
                                     self.name,
                                     grades.pop() if len(grades) == 1 else None,
-                                    Baggage(
-                                        checked=1 if "FREE_CHECKED_BAGGAGE" in tags else None,
-                                        carry_on=True if "FREE_CARRY_ON_BAGGAGE" in tags else None,
-                                    ),
+                                    baggage(policy.get("tagList") or []),
                                     Link(answer["link"], "results"),
                                     seen_at,
                                 ),

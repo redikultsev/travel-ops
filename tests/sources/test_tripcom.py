@@ -28,6 +28,10 @@ def test_the_list_is_read_into_one_way_flights_priced_for_the_party():
     assert cheapest.fare.cabin == "economy" and cheapest.fare.baggage.carry_on is True
     assert cheapest.fare.link.url.startswith(tripcom.PAGE) and "triptype=ow" in cheapest.fare.link.url
     assert any(len(o.itinerary.outbound) == 2 for o in parsed.offers), "connections are kept"
+    bagged = [o.fare.baggage for o in parsed.offers if o.fare.baggage.checked]
+    assert bagged and all(b.checked_kg == 23 for b in bagged if b.checked_kg), "the tag says how heavy"
+    assert any(b.checked_kg == 23 for b in bagged)
+    assert cheapest.fare.baggage.checked is None and cheapest.fare.baggage.checked_kg is None
 
 
 async def test_the_page_makes_the_search_and_only_its_list_is_kept():

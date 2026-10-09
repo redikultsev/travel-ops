@@ -33,13 +33,23 @@ names the visitor's session and the server's logs.
 - The price is one adult's ticket with taxes times the adults: two adults cost 311.84 EUR where one ticket is
   155.92 (round trip page, 2026-10-07). Children's fares are not verified: a party with children is not
   configured.
-- A checked bag is stated only when the fare includes one; otherwise it is unknown, not none.
+- A checked bag is stated only when the fare includes one; otherwise it is unknown, not none. Its weight is in
+  the tag's text (`extendInfo`: "Checked baggage: 23 kg").
 - Journeys with a train or bus section are left out and counted.
 - A browser per route: about half a minute, and heavier than an HTTP source.
 
 ## Verified, 2026-10-07
 
 Belgrade to Istanbul, 14 November, one adult: 25 itineraries from 82.64 EUR (Air Serbia), one page.
+
+## Checked against the page, 2026-10-09
+
+Round trip 14–18 November: the page listed 22 outbound flights at 195, 198, 245, 245, 325, 373, 373 and 393 EUR
+for the first eight; the source read the same flights at 194.74, 197.98, 244.75, 244.75, 324.64, 372.55, 372.55
+and 392.13 (the page rounds up). The cheapest outbound's return on the page, AJet SAW 12:30, is the VF113 its
+fare names. Some fares are real but strange: LH1411 LH1304 out with RO262 RO9213 back at 2,888.69 EUR. Stays: five
+hotels of the Istanbul list matched the page in total, room, breakfast, free cancellation, score, reviews and
+district.
 
 ## Stays
 
