@@ -108,7 +108,7 @@ def flight_search_json(search: FlightSearch, rates: Rates) -> dict:
         "currency": search.currency,
         "rates_day": rates.day,
         "cards": cards,
-        "sources": [asdict(report) for report in search.reports],
+        "sources": [report_json(report) for report in search.reports],
     }
 
 
@@ -179,7 +179,7 @@ def stay_search_json(search: StaySearch, rates: Rates) -> dict:
             }
             for card in search.cards
         ],
-        "sources": [asdict(report) for report in search.reports],
+        "sources": [report_json(report) for report in search.reports],
     }
 
 
@@ -233,7 +233,7 @@ def ground_search_json(search: GroundSearch, rates: Rates) -> dict:
         "currency": currency,
         "rates_day": rates.day,
         "cards": cards,
-        "sources": [asdict(report) for report in search.reports],
+        "sources": [report_json(report) for report in search.reports],
     }
 
 
@@ -307,6 +307,14 @@ def _price_row(card: dict, currency: str) -> list | None:
         return [money["amount"], money["currency"], offer.get("seller")] if money else None
     value, offer = found
     return [round(value, 2), currency, offer.get("seller")]
+
+
+def report_json(report) -> dict:
+    """A source's report; `coverage` only where the source can say how much of the site it read."""
+    out = asdict(report)
+    if out.get("coverage") is None:
+        out.pop("coverage", None)
+    return out
 
 
 def offers_of(card: dict) -> list[dict]:

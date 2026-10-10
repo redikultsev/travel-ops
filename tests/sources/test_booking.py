@@ -60,8 +60,52 @@ async def test_a_ceiling_and_a_short_list_take_one_page():
             return Response(200, walk_page(range(10, 20), 10))
 
     query = replace(QUERY, max_night_eur=60.4)
-    await Source().fetch(query, Context(Net(), Browser(), lambda: NOW))
+    source = Source()
+    raws = await source.fetch(query, Context(Net(), Browser(), lambda: NOW))
     assert [c["nflt"] for c in Net.calls] == ["price=EUR-0-61-1"]
+    coverage = source.parse(raws, query, NOW).coverage
+    assert coverage.complete and (coverage.read, coverage.counted, coverage.ceiling_eur) == (10, 10, 120.8)
+
+
+async def test_under_a_ceiling_every_band_is_read_whole_against_its_count():
+    import re
+
+    nights = list(range(10, 70))  # 60 properties, one a night's price each, shuffled within a page as Booking does
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"]["nflt"])
+            low, high = map(int, re.search(r"price=EUR-(\d+)-(\d+)", kw["params"]["nflt"]).groups())
+            inside = [p for p in nights if low <= p <= high]
+            shown = sorted(inside)[:25]
+            return Response(200, walk_page(shown[::-1], len(inside)))
+
+    query = replace(QUERY, max_night_eur=500.0)
+    source = Source()
+    raws = await source.fetch(query, Context(Net(), Browser(), lambda: NOW))
+    assert source.max_requests(query) == 21
+    parsed = source.parse(raws, query, NOW)
+    assert (parsed.coverage.read, parsed.coverage.counted) == (60, 60) and parsed.coverage.complete
+    assert Net.calls[0].endswith("price=EUR-0-500-1") and len(Net.calls) <= 21
+    assert Source().parse(raws, QUERY, NOW).coverage.ceiling_eur is None, "no ceiling, no claim"
+
+
+async def test_a_band_that_cannot_be_read_whole_is_not_complete():
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"]["nflt"])
+            return Response(200, walk_page(range(10, 35), 60))  # always more than a page, whatever the band
+
+    query = replace(QUERY, max_night_eur=500.0)
+    source = Source()
+    raws = await source.fetch(query, Context(Net(), Browser(), lambda: NOW))
+    parsed = source.parse(raws, query, NOW)
+    assert len(Net.calls) == 20 and not parsed.coverage.complete
+    assert any("not all of it" in n for n in parsed.notes)
 
 
 async def test_children_need_actual_ages():

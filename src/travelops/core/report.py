@@ -26,6 +26,8 @@ class SourceReport:
     offers: int = 0
     requests: int = 0
     seconds: float = 0.0
+    # Read against the site's own count under the asked ceiling: {"read", "counted", "ceiling_eur", "complete"}.
+    coverage: dict | None = None
 
 
 def combine(reports: list[SourceReport]) -> SourceReport:
@@ -43,6 +45,7 @@ def combine(reports: list[SourceReport]) -> SourceReport:
         offers=sum(r.offers for r in reports),
         requests=sum(r.requests for r in reports),
         seconds=max(r.seconds for r in reports),
+        coverage=_coverage([r.coverage for r in reports]),
     )
     for r in reports:
         if r in good or len(reports) == 1:
@@ -54,6 +57,22 @@ def combine(reports: list[SourceReport]) -> SourceReport:
 
 
 # Notes that say the answer is narrower than the question. The rest describe how a source was read.
+def _coverage(parts: list[dict | None]) -> dict | None:
+    """Several runs are complete together only when each one is."""
+    if not any(parts):
+        return None
+    if len(parts) == 1:
+        return parts[0]
+    known = [p for p in parts if p]
+    counted = [p["counted"] for p in known]
+    return {
+        "read": sum(p["read"] for p in known),
+        "counted": sum(counted) if all(c is not None for c in counted) else None,
+        "ceiling_eur": known[0]["ceiling_eur"],
+        "complete": len(known) == len(parts) and all(p["complete"] for p in known),
+    }
+
+
 LIMITS = (
     "failed for",
     "truncated",

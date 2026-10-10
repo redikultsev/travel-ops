@@ -31,9 +31,21 @@ class Context:
 
 
 @dataclass
+class Coverage:
+    """Whether everything a site has under a ceiling was read: its own count against the listings read. A source
+    that gives no count, or a search with no ceiling, cannot be complete; it says what it read."""
+
+    read: int
+    counted: int | None = None  # what the site says it has for the search, under the ceiling
+    ceiling_eur: float | None = None  # for the whole stay; None: none was asked
+    complete: bool = False
+
+
+@dataclass
 class Parsed:
     offers: list = field(default_factory=list)
     notes: list[str] = field(default_factory=list)  # e.g. "results truncated: 120 of 300"
+    coverage: Coverage | None = None
 
 
 Query = TypeVar("Query", contravariant=True)

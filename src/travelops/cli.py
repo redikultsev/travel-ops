@@ -35,6 +35,10 @@ def parser():
     s.add_argument("place")
     s.add_argument("checkin", type=date.fromisoformat)
     s.add_argument("checkout", type=date.fromisoformat)
+    s.add_argument(
+        "--max-total", type=float, help="ceiling for the whole stay, in --currency; under it everything is read"
+    )
+    s.add_argument("--min-rating", type=float, help="out of 10; default from the profile")
     g = commands.add_parser("ground", help="trains and buses, one way, between two places named in Latin script")
     g.add_argument("origin")
     g.add_argument("destination")
@@ -110,8 +114,19 @@ def reports(console, source_reports):
             f"{report['source']}: {report['status']} — {report['reason'] or str(report['offers']) + ' offers'}; {report['requests']} requests",
             markup=False,
         )
+        if cover := report.get("coverage"):
+            console.print(f"  {coverage_line(cover)}", markup=False)
         for note in report["notes"]:
             console.print(f"  {note}", markup=False)
+
+
+def coverage_line(cover: dict) -> str:
+    """Whether everything under the ceiling was read, in one line a person checks first."""
+    if cover.get("ceiling_eur") is None:
+        return f"coverage: {cover['read']} read; no ceiling asked, so not everything the site has"
+    counted = cover["counted"] if cover.get("counted") is not None else "?"
+    mark = "complete" if cover["complete"] else "NOT complete"
+    return f"coverage: {mark} — {cover['read']} read of {counted} the site counts under {cover['ceiling_eur']:.0f} EUR"
 
 
 def show(console, result, kind):
@@ -325,7 +340,8 @@ async def search(app, args, console):
         kind, [query], sources=args.sources, currency=args.currency, refresh=True, confirm=True
     )
     # On screen the 15 cheapest; with --json everything, unless --limit says otherwise.
-    result = searches.view(kind, stored, args.limit or (None if args.json else 15))
+    bars = {"max_total": args.max_total, "min_rating": args.min_rating} if kind == "stays" else {}
+    result = searches.view(kind, stored, args.limit or (None if args.json else 15), **bars)
     if args.json:
         print(json.dumps(result, ensure_ascii=False))
     else:

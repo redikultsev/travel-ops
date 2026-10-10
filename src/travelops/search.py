@@ -8,7 +8,7 @@ import logging
 import math
 import time
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 
 from .core.flights import FlightQuery, on_route
@@ -70,7 +70,9 @@ async def run_source(
     mine: Counter = Counter()
     RUN.set(mine)
 
-    def report(status: Status, reason: str = "", notes: list[str] | None = None, offers: int = 0) -> SourceReport:
+    def report(
+        status: Status, reason: str = "", notes: list[str] | None = None, offers: int = 0, coverage=None
+    ) -> SourceReport:
         return SourceReport(
             source.name,
             status,
@@ -79,6 +81,7 @@ async def run_source(
             offers,
             mine[source.name],
             round(time.monotonic() - started, 1),
+            asdict(coverage) if coverage is not None else None,
         )
 
     try:
@@ -126,7 +129,7 @@ async def run_source(
     notes = [labelled(note) for note in notes]
     if label and not offers:
         notes.append(f"{label}: no offers")
-    return offers, report(status, notes=notes, offers=len(offers))
+    return offers, report(status, notes=notes, offers=len(offers), coverage=getattr(parsed, "coverage", None))
 
 
 def on_the_route(offers: list, query: FlightQuery) -> tuple[list, list[str]]:

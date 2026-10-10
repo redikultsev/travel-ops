@@ -7,7 +7,8 @@ GROUND_SOURCES: dict[str, type] = {}
 from ..net.limiter import Rule
 
 RULES: dict[str, Rule] = {
-    "airbnb": Rule(interval=10, jitter=3, window=12, per=600, quarantine=1800),
+    # A search under a ceiling reads every band of it: up to 30 pages, still ten seconds apart.
+    "airbnb": Rule(interval=10, jitter=3, window=30, per=600, quarantine=1800),
     "booking": Rule(interval=10, jitter=3, window=12, per=600, quarantine=86400),
     "booking/lookup": Rule(interval=3, jitter=1, window=20, per=600, quarantine=86400),
     "wildberries": Rule(interval=8, jitter=2.4, window=20, per=600, quarantine=1800),

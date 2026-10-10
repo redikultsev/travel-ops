@@ -32,7 +32,10 @@ DESCRIPTION = (
     "`rest` (name or flights, price, rating, distance; a card several sources sell has `by_source`, each one's "
     "cheapest in the search's currency), in the same order: choose from all of them, and use the "
     "refine tool to see any of them in full. A source's own notes say how far it read (pages, totals it counts); "
-    "say when a source read only part of what it holds. The same search within 30 minutes is "
+    "say when a source read only part of what it holds. A stay source's `coverage` sets what it read against "
+    "the site's own count under the asked `max_total`: `complete` true means everything that site has under the "
+    "ceiling was read; without `max_total` no search is complete, so say the cheapest shown may not be the "
+    "cheapest there is. The same search within 30 minutes is "
     "answered from memory (`from_memory`, `age_minutes`); pass refresh=True only when the human wants new prices. "
     "For more cards, other times or another filter, do not search again: call the refine tool with `search_id`."
 )

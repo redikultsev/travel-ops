@@ -7,7 +7,7 @@ Copyright (c) 2024 John, https://github.com/johnbalvin/pyairbnb/blob/main/src/py
 
 import math
 from urllib.parse import quote
-from ..base import NotConfigured
+from ..base import Coverage, NotConfigured
 
 
 def challenge(response):
@@ -31,6 +31,13 @@ BOX_KM = 15
 # of the first page's totals, lowered once when Airbnb counts more under it than the pages left can read: under
 # 411 EUR it counted 213 for those nine nights, under 320 EUR 75, the flat among them (2026-10-10).
 CHEAP_SHARE = 0.25
+# With a ceiling asked, everything under it is read: the price axis is cut into bands Airbnb pages through
+# whole (it gives one search 15 pages, 270 listings, and counts up to "1,000+"), and the listings read are set
+# against its count. Bands meet at their edges, so a listing on an edge is counted twice: the count can only
+# overstate, and a search is never called complete that was not (2026-10-10: 139 places between 300 and 400 EUR,
+# the totals read all inside).
+BAND_PAGES = 15
+SWEEP_PAGES = 30
 
 
 def band(totals: list[float]) -> int | None:
@@ -49,10 +56,15 @@ def places(body: bytes) -> int | None:
     return int(found[1].replace(b",", b"")) if found else None
 
 
-def price_params(query, ceiling: int | None) -> dict:
+def price_params(query, ceiling: int | None, floor: int | None = None) -> dict:
     if ceiling is None:
         return {}
-    return {"price_filter_input_type": 2, "price_filter_num_nights": query.nights, "price_max": ceiling}
+    return {
+        "price_filter_input_type": 2,
+        "price_filter_num_nights": query.nights,
+        **({"price_min": floor} if floor else {}),
+        "price_max": ceiling,
+    }
 
 
 def box(lat: float, lon: float, km: float = BOX_KM) -> dict:
@@ -85,52 +97,54 @@ class Source:
     name = "airbnb"
 
     def max_requests(self, query):
-        return PAGES
+        return SWEEP_PAGES if query.max_night_eur else PAGES
 
     ceiling: int | None = None  # what the pages after the first were read under, for the notes
     asked: bool = False
+    counted: int | None = None  # Airbnb's count under the asked ceiling
+    cut: bool = False  # the sweep ran out of pages before its bands did
 
     async def fetch(self, query, ctx):
         if query.rooms != 1:
             raise NotConfigured("Airbnb SSR searches do not represent multiple rooms")
-        asked = int(query.max_night_eur * query.nights) if query.max_night_eur else None
-        first = await self._page(query, ctx, None, asked)
+        if query.max_night_eur:
+            return await self._sweep(query, ctx, int(query.max_night_eur * query.nights))
+        first = await self._page(query, ctx, None)
         raws, pages = [first], cursors_of(first)[1:PAGES]
-        self.ceiling, self.asked = asked, asked is not None
-        if asked is None:
+        self.ceiling, self.asked = None, False
+        try:
+            totals = [
+                float(o.rate.total.amount)
+                for o in self.parse([first], query, ctx.now()).offers
+                if o.rate.total.currency == "EUR"
+            ]
+        except Exception:  # a first page not understood is reported by parse, not here
+            totals = []
+        if (cheap := band(totals)) is not None:
+            asked_pages = 1
             try:
-                totals = [
-                    float(o.rate.total.amount)
-                    for o in self.parse([first], query, ctx.now()).offers
-                    if o.rate.total.currency == "EUR"
-                ]
-            except Exception:  # a first page not understood is reported by parse, not here
-                totals = []
-            if (cheap := band(totals)) is not None:
-                asked_pages = 1
-                try:
+                under = await self._page(query, ctx, None, cheap)
+                # More listings under it than the pages left can read: lowered toward the cheapest total
+                # seen, by the square root of the share that fits (counts grew with the square of the
+                # ceiling's height above the cheapest: 75, 147, 213 under 320, 372, 411 EUR), at most twice.
+                while asked_pages <= LOWERINGS:
+                    count, room = places(under), 18 * (PAGES - 1 - asked_pages)
+                    if not count or count <= room:
+                        break
+                    lower = int(min(totals) + (cheap - min(totals)) * math.sqrt(room / count))
+                    if not min(totals) < lower < cheap:
+                        break
+                    cheap, asked_pages = lower, asked_pages + 1
                     under = await self._page(query, ctx, None, cheap)
-                    # More listings under it than the pages left can read: lowered toward the cheapest total
-                    # seen, by the square root of the share that fits (counts grew with the square of the
-                    # ceiling's height above the cheapest: 75, 147, 213 under 320, 372, 411 EUR), at most twice.
-                    while asked_pages <= LOWERINGS:
-                        count, room = places(under), 18 * (PAGES - 1 - asked_pages)
-                        if not count or count <= room:
-                            break
-                        lower = int(min(totals) + (cheap - min(totals)) * math.sqrt(room / count))
-                        if not min(totals) < lower < cheap:
-                            break
-                        cheap, asked_pages = lower, asked_pages + 1
-                        under = await self._page(query, ctx, None, cheap)
-                except Exception as exc:
-                    from ...net.client import Blocked
+            except Exception as exc:
+                from ...net.client import Blocked
 
-                    if isinstance(exc, Blocked):
-                        raise
-                    return raws
-                self.ceiling = cheap
-                raws.append(under)
-                pages = cursors_of(under)[1 : PAGES - asked_pages]
+                if isinstance(exc, Blocked):
+                    raise
+                return raws
+            self.ceiling = cheap
+            raws.append(under)
+            pages = cursors_of(under)[1 : PAGES - asked_pages]
         for cursor in pages:
             try:
                 raws.append(await self._page(query, ctx, cursor, self.ceiling))
@@ -142,14 +156,61 @@ class Source:
                 break
         return raws
 
-    async def _page(self, query, ctx, cursor, ceiling=None):
+    async def _sweep(self, query, ctx, ceiling: int) -> list[bytes]:
+        """Everything under the ceiling, band by band from the cheapest; a band Airbnb counts more for than it
+        pages through is halved."""
+        from ...net.client import Blocked
+
+        self.ceiling, self.asked, self.cut = ceiling, True, False
+        raws, bands, leaves, left = [], [(0, ceiling)], [], SWEEP_PAGES
+        whole: int | None = None
+        while bands:
+            low, high = bands.pop(0)
+            if left <= 0:
+                self.cut = True
+                break
+            body = await self._page(query, ctx, None, high, low)
+            left -= 1
+            raws.append(body)
+            count = places(body)
+            if whole is None and low == 0 and high == ceiling:
+                whole = count
+            if count is None:
+                self.cut = True  # no count: what this band holds is not known
+                continue
+            if count >= 1000 or count > 18 * BAND_PAGES:
+                middle = (low + high) // 2
+                if low < middle < high:
+                    bands[:0] = [(low, middle), (middle, high)]
+                    continue
+                self.cut = True
+            leaves.append(count)
+            cursors = cursors_of(body)
+            if 18 * len(cursors) < count:
+                self.cut = True
+            for cursor in cursors[1:]:
+                if left <= 0:
+                    self.cut = True
+                    break
+                try:
+                    raws.append(await self._page(query, ctx, cursor, high, low))
+                except Blocked:
+                    raise
+                except Exception:
+                    self.cut = True
+                    break
+                left -= 1
+        self.counted = whole if whole is not None and whole < 1000 else (sum(leaves) if not self.cut else None)
+        return raws
+
+    async def _page(self, query, ctx, cursor, ceiling=None, floor=None):
         response = await ctx.net.request(
             self.name,
             "GET",
             "https://www.airbnb.com/s/" + quote(query.place, safe="") + "/homes",
             params={**({"cursor": cursor} if cursor else {}),
                 **(box(*query.center) if query.center else {}),
-                **price_params(query, ceiling),
+                **price_params(query, ceiling, floor),
                 "checkin": query.checkin.isoformat(),
                 "checkout": query.checkout.isoformat(),
                 "adults": query.adults,
@@ -217,7 +278,7 @@ class Source:
                 return candidates[-1]
             raise ParseError("full-stay total missing; nightly rates cannot establish fees")
 
-        offers = {}
+        offers, seen = {}, set()
         total_count, unpriced, monthly = None, 0, 0
         try:
             for raw in raws:
@@ -244,6 +305,7 @@ class Source:
                         source_id = base64.b64decode(listing["id"] + "===").decode().rsplit(":", 1)[-1]
                         if not source_id.isdigit():
                             raise ParseError("room identifier is not numeric")
+                        seen.add(source_id)
                         name = listing["description"]["name"]["localizedStringWithTranslationPreference"]
                         coordinates = listing.get("location", {}).get("coordinate") or {}
                         rating_label = item.get("avgRatingLocalized") or ""
@@ -326,20 +388,34 @@ class Source:
             if monthly
             else []
         )
+        read = Coverage(
+            len(seen),
+            self.counted if self.asked else None,
+            float(self.ceiling) if self.asked else None,
+            self.asked and not self.cut and self.counted is not None and len(seen) >= self.counted,
+        )
         if not offers:
             if unpriced and not monthly:
                 raise ParseError("full-stay total missing on every card; nightly rates cannot establish fees")
             where = f"within {BOX_KM} km of the place's centre" if query.center else "for this place"
-            return Parsed([], month_note or [f"Airbnb listed nothing {where} at these dates"])
+            return Parsed([], month_note or [f"Airbnb listed nothing {where} at these dates"], read)
         coverage = f"{len(offers)} listings from {len(raws)} pages of 18; " + (
             f"total {total_count}" if total_count is not None else "Airbnb gives no exact total"
         )
-        if self.ceiling is not None and len(raws) > 1:
+        if self.asked:
             coverage += (
-                f"; under {self.ceiling} EUR for the stay, as asked"
-                if self.asked
-                else f"; the first page as Airbnb ranks it, the others under {self.ceiling} EUR for the stay (the "
-                "cheapest quarter of the first page): Airbnb has no order by price"
+                f"; everything Airbnb has under {self.ceiling} EUR for the stay: {len(seen)} read of {self.counted} "
+                "it counts"
+                if read.complete
+                else f"; under {self.ceiling} EUR for the stay {len(seen)} read of "
+                + (f"{self.counted} Airbnb counts" if self.counted is not None else "a count Airbnb did not give")
+                + ": not all of it"
+            )
+        elif self.ceiling is not None and len(raws) > 1:
+            coverage += (
+                f"; the first page as Airbnb ranks it, the others under {self.ceiling} EUR for the stay (the "
+                "cheapest quarter of the first page): Airbnb has no order by price; with no ceiling asked not "
+                "everything is read"
             )
         return Parsed(
             list(offers.values()),
@@ -350,6 +426,7 @@ class Source:
                 *([f"{unpriced} listings showed a nightly rate only and were left out"] if unpriced else []),
                 *month_note,
             ],
+            read,
         )
 
     async def fetch_details(self, url, place, ctx):

@@ -99,8 +99,15 @@ Belgrade, among more than a thousand places. The first page is read as Airbnb ra
 ceiling, the cheapest quarter of the first page's totals. When Airbnb counts more places under it than the pages
 left can read, the ceiling is lowered toward the cheapest total seen by the square root of the share that fits
 (counts grew with the square of the ceiling's height: 75, 147, 213 places under 320, 372, 411 EUR), at most
-twice. The same Belgrade search then read 105 listings, the cheapest from 168 EUR, the house among them. A
-ceiling the human asks for (`max_total`) is used on every page instead.
+twice. The same Belgrade search then read 105 listings, the cheapest from 168 EUR, the house among them. That
+is without a ceiling, and not everything.
+
+**Under a ceiling, everything.** With `max_total` the price from 0 to the ceiling is cut into bands Airbnb pages
+through whole: one search gives at most 15 pages (270 listings) and counts up to "1,000+", so a band counted
+above that is halved. Every band is read to its last page; bands meet at their edges and a listing on one is
+merged. `price_min` works with the ceiling: between 300 and 400 EUR it counted 139 and every total read was
+inside (2026-10-10). The count under the whole ceiling is set against the listings read in `coverage`. Belgrade,
+13–22 October, two adults, under 400 EUR: complete, 203 read of 203 counted, 12 pages.
 - From 28 nights a card shows a monthly price (`displayPriceStyle: MONTHLY`, "€5,075 monthly", "Average monthly
   price"), not the stay's total, and the listing page's own HTML carries no price. Such cards are left out and
   counted: a month in Shanghai found no Airbnb total to quote.

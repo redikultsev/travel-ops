@@ -201,7 +201,14 @@ STAYS = Kind(
     noun="stay",
     registry=STAY_SOURCES,
     read=lambda profile, a: stay_query(
-        profile, a["place"], a["checkin"], a["checkout"], a.get("adults"), a.get("children_ages")
+        profile,
+        a["place"],
+        a["checkin"],
+        a["checkout"],
+        a.get("adults"),
+        a.get("children_ages"),
+        min_rating=a.get("min_rating"),
+        max_total=a.get("max_total"),
     ),
     search=search_stays,
     to_json=stay_search_json,

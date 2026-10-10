@@ -16,6 +16,9 @@ AUTOCOMPLETE = "https://accommodations.booking.com/autocomplete.json"
 # A results page holds 25 properties and `offset` is ignored over HTTP, so a search walks up the price instead:
 # each page asks for the cheapest above the dearest of the page before. PAGES is how far one search goes.
 PAGES = 10
+# With a ceiling asked the walk goes on to its end, the last page under the ceiling, and what it read is set
+# against Booking's own count for the filters.
+SWEEP_PAGES = 20
 PER_PAGE = 25
 CEILING = 10000  # EUR a night: the top of a price filter with no maximum asked
 SCORES = (90, 80, 70, 60)  # Booking's review-score filter steps
@@ -25,6 +28,15 @@ def found_count(body: bytes) -> int | None:
     """How many properties Booking counts for the page's filters: "604 properties found"."""
     match = re.search(rb"([\d,]+) propert(?:y|ies) found", body)
     return int(match[1].replace(b",", b"")) if match else None
+
+
+def split(low: int, top: int, count: int) -> list[tuple[int, int]]:
+    """A band Booking counts more than a page for, cut into equal parts of about 20 each, as if spread evenly:
+    halving took more than eleven pages for 75 properties, past the source's budget (2026-10-10). The parts meet at
+    their edges."""
+    parts = max(2, math.ceil(count / 20))
+    edges = sorted({low + round((top - low) * i / parts) for i in range(parts + 1)})
+    return list(zip(edges, edges[1:]))
 
 
 def filters(query, low: int, high: int) -> str:
@@ -51,8 +63,11 @@ def challenge(response):
 class Source:
     name = "booking"
 
+    walked: bool = False  # the walk reached the last page of what passes the filters
+    asked: bool = False
+
     def max_requests(self, query):
-        return 1 + PAGES
+        return 1 + (SWEEP_PAGES if query.max_night_eur else PAGES)
 
     def _params(self, query):
         if query.children and len(query.children_ages) != query.children:
@@ -136,44 +151,40 @@ class Source:
         return offers
 
     async def fetch(self, query, ctx):
+        from ..base import ParseError
+
         params = dict(self._params(query), order="price")
         session = await self._session(params, ctx)
         high = math.ceil(query.max_night_eur) if query.max_night_eur else CEILING
-        low, raws, faults = 0, [], []
-        try:
-            for _ in range(PAGES):
-                response = await ctx.net.request(
-                    self.name,
-                    "GET",
-                    URL,
-                    params=dict(params, nflt=filters(query, low, high)),
-                    cookies=session.cookies,
-                    impersonate=session.impersonate,
-                    # No user-agent header: with the headless browser's own one Booking served a page without results.
-                    headers={"accept-language": "en-GB,en;q=0.9"},
-                    blocked_if=challenge,
-                )
-                if response.status >= 500:
-                    # Booking's own fault page: the walk stops there, and parse says how far it got.
-                    faults.append(response.status)
-                    break
-                if response.status != 200:
-                    from ..base import ParseError
+        raws, faults = [], []
+        self.asked, self.walked = bool(query.max_night_eur), False
 
-                    raise ParseError(f"Booking search returned HTTP {response.status}")
-                raws.append(response.body)
-                try:
-                    found = self.parse([response.body], query, ctx.now()).offers
-                except ParseError:
-                    break  # not a results page: parse says so, and the walk cannot go on from it
-                count = found_count(response.body)
-                if len(found) < PER_PAGE or count is None or count <= PER_PAGE:
-                    break  # this was the last page of what passes the filters
-                top = max(o.rate.total.amount for o in found) / query.nights
-                # A little below the dearest: the filter may round, and a property seen twice is merged.
-                low = max(low + 1, math.floor(float(top) * 0.98))
-                if low >= high:
-                    break
+        async def page(low, top):
+            response = await ctx.net.request(
+                self.name,
+                "GET",
+                URL,
+                params=dict(params, nflt=filters(query, low, top)),
+                cookies=session.cookies,
+                impersonate=session.impersonate,
+                # No user-agent header: with the headless browser's own one Booking served a page without results.
+                headers={"accept-language": "en-GB,en;q=0.9"},
+                blocked_if=challenge,
+            )
+            if response.status >= 500:
+                # Booking's own fault page: the walk stops there, and parse says how far it got.
+                faults.append(response.status)
+                return None
+            if response.status != 200:
+                raise ParseError(f"Booking search returned HTTP {response.status}")
+            raws.append(response.body)
+            return response.body
+
+        try:
+            if self.asked:
+                await self._bands(query, ctx, page, high)
+            else:
+                await self._walk(query, ctx, page, high)
         except Blocked:
             ctx.browser.drop(self.name)
             raise
@@ -185,13 +196,68 @@ class Source:
             raws.append(b"<!-- fault -->")
         return raws
 
+    async def _walk(self, query, ctx, page, high):
+        """With no ceiling: up the price, page by page, as far as PAGES go."""
+        from ..base import ParseError
+
+        low = 0
+        for _ in range(PAGES):
+            body = await page(low, high)
+            if body is None:
+                return
+            try:
+                found = self.parse([body], query, ctx.now()).offers
+            except ParseError:
+                return  # not a results page: parse says so, and the walk cannot go on from it
+            count = found_count(body)
+            if len(found) < PER_PAGE or count is None or count <= PER_PAGE:
+                return  # this was the last page of what passes the filters
+            # A little below the last card's night: the filter may round, and a property seen twice is merged.
+            # The last, not the dearest: Booking's order is not strictly by the price it shows (a card at 439 EUR
+            # stood among ones up to 403 under a 45-a-night filter, 2026-10-10).
+            top = found[-1].rate.total.amount / query.nights
+            low = max(low + 1, math.floor(float(top) * 0.98))
+            if low >= high:
+                return
+
+    async def _bands(self, query, ctx, page, high):
+        """Under a ceiling, everything: bands of the night's price, each one Booking shows whole on one page,
+        cut while it counts more. Walking up from the last card lost 8 of 75 under 400 EUR in Belgrade,
+        Booking's order not being strictly by price (2026-10-10); a band read whole against its own count does
+        not. Bands meet at their edges, so a property on one is seen twice and merged."""
+        bands, left, whole = [(0, high)], SWEEP_PAGES, True
+        while bands:
+            low, top = bands.pop(0)
+            if left <= 0:
+                whole = False
+                break
+            body = await page(low, top)
+            left -= 1
+            if body is None:
+                whole = False
+                break
+            count = found_count(body)
+            if count is None:
+                whole = False  # not a results page: what this band holds is not known
+                continue
+            if count > PER_PAGE:
+                parts = split(low, top, count)
+                if len(parts) > 1:
+                    bands[:0] = parts
+                    continue
+                whole = False  # a single euro holds more than a page: the rest of it is not reached
+                continue
+            if body.count(b'data-testid="property-card"') < count:
+                whole = False
+        self.walked = whole
+
     def parse(self, raws, query, seen_at):
         import re
         from urllib.parse import urljoin, urlsplit
         from ...core.common import Link
         from ...core.money import Money
         from ...core.stays import Stay, Rate, StayOffer, kind_of_room
-        from ..base import Parsed, ParseError
+        from ..base import Coverage, Parsed, ParseError
         from ._html import Tree, money
 
         unique, notes, unusable, unavailable = {}, [], 0, 0
@@ -330,22 +396,34 @@ class Source:
             raise ParseError("no page was a search results page")
         if unavailable:
             notes.append(f"{unavailable} properties shown as unavailable at these dates left out")
-        if not unique:
-            return Parsed([], notes)
         counted = found_count(real[0]) if real else None
+        ceiling = query.max_night_eur * query.nights if self.asked and query.max_night_eur else None
+        read = len(unique) + unavailable
+        coverage = Coverage(
+            read,
+            counted if ceiling else None,
+            ceiling,
+            bool(ceiling) and self.walked and counted is not None and read >= counted,
+        )
+        if not unique:
+            return Parsed([], notes, coverage)
+        if coverage.complete:
+            reach = [f"everything Booking has under {ceiling:.0f} EUR for the stay was read: {read} of {counted}"]
+        elif ceiling and counted is not None:
+            reach = [f"under {ceiling:.0f} EUR for the stay {read} read of {counted} Booking counts: not all of it"]
+        elif counted is not None and counted > len(unique):
+            reach = [f"the {counted - len(unique)} not seen are dearer than the last page: lower max_total to reach them"]
+        else:
+            reach = []
         notes += [
             f"deduplicated: {len(unique)} properties"
             + (f" of {counted} Booking counts for these filters" if counted is not None else ""),
-            *(
-                [f"the {counted - len(unique)} not seen are dearer than the last page: lower max_total to reach them"]
-                if counted is not None and counted > len(unique)
-                else []
-            ),
+            *reach,
             "coordinates and amenities are not in search cards; stay_details reads them from the property page",
             "free cancellation is stated per card; its cutoff date is not",
             "missing ratings, review counts and photos remain unknown",
         ]
-        return Parsed(list(unique.values()), notes)
+        return Parsed(list(unique.values()), notes, coverage)
 
     async def fetch_details(self, url, place, ctx):
         # The same short-lived token as a search: the browser earns it on a results page.

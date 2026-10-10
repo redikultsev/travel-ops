@@ -260,3 +260,55 @@ async def test_a_ceiling_with_more_listings_than_pages_left_is_lowered_once():
     assert caps[0] is None and caps[2] < caps[1], "lowered after the count"
     assert set(caps[3:]) <= {caps[2]} and len(net.calls) <= airbnb.PAGES
     assert airbnb.places(b'"searchButtonText":"Show 1,000+ places"') == 1000
+
+
+async def test_under_an_asked_ceiling_everything_is_read_and_set_against_airbnbs_count():
+    from dataclasses import replace
+
+    page = recorded() + b'"searchButtonText":"Show 18 places""pageCursors":["c0"]'
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"])
+            return Response(200, page)
+
+    net = Net()
+    source = Source()
+    asked = replace(QUERY, max_night_eur=200.0)
+    raws = await source.fetch(asked, Context(net, None, lambda: NOW))
+    parsed = source.parse(raws, asked, NOW)
+    assert [c["price_max"] for c in net.calls] == [400] and "price_min" not in net.calls[0]
+    assert parsed.coverage.complete and (parsed.coverage.read, parsed.coverage.counted) == (18, 18)
+    assert parsed.coverage.ceiling_eur == 400.0 and "everything Airbnb has under 400 EUR" in parsed.notes[0]
+
+
+async def test_a_band_with_more_than_airbnb_pages_through_is_halved_and_short_reads_are_not_complete():
+    from dataclasses import replace
+
+    base = recorded()
+
+    def page(count, cursors):
+        names = ",".join(f'"c{i}"' for i in range(cursors))
+        return base + f'"searchButtonText":"Show {count} places""pageCursors":[{names}]'.encode()
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            p = kw["params"]
+            self.calls.append(p)
+            if p.get("price_min", 0) == 0 and p["price_max"] == 400:
+                return Response(200, page("1,000+", 15))
+            return Response(200, page(40, 3))
+
+    net = Net()
+    source = Source()
+    asked = replace(QUERY, max_night_eur=200.0)
+    raws = await source.fetch(asked, Context(net, None, lambda: NOW))
+    bands = [(c.get("price_min", 0), c["price_max"]) for c in net.calls if "cursor" not in c]
+    assert bands == [(0, 400), (0, 200), (200, 400)], "halved, the cheaper half first, meeting at the edge"
+    parsed = source.parse(raws, asked, NOW)
+    assert parsed.coverage.counted == 80 and parsed.coverage.read == 18 and not parsed.coverage.complete
+    assert "not all of it" in parsed.notes[0]
