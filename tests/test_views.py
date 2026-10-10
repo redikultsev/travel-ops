@@ -237,6 +237,18 @@ def test_the_next_town_is_hidden_and_a_stay_of_unknown_place_is_kept():
     assert view["filtered"]["by"] == [{"filter": "max_center_km", "value": 15, "hidden": 1, "kept_without_distance": 2}]
 
 
+def test_a_distance_to_another_towns_centre_is_measured_again():
+    data = stays()
+    data["center"] = {"name": "Novi Sad", "lat": 45.25167, "lon": 19.83694}
+    vrdnik, near = data["cards"][0]["stay"], data["cards"][1]["stay"]
+    vrdnik.update(lat=45.13294, lon=19.79046, center_km=0.32)  # trivago: "0.3 km to City center", of Vrdnik
+    near.update(lat=45.2551, lon=19.8451, center_km=0.9)  # the source's own walk, close to the line: kept
+    view = stays_view(data)
+    by_name = {c["stay"]["name"]: c["stay"] for c in view["cards"]}
+    assert 13 < by_name["dorm"]["center_km"] < 14 and by_name["dorm"]["center_km_measured"]
+    assert by_name["room"]["center_km"] == 0.9 and "center_km_measured" not in by_name["room"]
+
+
 def test_a_long_wait_between_flights_is_hidden_with_a_count():
     view = flights_view(flights(), max_connection_hours=4)
     assert "TK1" not in [c["outbound"][0]["flight"] for c in view["cards"]], "06:00 to 12:00 in Istanbul is six hours"

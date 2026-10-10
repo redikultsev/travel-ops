@@ -18,6 +18,7 @@ STAY_KINDS = ("hotel", "apartment", "room", "house", "shared_room", "other")
 # A private room is `room` where a source names the room (Booking) and `hotel` where it names the house (trivago,
 # Trip.com, Google): asking for either asks for both, or a filter would keep one site's hotels and drop another's.
 SAME_KIND = {"hotel": {"room"}, "room": {"hotel"}}
+OTHER_CENTER_KM = 2.0
 
 
 class Hidden:
@@ -253,10 +254,14 @@ def stays_view(
             if known.get("kind") and known["kind"] != "other":
                 stay["kind"] = known["kind"]
             stay["photos"] = list(dict.fromkeys(stay["photos"] + known.get("photos", [])))
-        # Where the source gives no distance but gives coordinates, measure from the centre of the place.
-        if stay.get("center_km") is None and center and stay.get("lat") is not None:
-            stay["center_km"] = round(distance_km(center["lat"], center["lon"], stay["lat"], stay["lon"]), 2)
-            stay["center_km_measured"] = "straight line from the centre of the place"
+        # Where the source gives no distance but gives coordinates, measure from the centre of the place. A source's
+        # own distance can be to another town's centre (trivago lists Vrdnik, 14 km from Novi Sad, as 0.3 km "to
+        # City center"): a figure the straight line beats by more than OTHER_CENTER_KM is not the place's.
+        if center and stay.get("lat") is not None:
+            line = round(distance_km(center["lat"], center["lon"], stay["lat"], stay["lon"]), 2)
+            if stay.get("center_km") is None or line > stay["center_km"] + OTHER_CENTER_KM:
+                stay["center_km"] = line
+                stay["center_km_measured"] = "straight line from the centre of the place"
 
     if min_rating is not None:
         if not isinstance(min_rating, (int, float)) or isinstance(min_rating, bool) or not 0 <= min_rating <= 10:
