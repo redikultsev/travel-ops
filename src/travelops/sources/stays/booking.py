@@ -208,12 +208,17 @@ class Source:
                 self.walked = count is not None
                 return  # this was the last page of what passes the filters
             # A little below the last card's night: the filter may round, and a property seen twice is merged.
-            # The last, not the dearest: Booking's order is not strictly by the price it shows (a card at 439 EUR
-            # stood among ones up to 403 under a 45-a-night filter, 2026-10-10).
+            # The last, not the dearest: the order is loose and the filter goes by another price than the card
+            # shows (cards to 453 EUR under 45 a night for nine nights, 2026-10-10). Stepping from the page's middle
+            # instead read fewer in more pages (61 in seven against 67 in four).
             top = found[-1].rate.total.amount / query.nights
-            low = max(low + 1, math.floor(float(top) * 0.98))
-            if low >= high:
-                return
+            step = max(low + 1, math.floor(float(top) * 0.98))
+            if step >= high:
+                # Near the ceiling with more still counted: closer by halves, while a euro is left between.
+                step = (low + high) // 2
+                if step <= low:
+                    return
+            low = step
 
     def parse(self, raws, query, seen_at):
         import re
@@ -377,7 +382,11 @@ class Source:
         if coverage.complete:
             reach = [f"everything Booking has under {ceiling:.0f} EUR for the stay was read: {read} of {counted}"]
         elif ceiling and counted is not None:
-            reach = [f"under {ceiling:.0f} EUR for the stay {read} read of {counted} Booking counts: not all of it"]
+            reach = [
+                f"under {ceiling:.0f} EUR for the stay Booking counts {counted}; {len(unique)} properties were seen, "
+                f"{read} of them showing a price under it: not all of it, or not all shown at the price Booking's "
+                "filter goes by"
+            ]
         elif counted is not None and counted > len(unique):
             reach = [f"the {counted - len(unique)} not seen are dearer than the last page: lower max_total to reach them"]
         else:

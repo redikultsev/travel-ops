@@ -45,7 +45,7 @@ async def test_the_search_walks_up_the_price_until_what_passes_is_seen():
         "review_score=80;price=EUR-0-10000-1",
         "review_score=80;price=EUR-33-10000-1",
         "review_score=80;price=EUR-55-10000-1",
-    ], "each page starts a little below the dearest night of the last; a rating of 8.4 asks Booking for 8+"
+    ], "each page starts a little below the last card's night; a rating of 8.4 asks Booking for 8+"
     assert all(c["order"] == "price" for c in Net.calls)
     result = Source().parse(raws, query, NOW)
     assert len(result.offers) == 60 and "deduplicated: 60 properties of 60 Booking counts for these filters" in result.notes
@@ -313,3 +313,20 @@ def test_a_card_outside_the_ceiling_is_not_counted_as_read():
     query = replace(QUERY, max_night_eur=30.0)
     coverage = source.parse([walk_page([20, 25, 48], 2)], query, NOW).coverage
     assert (coverage.read, coverage.counted, coverage.complete) == (2, 2, True), "48 a night is above 30"
+
+
+
+async def test_near_the_ceiling_with_more_counted_the_walk_closes_in_by_halves():
+    pages = iter([walk_page(range(10, 30), 70), walk_page(range(30, 50), 50)] + [walk_page(range(44, 64), 30)] * 10)
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"]["nflt"])
+            return Response(200, next(pages))
+
+    query = replace(QUERY, max_night_eur=45.0)
+    await Source().fetch(query, Context(Net(), Browser(), lambda: NOW))
+    lows = [int(c.split("EUR-")[1].split("-")[0]) for c in Net.calls]
+    assert lows[:3] == [0, 28, 36] and lows[-1] == 44, "past the ceiling's reach, halves: 36, 40, 42, 43, 44"

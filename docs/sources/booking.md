@@ -24,13 +24,17 @@ properties). A search therefore walks up the price: with `order=price` and `nflt
 (nightly, EUR), each page asks for the cheapest at or above a little under the last card's night of the page
 before (98%: the filter may round; a property seen twice is merged). The last card, not the dearest: Booking's
 order is not strictly by the price it shows (a card at 439 EUR stood among ones up to 403 under a 45-a-night
-filter, 2026-10-10). It stops when Booking counts no more for the
+filter, 2026-10-10); a step that would reach the ceiling while Booking still counts more closes in by halves
+instead. Stepping from the page's middle night read fewer in more pages (61 in seven against 67 in four). It
+stops when Booking counts no more for the
 filters, or after ten pages: a page is full when it shows fewer than Booking counts, whatever its size. `<high>`
 is 10000 when no ceiling is asked.
 
 **Under a ceiling.** With `max_total` the walk goes on to its end (up to 20 pages), and the result's `coverage`
-sets the properties read whose price passes the ceiling against Booking's count for the filters. A page also
-shows properties outside its filter (a card at 439 EUR under 45 a night), so only those under the ceiling count.
+sets the properties read whose price passes the ceiling against Booking's count for the filters. The filter goes
+by another price than the card shows: of 61 properties a walk under 45 a night saw, 43 showed a price under
+405 EUR for the nine nights. Only those count as read, so Booking is called complete late, never early, and the
+note gives both numbers.
 Belgrade, 13–22 October, two adults, rating 8+, under 400 EUR (2026-10-10): 67 read of 75 counted, four pages;
 not complete, and said so. A proof of completeness was tried and did not hold: the price cut into bands, each
 read whole against its own count, met pages of 25, 20 or 15 cards for the same search, cards outside the band
