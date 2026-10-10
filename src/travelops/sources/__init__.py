@@ -37,6 +37,10 @@ RULES: dict[str, Rule] = {
     "googlehotels": Rule(interval=10, jitter=3, window=20, per=600, quarantine=3600),
     # A public routing service that asks for one request a second at most.
     "routing": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
+    # A place's centre: Wikidata's API and OSMF's Nominatim, one request at a time and one a second at most, each
+    # answer kept for a month.
+    "wikidata": Rule(interval=1.1, jitter=0.3, window=30, per=600, quarantine=3600),
+    "nominatim": Rule(interval=1.5, jitter=0.5, window=30, per=600, quarantine=3600),
     # Photo CDNs, not the travel sites themselves.
     "images": Rule(interval=0.3, jitter=0.2, window=120, per=60, quarantine=600),
 }

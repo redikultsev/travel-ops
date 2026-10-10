@@ -1,0 +1,36 @@
+[
+ {
+  "place_id": 65100595,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 9273976,
+  "lat": "45.2551338",
+  "lon": "19.8451756",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 18,
+  "importance": 0.6761676262574368,
+  "addresstype": "city",
+  "name": "Novi Sad",
+  "display_name": "Novi Sad, City of Novi Sad, South Backa Administrative District, Vojvodina, Serbia",
+  "extratags": {
+   "ele": "72",
+   "capital": "4",
+   "website": "https://novisad.rs/",
+   "wikidata": "Q55630",
+   "wikipedia": "sr:Нови Сад",
+   "population": "260438",
+   "linked_place": "city",
+   "ref:RS:naselje": "802824",
+   "population:date": "2022",
+   "population:census:2022": "260438",
+   "admin_level": "9"
+  },
+  "boundingbox": [
+   "45.2212565",
+   "45.3218960",
+   "19.7639858",
+   "19.9316453"
+  ]
+ }
+]

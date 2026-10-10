@@ -1,0 +1,35 @@
+[
+ {
+  "place_id": 57294017,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 15445108,
+  "lat": "43.8570713",
+  "lon": "18.4126147",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 17,
+  "importance": 0.7080723092439953,
+  "addresstype": "city",
+  "name": "Sarajevo",
+  "display_name": "Sarajevo, Mjesna zajednica Trg oslobođenja-Centar, Centar Municipality, City of Sarajevo, Sarajevo Canton, Federation of Bosnia and Herzegovina, 71000, Bosnia and Herzegovina",
+  "extratags": {
+   "capital": "yes",
+   "website": "https://www.sarajevo.ba",
+   "wikidata": "Q11194",
+   "wikipedia": "bs:Sarajevo",
+   "population": "271194",
+   "linked_place": "city",
+   "population:date": "2013",
+   "capital_ISO3166-1": "yes",
+   "wikimedia_commons": "Category:Sarajevo",
+   "admin_level": "9"
+  },
+  "boundingbox": [
+   "43.8209096",
+   "43.8997400",
+   "18.2609843",
+   "18.4666283"
+  ]
+ }
+]

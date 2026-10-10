@@ -31,7 +31,10 @@
      default) and says how many; pass a larger value when the human wants the
      coast or the suburbs. A cheap stay eight kilometres out is another
      trip: give the distance with every stay, and prefer `max_center_km` or
-     `sort="center"` when the human wants to be in town.
+     `sort="center"` when the human wants to be in town. The result's
+     `center.from` says where the centre was taken from: `openstreetmap` and
+     `wikidata` mark the town's centre; `geonames` is the geocoder's point,
+     which can lie kilometres off it, so say so before a distance bar.
    - Kind: `shared_room` is a bed in a dormitory; `room` a private room, and
      `hotel` one in a hotel (a source that names the house, not the room): the
      `kinds` filters take either for both; `apartment` and `house` the whole

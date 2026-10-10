@@ -12,7 +12,7 @@ from typing import Any, Awaitable, Callable
 from .core.flights import CABINS, FlightQuery
 from .core.ground import MODES, GroundQuery
 from .core.stays import StayQuery
-from .geo import locate
+from .geo import centre, locate
 from .profile import Profile
 from .search import estimate, estimate_flights, search_flights, search_ground, search_stays
 from .serialize import flight_search_json, ground_search_json, stay_search_json
@@ -129,7 +129,7 @@ async def _center(app, query: StayQuery) -> dict | None:
         found = await locate(app.net, query.place)
     except Exception:
         return None
-    return {"center": {"name": found[0].label(), "lat": found[0].lat, "lon": found[0].lon}} if found else None
+    return {"center": await centre(app.net, found[0])} if found else None
 
 
 @dataclass(frozen=True)

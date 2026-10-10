@@ -232,3 +232,22 @@ async def test_shifted_dates_do_not_move_the_stay(app, located, monkeypatch):
     assert any("asked dates only" in line for line in result["not_included"])
     bare = await trip.search_trip(searches, await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22"), "EUR")
     assert bare["stays"] is None and any("pass `checkout`" in line for line in bare["not_included"])
+
+
+async def test_stays_of_a_trip_are_measured_from_the_centre_of_the_place(app, located, monkeypatch):
+    seen = []
+
+    async def middle(net, place):
+        return {"name": place.label(), "lat": 42.4247, "lon": 18.7712, "from": "wikidata"}
+
+    async def stays(query, sources, ctx, rates, currency, **kwargs):
+        seen.append(query.center)
+        return StaySearch(query, currency, [], [])
+
+    monkeypatch.setattr(trip, "centre", middle)
+    plan = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22", "2026-10-23")
+    assert plan.center["from"] == "wikidata"
+    await trip.search_trip(fake_searches(app, stays=stays), plan, "EUR")
+    assert seen == [(42.4247, 18.7712)]
+    one_way = await trip.plan_trip(app, "BEG", "Kotor", "2026-10-22")
+    assert one_way.stays is None and one_way.center is None, "no stay, nothing to measure"

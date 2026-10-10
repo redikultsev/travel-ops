@@ -1,0 +1,49 @@
+{
+ "results": [
+  {
+   "id": 3191281,
+   "name": "Sarajevo",
+   "latitude": 43.84864,
+   "longitude": 18.35644,
+   "elevation": 509.0,
+   "feature_code": "PPLC",
+   "country_code": "BA",
+   "admin1_id": 3229999,
+   "admin2_id": 3343737,
+   "timezone": "Europe/Sarajevo",
+   "population": 696731,
+   "country_id": 3277605,
+   "country": "Bosnia and Herzegovina",
+   "admin1": "Federation of Bosnia and Herzegovina",
+   "admin2": "Sarajevo Canton"
+  },
+  {
+   "id": 6299696,
+   "name": "Sarajevo Airport",
+   "latitude": 43.82458,
+   "longitude": 18.33147,
+   "elevation": 520.0,
+   "feature_code": "AIRP",
+   "country_code": "BA",
+   "admin1_id": 3229999,
+   "timezone": "Europe/Sarajevo",
+   "country_id": 3277605,
+   "country": "Bosnia and Herzegovina",
+   "admin1": "Federation of Bosnia and Herzegovina"
+  },
+  {
+   "id": 11500244,
+   "name": "Sarajevo Rajlovac",
+   "latitude": 43.86967,
+   "longitude": 18.30425,
+   "elevation": 476.0,
+   "feature_code": "AIRH",
+   "country_code": "BA",
+   "admin1_id": 3229999,
+   "timezone": "Europe/Sarajevo",
+   "country_id": 3277605,
+   "country": "Bosnia and Herzegovina",
+   "admin1": "Federation of Bosnia and Herzegovina"
+  }
+ ]
+}

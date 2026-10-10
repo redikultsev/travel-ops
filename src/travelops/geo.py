@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import airportsdata
@@ -14,6 +14,18 @@ import airportsdata
 from .net.client import Net
 
 GEOCODER = "https://geocoding-api.open-meteo.com/v1/search"
+# The geocoder's point for a town is GeoNames', and GeoNames puts some far from what a visitor calls the centre:
+# Sarajevo 6 km west of the old town. OpenStreetMap's place node is put, by its own convention, on the central
+# square or the town hall; Wikidata's coordinate (P625) follows Wikipedia's and is often rounded. So the centre is
+# the place node whose `wikidata` tag is the town's item, else the item's coordinate, else the geocoder's point
+# (docs/geo.md). The item is found by the GeoNames id the geocoder returns (P1566): no name is guessed.
+WIKIDATA = "https://www.wikidata.org/w/api.php"
+# OSMF's Nominatim (https://operations.osmfoundation.org/policies/nominatim/): one request a second at most, an
+# identifying user agent, results cached, attribution. One request per town, kept for a month.
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
+CENTRE_CREDIT = "centre of the place: OpenStreetMap place node via Nominatim; © OpenStreetMap contributors"
+# A point farther than this from the geocoder's belongs to another place, not to a better centre of this one.
+CENTRE_DRIFT_KM = 25
 # FOSSGIS's public OSRM (https://routing.openstreetmap.de/about.html): one request a second at most, a real user
 # agent, attribution. One request per trip, kept for a month, is well inside that.
 ROUTING = "https://routing.openstreetmap.de/routed-car/table/v1/driving/"
@@ -38,6 +50,7 @@ class Place:
     region: str | None
     lat: float
     lon: float
+    geonames_id: int | None = field(default=None, compare=False)  # the geocoder's id, which is GeoNames'
 
     def label(self) -> str:
         """The place as a site's search box reads it: "Istanbul, Türkiye". The geocoder writes some countries in
@@ -130,6 +143,7 @@ def parse_places(payload: dict, country: str | None = None) -> list[Place]:
             r.get("admin1"),
             float(r["latitude"]),
             float(r["longitude"]),
+            r.get("id"),
         )
         for r in payload.get("results") or []
     ]
@@ -176,7 +190,102 @@ def airports_near(lat: float, lon: float, radius_km: float = 100, limit: int = 6
 
 
 def place_json(place: Place) -> dict:
-    return asdict(place)
+    found = asdict(place)
+    del found["geonames_id"]
+    return found
+
+
+def parse_item(payload: dict, place: Place) -> tuple[str, tuple[float, float] | None] | None:
+    """The one Wikidata item with this GeoNames id: its id, and its primary coordinate on Earth when it has one
+    near the place. Several items with one id answer nothing rather than a guess."""
+    pages = (payload.get("query") or {}).get("pages") or []
+    if len(pages) != 1 or not str(pages[0].get("title", "")).startswith("Q"):
+        return None
+    points = [
+        (float(c["lat"]), float(c["lon"]))
+        for c in pages[0].get("coordinates") or []
+        if c.get("primary") and c.get("globe", "earth") == "earth"
+    ]
+    near = [p for p in points if distance_km(place.lat, place.lon, *p) <= CENTRE_DRIFT_KM]
+    return pages[0]["title"], near[0] if len(points) == 1 and near else None
+
+
+def parse_place_node(payload: list, item: str, place: Place) -> tuple[float, float] | None:
+    """The point of OpenStreetMap's place node for this Wikidata item, from Nominatim's answer. A boundary stands
+    for its node only when Nominatim linked one (`linked_place`): else its point is the middle of its area."""
+    for hit in payload if isinstance(payload, list) else []:
+        tags = hit.get("extratags") or {}
+        if tags.get("wikidata") != item or not (hit.get("category") == "place" or tags.get("linked_place")):
+            continue
+        point = (float(hit["lat"]), float(hit["lon"]))
+        if distance_km(place.lat, place.lon, *point) <= CENTRE_DRIFT_KM:
+            return point
+    return None
+
+
+def _answered(response) -> bool:
+    return response.status == 200 and b'"error"' not in response.body[:200]
+
+
+async def centre(net: Net, place: Place) -> dict:
+    """The centre of a place, to measure stays from, and `from` which source: `openstreetmap`, `wikidata`, or
+    `geonames` (the geocoder's own point). Up to two requests, one after the other, each kept for a month; a
+    failure costs only the better point."""
+    here = {"name": place.label(), "lat": place.lat, "lon": place.lon, "from": "geonames"}
+    if place.geonames_id is None:
+        return here
+    month = 30 * 86400
+    try:
+        response = await net.request(
+            "wikidata",
+            "GET",
+            WIKIDATA,
+            params={
+                "action": "query",
+                "generator": "search",
+                "gsrsearch": f"haswbstatement:P1566={place.geonames_id}",
+                "gsrlimit": 2,
+                "prop": "coordinates",
+                "coprimary": "primary",
+                "format": "json",
+                "formatversion": 2,
+            },
+            headers={"user-agent": AGENT},
+            cache_ttl=month,
+            reuse_if=_answered,
+            timeout=15,
+        )
+        found = parse_item(response.json(), place) if _answered(response) else None
+    except Exception:  # the better point is a courtesy: the geocoder's still measures
+        return here
+    if found is None:
+        return here
+    item, point = found
+    if point is not None:
+        here = {**here, "lat": point[0], "lon": point[1], "from": "wikidata"}
+    try:
+        response = await net.request(
+            "nominatim",
+            "GET",
+            NOMINATIM,
+            params={
+                "q": place.name,
+                "countrycodes": place.country_code.lower(),
+                "format": "jsonv2",
+                "limit": 5,
+                "extratags": 1,
+            },
+            headers={"user-agent": AGENT},
+            cache_ttl=month,
+            reuse_if=lambda r: r.status == 200,
+            timeout=15,
+        )
+        node = parse_place_node(response.json(), item, place) if response.status == 200 else None
+    except Exception:
+        return here
+    if node is None:
+        return here
+    return {**here, "lat": node[0], "lon": node[1], "from": "openstreetmap", "credit": CENTRE_CREDIT}
 
 
 async def with_roads(

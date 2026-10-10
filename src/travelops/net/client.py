@@ -92,17 +92,21 @@ class Net:
         timeout: float | None = None,
         blocked_if: Callable[[Response], str | None] | None = None,
         queue: str | None = None,
+        reuse_if: Callable[[Response], bool] | None = None,
     ) -> Response:
         """`queue` names a second line of the same source with its own spacing, for requests that are not
         searches (a protocol handshake). It shares the fate of the source: a source that rests is not asked
-        through any line, and a refusal on any line rests the source."""
+        through any line, and a refusal on any line rests the source. `reuse_if` tells a cached answer worth
+        serving from one that is asked again: an error kept for a month would cost the month."""
         key = RawCache.key(method, url, params, json if json is not None else data)
         if self.offline:
             if hit := self.cache.get(key, float("inf")):
                 return Response(hit.status, hit.body, {}, hit.url)
             raise Offline(f"the replay holds no answer for {method} {url}")
         if cache_ttl and (hit := self.cache.get(key, cache_ttl)):
-            return Response(hit.status, hit.body, {}, hit.url)
+            cached = Response(hit.status, hit.body, {}, hit.url)
+            if reuse_if is None or reuse_if(cached):
+                return cached
         main = Limiter.bucket(source, self.exit)
         bucket = Limiter.bucket(f"{source}/{queue}", self.exit) if queue else main
         if queue and (until := self.limiter.state(main).quarantined_until) > self.limiter.clock():

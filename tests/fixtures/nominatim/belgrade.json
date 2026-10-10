@@ -1,0 +1,126 @@
+[
+ {
+  "place_id": 64447993,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 2728438,
+  "lat": "44.8153318",
+  "lon": "20.4456588",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 25,
+  "importance": 0.7770053607401712,
+  "addresstype": "city",
+  "name": "Belgrade",
+  "display_name": "Belgrade, City of Belgrade, Central Serbia, Serbia",
+  "extratags": {
+   "place": "city",
+   "wikidata": "Q3711",
+   "wikipedia": "sr:Београд",
+   "population": "1197714",
+   "description": "granica gradskog naselja Beograd sastavljenog od naselja Beograd (dio) / settlement of Belgrade assembled from official boundaries of Belgrade's urban settlements",
+   "population:date": "2022-09-30"
+  },
+  "boundingbox": [
+   "44.6880459",
+   "44.9426876",
+   "20.2213764",
+   "20.6232109"
+  ]
+ },
+ {
+  "place_id": 64700348,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "node",
+  "osm_id": 60571493,
+  "lat": "44.8178131",
+  "lon": "20.4568974",
+  "category": "place",
+  "type": "city",
+  "place_rank": 15,
+  "importance": 0.7770053607401712,
+  "addresstype": "city",
+  "name": "Belgrade",
+  "display_name": "Belgrade, Stari Grad Urban Municipality, City of Belgrade, Central Serbia, 11000, Serbia",
+  "extratags": {
+   "ele": "131",
+   "capital": "yes",
+   "wikidata": "Q3711",
+   "wikipedia": "sr:Београд",
+   "population": "1197714",
+   "ref:LOCODE": "RSBEG",
+   "population:date": "2022-09-30"
+  },
+  "boundingbox": [
+   "44.6578131",
+   "44.9778131",
+   "20.2968974",
+   "20.6168974"
+  ]
+ },
+ {
+  "place_id": 63995484,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 13022323,
+  "lat": "44.6802421",
+  "lon": "20.3817560",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 14,
+  "importance": 0.5146665741906222,
+  "addresstype": "administrative",
+  "name": "City of Belgrade",
+  "display_name": "City of Belgrade, Central Serbia, Serbia",
+  "extratags": {
+   "website": "https://www.beograd.rs",
+   "wikidata": "Q2074197",
+   "wikipedia": "sr:Град Београд",
+   "population": "1681405",
+   "description": "granica Grada Beograda / Boundary of the City of Belgrade",
+   "ref:RS:grad": "79014",
+   "population:date": "2022",
+   "population:census:2022": "1681405",
+   "admin_level": "7"
+  },
+  "boundingbox": [
+   "44.2628051",
+   "45.0968954",
+   "19.9753320",
+   "20.8538024"
+  ]
+ },
+ {
+  "place_id": 64223105,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 1677007,
+  "lat": "44.6802421",
+  "lon": "20.3817560",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 12,
+  "importance": 0.5146665741906222,
+  "addresstype": "county",
+  "name": "City of Belgrade",
+  "display_name": "City of Belgrade, Central Serbia, Serbia",
+  "extratags": {
+   "website": "https://www.beograd.rs",
+   "wikidata": "Q2074197",
+   "wikipedia": "sr:Град Београд",
+   "population": "1681405",
+   "ref:nuts:3": "RS110",
+   "description": "granica Grada Beograda kao okruga / boundary of the City of Belgrade as a district",
+   "ref:RS:okrug": "00",
+   "population:date": "2022",
+   "population:census:2022": "1681405",
+   "admin_level": "6"
+  },
+  "boundingbox": [
+   "44.2628051",
+   "45.0968954",
+   "19.9753320",
+   "20.8538024"
+  ]
+ }
+]

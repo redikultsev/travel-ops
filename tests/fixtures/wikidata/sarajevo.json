@@ -1,0 +1,21 @@
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 12684,
+    "ns": 0,
+    "title": "Q11194",
+    "index": 1,
+    "coordinates": [
+     {
+      "lat": 43.85638889,
+      "lon": 18.41305556,
+      "primary": true,
+      "globe": "earth"
+     }
+    ]
+   }
+  ]
+ }
+}

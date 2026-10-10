@@ -11,7 +11,7 @@ from .app import App
 from .combine import separate_tickets
 from .core.flights import FlightQuery
 from .core.stays import StayQuery
-from .geo import Place, airports_near, locate, place_json, with_roads
+from .geo import Place, airports_near, centre, locate, place_json, with_roads
 from .kinds import flight_query, stay_query
 from .searches import Searches
 
@@ -25,6 +25,7 @@ class TripPlan:
     stays: StayQuery | None  # None when no night is asked for: a way there with no date to leave
     one_ways: tuple[FlightQuery, FlightQuery] | None = None  # out and back, when separate tickets are compared
     roads: str = ""  # where the road distances come from, or why there are none
+    center: dict | None = None  # where stays are measured from (`geo.centre`); the place's own point when unset
 
     def flight_queries(self) -> list[FlightQuery]:
         return [self.flights, *(self.one_ways or ())]
@@ -86,7 +87,10 @@ async def plan_trip(
             stay_adults if stay_adults is not None else grown,
             children_ages,
         )
-    return TripPlan(here, candidates[1:4], reach, flights, stays, flights.one_ways() if separate else None, roads)
+    middle = await centre(app.net, here) if stays else None
+    return TripPlan(
+        here, candidates[1:4], reach, flights, stays, flights.one_ways() if separate else None, roads, middle
+    )
 
 
 async def search_trip(
@@ -104,7 +108,7 @@ async def search_trip(
     as a whole, so neither part asks again."""
     flights = searches.run("flights", plan.flight_queries(), currency=currency, refresh=refresh, confirm=True)
     if plan.stays:
-        center = {"name": plan.place.label(), "lat": plan.place.lat, "lon": plan.place.lon}
+        center = plan.center or {"name": plan.place.label(), "lat": plan.place.lat, "lon": plan.place.lon}
         stays = searches.run(
             "stays", [plan.stays], currency=currency, refresh=refresh, confirm=True, context={"center": center}
         )

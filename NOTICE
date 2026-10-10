@@ -9,6 +9,9 @@ travel-ops includes ideas and code adapted from these MIT-licensed projects:
 Each adapted file names its origin in a header comment.
 Currency rates by https://www.exchangerate-api.com (open access endpoint).
 Which airports have scheduled flights: OurAirports, https://ourairports.com/data/ (public domain).
+Places: Open-Meteo's geocoding API, https://open-meteo.com, on GeoNames data, https://www.geonames.org (CC BY 4.0).
+The centre of a place: Wikidata, https://www.wikidata.org (CC0), and OpenStreetMap place nodes via Nominatim,
+https://nominatim.openstreetmap.org, © OpenStreetMap contributors (ODbL 1.0, https://www.openstreetmap.org/copyright).
 
 Third-party copyright notices:
 

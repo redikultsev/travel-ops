@@ -1,0 +1,66 @@
+[
+ {
+  "place_id": 60160394,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "node",
+  "osm_id": 1882099475,
+  "lat": "41.0063810",
+  "lon": "28.9758715",
+  "category": "place",
+  "type": "city",
+  "place_rank": 16,
+  "importance": 0.7828175079468411,
+  "addresstype": "city",
+  "name": "Istanbul",
+  "display_name": "Istanbul, Fatih, Istanbul, Marmara Region, 34122, Turkey",
+  "extratags": {
+   "capital": "4",
+   "website": "https://istanbul.gov.tr/",
+   "wikidata": "Q406",
+   "wikipedia": "tr:İstanbul",
+   "population": "15701602",
+   "population:date": "2025",
+   "wikimedia_commons": "Category:Istanbul"
+  },
+  "boundingbox": [
+   "40.8463810",
+   "41.1663810",
+   "28.8158715",
+   "29.1358715"
+  ]
+ },
+ {
+  "place_id": 60256076,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 223474,
+  "lat": "41.0707456",
+  "lon": "29.0509414",
+  "category": "boundary",
+  "type": "administrative",
+  "place_rank": 8,
+  "importance": 0.603835278568622,
+  "addresstype": "province",
+  "name": "Istanbul",
+  "display_name": "Istanbul, Marmara Region, Turkey",
+  "extratags": {
+   "network": "TR-provinces",
+   "ref:nuts": "TR100",
+   "wikidata": "Q534799",
+   "wikipedia": "tr:İstanbul (il)",
+   "population": "15701602",
+   "ref:nuts:3": "TR100",
+   "linked_place": "province",
+   "name:tr:suffix": "Büyükşehir Belediyesi",
+   "population:date": "2024-12-31",
+   "wikimedia_commons": "Category:Istanbul Province",
+   "admin_level": "4"
+  },
+  "boundingbox": [
+   "40.7376735",
+   "41.6710000",
+   "27.9708481",
+   "29.9588048"
+  ]
+ }
+]

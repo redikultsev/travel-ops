@@ -20,8 +20,8 @@ Chrome impersonation. No browser session, credentials, or detail requests.
 configured rather than pretending that one listing provides multiple rooms.
 
 The name alone is read through a map search that can land on a namesake: on 2026-10-08 "Istanbul, Turkey" became
-a street in Zonguldak, 240 km away, and "Shanghai, China" Vancouver. When the geocoder knows the place's centre,
-the search sends the map's box as well: `ne_lat`, `ne_lng`, `sw_lat`, `sw_lng` 15 km each way,
+a street in Zonguldak, 240 km away, and "Shanghai, China" Vancouver. When the place's centre is known
+([docs/geo.md](../geo.md)), the search sends the map's box as well: `ne_lat`, `ne_lng`, `sw_lat`, `sw_lng` 15 km each way,
 `search_by_map=true`, `search_type=user_map_move`, `zoom=11`. Istanbul then gave 45 listings in the city and 15
 page cursors.
 

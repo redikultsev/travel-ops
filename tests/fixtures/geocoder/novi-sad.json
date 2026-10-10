@@ -1,0 +1,39 @@
+{
+ "results": [
+  {
+   "id": 3194360,
+   "name": "Novi Sad",
+   "latitude": 45.25167,
+   "longitude": 19.83694,
+   "elevation": 79.0,
+   "feature_code": "PPLA",
+   "country_code": "RS",
+   "admin1_id": 784272,
+   "admin2_id": 7581796,
+   "admin3_id": 3194359,
+   "timezone": "Europe/Belgrade",
+   "population": 215400,
+   "country_id": 6290252,
+   "country": "Serbia",
+   "admin1": "Vojvodina",
+   "admin2": "South Bačka",
+   "admin3": "Opština Novi Sad"
+  },
+  {
+   "id": 703749,
+   "name": "Novi Sadky",
+   "latitude": 47.93952,
+   "longitude": 33.6455,
+   "elevation": 87.0,
+   "feature_code": "PPL",
+   "country_code": "UA",
+   "admin1_id": 709929,
+   "admin2_id": 704025,
+   "timezone": "Europe/Kyiv",
+   "country_id": 690791,
+   "country": "Ukraine",
+   "admin1": "Dnipropetrovsk Oblast",
+   "admin2": "Kryvyi Rih Raion"
+  }
+ ]
+}
