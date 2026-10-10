@@ -24,16 +24,19 @@ properties). A search therefore walks up the price: with `order=price` and `nflt
 (nightly, EUR), each page asks for the cheapest at or above a little under the last card's night of the page
 before (98%: the filter may round; a property seen twice is merged). The last card, not the dearest: Booking's
 order is not strictly by the price it shows (a card at 439 EUR stood among ones up to 403 under a 45-a-night
-filter, 2026-10-10). It stops when a page has fewer than 25 cards, when Booking counts 25 or fewer for the
-filters, or after ten pages. `<high>` is 10000 when no ceiling is asked.
+filter, 2026-10-10). It stops when Booking counts no more for the
+filters, or after ten pages: a page is full when it shows fewer than Booking counts, whatever its size. `<high>`
+is 10000 when no ceiling is asked.
 
-**Under a ceiling, everything.** With `max_total` the walk is not used: it lost 8 of 75 properties under 400 EUR
-in Belgrade (13–22 October, 2026-10-10), the loose order leaving some between pages. Instead the night's price
-from 0 to the ceiling is cut into bands Booking counts one page (25) or fewer for, and
-every band is read whole against its own count; a band counted above a page is cut into equal parts of
-about 20 each (halving took more than eleven pages for 75). Bands meet at their edges; a property on one is merged. The
-first band's count is the total under the ceiling, and the result's `coverage` sets the properties read against
-it: complete only when every band was read whole, within 20 pages.
+**Under a ceiling.** With `max_total` the walk goes on to its end (up to 20 pages), and the result's `coverage`
+sets the properties read whose price passes the ceiling against Booking's count for the filters. A page also
+shows properties outside its filter (a card at 439 EUR under 45 a night), so only those under the ceiling count.
+Belgrade, 13–22 October, two adults, rating 8+, under 400 EUR (2026-10-10): 67 read of 75 counted, four pages;
+not complete, and said so. A proof of completeness was tried and did not hold: the price cut into bands, each
+read whole against its own count, met pages of 25, 20 or 15 cards for the same search, cards outside the band
+(112 different properties where Booking counted 75), and an order loose enough that a first page started at 27
+EUR a night with 21 to be found later. Twenty pages in fourteen minutes still fell short. Booking gives no
+complete list under a ceiling at our pace; the gap is stated instead.
 
 Each page says how many properties pass its filters ("604 properties found"); the first page's count is the
 total for the search, so the result says how many of them were seen and that the rest are dearer. A

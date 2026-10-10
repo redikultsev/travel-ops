@@ -67,10 +67,10 @@ async def test_a_ceiling_and_a_short_list_take_one_page():
     assert coverage.complete and (coverage.read, coverage.counted, coverage.ceiling_eur) == (10, 10, 120.8)
 
 
-async def test_under_a_ceiling_every_band_is_read_whole_against_its_count():
+async def test_under_a_ceiling_the_walk_goes_to_its_end_and_is_set_against_the_count():
     import re
 
-    nights = list(range(10, 70))  # 60 properties, one a night's price each, shuffled within a page as Booking does
+    nights = list(range(10, 70))  # 60 properties, one a night's price each
 
     class Net:
         calls = []
@@ -79,8 +79,8 @@ async def test_under_a_ceiling_every_band_is_read_whole_against_its_count():
             self.calls.append(kw["params"]["nflt"])
             low, high = map(int, re.search(r"price=EUR-(\d+)-(\d+)", kw["params"]["nflt"]).groups())
             inside = [p for p in nights if low <= p <= high]
-            shown = sorted(inside)[:25]
-            return Response(200, walk_page(shown[::-1], len(inside)))
+            shown = sorted(inside)[:20]  # a page of twenty
+            return Response(200, walk_page(shown, len(inside)))
 
     query = replace(QUERY, max_night_eur=500.0)
     source = Source()
@@ -92,7 +92,7 @@ async def test_under_a_ceiling_every_band_is_read_whole_against_its_count():
     assert Source().parse(raws, QUERY, NOW).coverage.ceiling_eur is None, "no ceiling, no claim"
 
 
-async def test_a_band_that_cannot_be_read_whole_is_not_complete():
+async def test_a_walk_that_never_reaches_its_end_is_not_complete():
     class Net:
         calls = []
 
@@ -291,3 +291,25 @@ def test_a_property_unavailable_at_the_dates_is_left_out_not_an_error():
     parsed = Source().parse([page.replace(b"</body>", sold + b"</body>", 1)], QUERY, NOW)
     assert len(parsed.offers) == len(whole.offers) > 0
     assert "1 properties shown as unavailable at these dates left out" in parsed.notes
+
+
+async def test_a_page_of_twenty_is_full_when_booking_counts_more():
+    pages = iter([walk_page(range(10, 30), 50), walk_page(range(29, 49), 31), walk_page(range(49, 60), 11)])
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"]["nflt"])
+            return Response(200, next(pages))
+
+    raws = await Source().fetch(QUERY, Context(Net(), Browser(), lambda: NOW))
+    assert len(raws) == 3, "twenty cards of fifty counted is not the last page"
+
+
+def test_a_card_outside_the_ceiling_is_not_counted_as_read():
+    source = Source()
+    source.asked, source.walked = True, True
+    query = replace(QUERY, max_night_eur=30.0)
+    coverage = source.parse([walk_page([20, 25, 48], 2)], query, NOW).coverage
+    assert (coverage.read, coverage.counted, coverage.complete) == (2, 2, True), "48 a night is above 30"

@@ -17,9 +17,11 @@ AUTOCOMPLETE = "https://accommodations.booking.com/autocomplete.json"
 # each page asks for the cheapest above the dearest of the page before. PAGES is how far one search goes.
 PAGES = 10
 # With a ceiling asked the walk goes on to its end, the last page under the ceiling, and what it read is set
-# against Booking's own count for the filters.
+# against Booking's own count for the filters: properties whose price passes the ceiling only.
 SWEEP_PAGES = 20
-PER_PAGE = 25
+# Cards a page holds is Booking's to choose: 25 on 2026-10-08, 20 and 15 on 2026-10-10 for the same search. A
+# page is taken as full when it shows fewer than Booking counts, whatever its size.
+CARD = b'data-testid="property-card"'
 CEILING = 10000  # EUR a night: the top of a price filter with no maximum asked
 SCORES = (90, 80, 70, 60)  # Booking's review-score filter steps
 
@@ -28,15 +30,6 @@ def found_count(body: bytes) -> int | None:
     """How many properties Booking counts for the page's filters: "604 properties found"."""
     match = re.search(rb"([\d,]+) propert(?:y|ies) found", body)
     return int(match[1].replace(b",", b"")) if match else None
-
-
-def split(low: int, top: int, count: int) -> list[tuple[int, int]]:
-    """A band Booking counts more than a page for, cut into equal parts of about 20 each, as if spread evenly:
-    halving took more than eleven pages for 75 properties, past the source's budget (2026-10-10). The parts meet at
-    their edges."""
-    parts = max(2, math.ceil(count / 20))
-    edges = sorted({low + round((top - low) * i / parts) for i in range(parts + 1)})
-    return list(zip(edges, edges[1:]))
 
 
 def filters(query, low: int, high: int) -> str:
@@ -181,10 +174,7 @@ class Source:
             return response.body
 
         try:
-            if self.asked:
-                await self._bands(query, ctx, page, high)
-            else:
-                await self._walk(query, ctx, page, high)
+            await self._walk(query, ctx, page, high)
         except Blocked:
             ctx.browser.drop(self.name)
             raise
@@ -197,11 +187,15 @@ class Source:
         return raws
 
     async def _walk(self, query, ctx, page, high):
-        """With no ceiling: up the price, page by page, as far as PAGES go."""
+        """Up the price, page by page: as far as PAGES go, or with a ceiling to its end. Cutting the price into
+        bands read whole against their counts was tried for a proof of completeness and did not hold: pages of
+        25, 20 or 15 cards, cards outside the filter (112 different properties where Booking counted 75), and 20
+        pages in 14 minutes left it short (Belgrade under 400 EUR, 2026-10-10). The walk reads 67 of those 75 in
+        four pages and says so."""
         from ..base import ParseError
 
         low = 0
-        for _ in range(PAGES):
+        for _ in range(SWEEP_PAGES if self.asked else PAGES):
             body = await page(low, high)
             if body is None:
                 return
@@ -210,7 +204,8 @@ class Source:
             except ParseError:
                 return  # not a results page: parse says so, and the walk cannot go on from it
             count = found_count(body)
-            if len(found) < PER_PAGE or count is None or count <= PER_PAGE:
+            if count is None or count <= body.count(CARD):
+                self.walked = count is not None
                 return  # this was the last page of what passes the filters
             # A little below the last card's night: the filter may round, and a property seen twice is merged.
             # The last, not the dearest: Booking's order is not strictly by the price it shows (a card at 439 EUR
@@ -219,37 +214,6 @@ class Source:
             low = max(low + 1, math.floor(float(top) * 0.98))
             if low >= high:
                 return
-
-    async def _bands(self, query, ctx, page, high):
-        """Under a ceiling, everything: bands of the night's price, each one Booking shows whole on one page,
-        cut while it counts more. Walking up from the last card lost 8 of 75 under 400 EUR in Belgrade,
-        Booking's order not being strictly by price (2026-10-10); a band read whole against its own count does
-        not. Bands meet at their edges, so a property on one is seen twice and merged."""
-        bands, left, whole = [(0, high)], SWEEP_PAGES, True
-        while bands:
-            low, top = bands.pop(0)
-            if left <= 0:
-                whole = False
-                break
-            body = await page(low, top)
-            left -= 1
-            if body is None:
-                whole = False
-                break
-            count = found_count(body)
-            if count is None:
-                whole = False  # not a results page: what this band holds is not known
-                continue
-            if count > PER_PAGE:
-                parts = split(low, top, count)
-                if len(parts) > 1:
-                    bands[:0] = parts
-                    continue
-                whole = False  # a single euro holds more than a page: the rest of it is not reached
-                continue
-            if body.count(b'data-testid="property-card"') < count:
-                whole = False
-        self.walked = whole
 
     def parse(self, raws, query, seen_at):
         import re
@@ -398,7 +362,10 @@ class Source:
             notes.append(f"{unavailable} properties shown as unavailable at these dates left out")
         counted = found_count(real[0]) if real else None
         ceiling = query.max_night_eur * query.nights if self.asked and query.max_night_eur else None
-        read = len(unique) + unavailable
+        # A page also shows properties outside its filter (a card at 439 EUR under 45 a night): only those under the
+        # ceiling, to the euro a night the filter goes by, are what Booking counted.
+        cap = math.ceil(query.max_night_eur) * query.nights if ceiling else None
+        read = sum(1 for o in unique.values() if cap is None or o.rate.total.amount <= cap)
         coverage = Coverage(
             read,
             counted if ceiling else None,

@@ -9,12 +9,13 @@
    then read deeper into what passes them. Booking walks up the price page by
    page and says how many of the properties it counts were seen; trivago is
    asked once per star class, Google Hotels once by price and once per hotel class; Airbnb and Trip.com read
-   several pages. With `max_total`, Booking and Airbnb read everything they have
-   under it and say so in each source's `coverage`: "Airbnb: complete, 231 read
-   of 231 it counts". Say it in the answer, source by source. A source not
-   complete, or a search without `max_total`, means the cheapest shown may not be
-   the cheapest there is: say that too, and offer a ceiling. trivago, Google
-   Hotels and Trip.com give no count to check against. Choose
+   several pages. With `max_total` each of Airbnb and Booking sets what it read
+   against the site's own count under it, in its `coverage`: Airbnb reads
+   everything ("complete, 203 read of 203"); Booking walks to the end and says
+   its gap ("67 read of 75"). Say it in the answer, source by source. A source
+   not complete, or a search without `max_total`, means the cheapest shown may
+   not be the cheapest there is: say that too, and offer a ceiling. trivago,
+   Google Hotels and Trip.com give no count to check against. Choose
    from the detailed cards and the `rest` rows together. The
    engine applies the profile's `min_rating` itself and says in `filtered` what it
    hid: stays below the bar, and separately stays with no rating at all.
