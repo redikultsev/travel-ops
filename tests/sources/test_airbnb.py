@@ -23,7 +23,7 @@ async def test_ssr_pages_follow_the_cursors_without_a_browser():
 
     net = Net()
     raws = await Source().fetch(QUERY, Context(net, None, lambda: NOW))
-    assert len(raws) == len(net.calls) == 3 and Source().max_requests(QUERY) == 6
+    assert len(raws) == len(net.calls) == 3 and Source().max_requests(QUERY) == 8
     args, kw = net.calls[0]
     assert args[1] == "GET" and args[2] == "https://www.airbnb.com/s/Belgrade/homes" and "cursor" not in kw["params"]
     assert kw["params"]["checkin"] == "2026-11-14" and kw["params"]["adults"] == 2
@@ -210,3 +210,53 @@ def test_one_card_with_a_nightly_rate_only_is_left_out_not_the_answer():
     parsed = Source().parse([raw], QUERY, NOW)
     assert len(parsed.offers) == whole - 1
     assert "1 listings showed a nightly rate only and were left out" in parsed.notes
+
+
+async def test_the_pages_after_the_first_are_read_under_the_cheapest_quarter():
+    from dataclasses import replace
+
+    from travelops.sources.stays import airbnb
+
+    first = recorded()
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"])
+            return Response(200, first)
+
+    net = Net()
+    source = Source()
+    raws = await source.fetch(QUERY, Context(net, None, lambda: NOW))
+    totals = sorted(float(o.rate.total.amount) for o in Source().parse([first], QUERY, NOW).offers)
+    assert "price_max" not in net.calls[0], "the first page as Airbnb ranks it"
+    assert net.calls[1]["price_max"] == airbnb.band(totals) and net.calls[1]["price_filter_input_type"] == 2
+    assert all(c["price_max"] == net.calls[1]["price_max"] for c in net.calls[1:]) and len(raws) == len(net.calls)
+    assert len(net.calls) <= airbnb.PAGES
+    assert "cheapest quarter" in source.parse(raws, QUERY, NOW).notes[0]
+    asked = replace(QUERY, max_night_eur=40.0)
+    net.calls = []
+    await Source().fetch(asked, Context(net, None, lambda: NOW))
+    assert {c["price_max"] for c in net.calls} == {80}, "the asked ceiling, two nights, on every page"
+
+
+async def test_a_ceiling_with_more_listings_than_pages_left_is_lowered_once():
+    from travelops.sources.stays import airbnb
+
+    first = recorded()
+    crowded = first + b'"searchButtonText":"Show 500 places"'
+
+    class Net:
+        calls = []
+
+        async def request(self, *args, **kw):
+            self.calls.append(kw["params"])
+            return Response(200, crowded if "price_max" in kw["params"] else first)
+
+    net = Net()
+    await Source().fetch(QUERY, Context(net, None, lambda: NOW))
+    caps = [c.get("price_max") for c in net.calls]
+    assert caps[0] is None and caps[2] < caps[1], "lowered after the count"
+    assert set(caps[3:]) <= {caps[2]} and len(net.calls) <= airbnb.PAGES
+    assert airbnb.places(b'"searchButtonText":"Show 1,000+ places"') == 1000

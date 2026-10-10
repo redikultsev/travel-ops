@@ -87,8 +87,20 @@ quoted prices are preserved, with the fixture scrubber applied again to JSON.
 
 - A results page holds 18 listings. Its `paginationInfo.pageCursors` (base64 of `section_offset` and
   `items_offset`) lead to the next pages with `cursor=<cursor>` on the same URL: the second cursor gave 17 new
-  listings for Shanghai. A search reads up to six pages. The page says "1,000+ places", not an exact total.
-- With `price_max` and `room_types[]` added, the page came back without listings: filters are not passed.
+  listings for Shanghai. A search reads up to eight pages. The page says "1,000+ places", not an exact total.
+- With `price_max` and `room_types[]` added, the page came back without listings (2026-10-08). `price_max` alone,
+  with `price_filter_input_type=2` and `price_filter_num_nights`, is a ceiling for the whole stay and works
+  (2026-10-10); the button then counts the places under it ("Show 213 places").
+
+## The cheap pages (2026-10-10)
+
+Airbnb has no order by price: six pages as it ranks them missed a Dorćol house at 316 EUR for nine nights in
+Belgrade, among more than a thousand places. The first page is read as Airbnb ranks it; the others under a
+ceiling, the cheapest quarter of the first page's totals. When Airbnb counts more places under it than the pages
+left can read, the ceiling is lowered toward the cheapest total seen by the square root of the share that fits
+(counts grew with the square of the ceiling's height: 75, 147, 213 places under 320, 372, 411 EUR), at most
+twice. The same Belgrade search then read 105 listings, the cheapest from 168 EUR, the house among them. A
+ceiling the human asks for (`max_total`) is used on every page instead.
 - From 28 nights a card shows a monthly price (`displayPriceStyle: MONTHLY`, "€5,075 monthly", "Average monthly
   price"), not the stay's total, and the listing page's own HTML carries no price. Such cards are left out and
   counted: a month in Shanghai found no Airbnb total to quote.

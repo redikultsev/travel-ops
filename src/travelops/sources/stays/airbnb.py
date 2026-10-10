@@ -5,6 +5,7 @@ Copyright (c) 2026 Suzzzzik, https://github.com/Suzzzzik/fare-scraper/blob/main/
 Copyright (c) 2024 John, https://github.com/johnbalvin/pyairbnb/blob/main/src/pyairbnb/standardize.py
 """
 
+import math
 from urllib.parse import quote
 from ..base import NotConfigured
 
@@ -17,12 +18,41 @@ def challenge(response):
 
 
 # A results page holds 18 listings; its `paginationInfo.pageCursors` lead to the next ones (`cursor=`, verified
-# 2026-10-08). PAGES is how far one search goes.
-PAGES = 6
+# 2026-10-08). PAGES is how far one search goes: eight, for the cheap pages below.
+PAGES = 8
+LOWERINGS = 2
 # Airbnb reads a place's name through a map search that can land on a street of that name in another town
 # ("Istanbul, Turkey" became a street in Zonguldak, "Shanghai, China" Vancouver; 2026-10-08). With the place's
 # centre known, the search names the map's box instead: BOX_KM each way from it (verified 2026-10-08).
 BOX_KM = 15
+# Airbnb ranks its own way and has no order by price: of "1,000+" Belgrade listings six pages read 108, and a
+# Dorćol flat at 316 EUR for nine nights was not among them. The pages after the first are read under a ceiling
+# for the whole stay (`price_max` with `price_filter_input_type` 2): the asked one, or else the cheapest quarter
+# of the first page's totals, lowered once when Airbnb counts more under it than the pages left can read: under
+# 411 EUR it counted 213 for those nine nights, under 320 EUR 75, the flat among them (2026-10-10).
+CHEAP_SHARE = 0.25
+
+
+def band(totals: list[float]) -> int | None:
+    """The ceiling for the cheap pages: a quarter of the first page's totals are under it."""
+    if len(totals) < 4:
+        return None
+    ordered = sorted(totals)
+    return int(ordered[int(len(ordered) * CHEAP_SHARE)]) + 1
+
+
+def places(body: bytes) -> int | None:
+    """How many listings Airbnb counts for the search, from its button ("Show 213 places", "Show 1,000+ places")."""
+    import re
+
+    found = re.search(rb'"searchButtonText":"Show ([\d,]+)\+? places?"', body)
+    return int(found[1].replace(b",", b"")) if found else None
+
+
+def price_params(query, ceiling: int | None) -> dict:
+    if ceiling is None:
+        return {}
+    return {"price_filter_input_type": 2, "price_filter_num_nights": query.nights, "price_max": ceiling}
 
 
 def box(lat: float, lon: float, km: float = BOX_KM) -> dict:
@@ -57,14 +87,53 @@ class Source:
     def max_requests(self, query):
         return PAGES
 
+    ceiling: int | None = None  # what the pages after the first were read under, for the notes
+    asked: bool = False
+
     async def fetch(self, query, ctx):
         if query.rooms != 1:
             raise NotConfigured("Airbnb SSR searches do not represent multiple rooms")
-        first = await self._page(query, ctx, None)
-        raws = [first]
-        for cursor in cursors_of(first)[1:PAGES]:
+        asked = int(query.max_night_eur * query.nights) if query.max_night_eur else None
+        first = await self._page(query, ctx, None, asked)
+        raws, pages = [first], cursors_of(first)[1:PAGES]
+        self.ceiling, self.asked = asked, asked is not None
+        if asked is None:
             try:
-                raws.append(await self._page(query, ctx, cursor))
+                totals = [
+                    float(o.rate.total.amount)
+                    for o in self.parse([first], query, ctx.now()).offers
+                    if o.rate.total.currency == "EUR"
+                ]
+            except Exception:  # a first page not understood is reported by parse, not here
+                totals = []
+            if (cheap := band(totals)) is not None:
+                asked_pages = 1
+                try:
+                    under = await self._page(query, ctx, None, cheap)
+                    # More listings under it than the pages left can read: lowered toward the cheapest total
+                    # seen, by the square root of the share that fits (counts grew with the square of the
+                    # ceiling's height above the cheapest: 75, 147, 213 under 320, 372, 411 EUR), at most twice.
+                    while asked_pages <= LOWERINGS:
+                        count, room = places(under), 18 * (PAGES - 1 - asked_pages)
+                        if not count or count <= room:
+                            break
+                        lower = int(min(totals) + (cheap - min(totals)) * math.sqrt(room / count))
+                        if not min(totals) < lower < cheap:
+                            break
+                        cheap, asked_pages = lower, asked_pages + 1
+                        under = await self._page(query, ctx, None, cheap)
+                except Exception as exc:
+                    from ...net.client import Blocked
+
+                    if isinstance(exc, Blocked):
+                        raise
+                    return raws
+                self.ceiling = cheap
+                raws.append(under)
+                pages = cursors_of(under)[1 : PAGES - asked_pages]
+        for cursor in pages:
+            try:
+                raws.append(await self._page(query, ctx, cursor, self.ceiling))
             except Exception as exc:  # a later page lost costs its listings, not the search
                 from ...net.client import Blocked
 
@@ -73,13 +142,14 @@ class Source:
                 break
         return raws
 
-    async def _page(self, query, ctx, cursor):
+    async def _page(self, query, ctx, cursor, ceiling=None):
         response = await ctx.net.request(
             self.name,
             "GET",
             "https://www.airbnb.com/s/" + quote(query.place, safe="") + "/homes",
             params={**({"cursor": cursor} if cursor else {}),
                 **(box(*query.center) if query.center else {}),
+                **price_params(query, ceiling),
                 "checkin": query.checkin.isoformat(),
                 "checkout": query.checkout.isoformat(),
                 "adults": query.adults,
@@ -264,6 +334,13 @@ class Source:
         coverage = f"{len(offers)} listings from {len(raws)} pages of 18; " + (
             f"total {total_count}" if total_count is not None else "Airbnb gives no exact total"
         )
+        if self.ceiling is not None and len(raws) > 1:
+            coverage += (
+                f"; under {self.ceiling} EUR for the stay, as asked"
+                if self.asked
+                else f"; the first page as Airbnb ranks it, the others under {self.ceiling} EUR for the stay (the "
+                "cheapest quarter of the first page): Airbnb has no order by price"
+            )
         return Parsed(
             list(offers.values()),
             [
